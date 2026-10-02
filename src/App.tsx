@@ -12,6 +12,7 @@ import { TabProfilPekerja } from './components/tabs/TabProfilPekerja';
 import { TabCalonPekerja } from './components/tabs/TabCalonPekerja';
 import { TabDashboard } from './components/tabs/TabDashboard';
 import { TabHakAkses } from './components/tabs/TabHakAkses';
+import { RoleSimulatorBar } from './components/common/RoleSimulatorBar';
 
 import { SuratIjinModal } from './components/modals/SuratIjinModal';
 import { HelpModal } from './components/modals/HelpModal';
@@ -468,8 +469,24 @@ export default function App() {
           onLogout={handleLogout}
         />
 
+        {/* Role Simulator Bar for Developer, PM & Site Engineer */}
+        <div className="mt-16">
+          <RoleSimulatorBar
+            currentUser={currentUser}
+            pekerjaList={pekerjaList}
+            onSwitchUser={(newUser) => {
+              setCurrentUser(newUser);
+              if (newUser.role === 'Pekerja Harian') {
+                setActiveTab('slip');
+              } else if (!newUser.allowedTabs.includes(activeTab)) {
+                setActiveTab(newUser.allowedTabs[0] || 'dashboard');
+              }
+            }}
+          />
+        </div>
+
         {/* Tab Panel Viewports */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 mt-16 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           
           {activeTab === 'dashboard' && (
             <TabDashboard

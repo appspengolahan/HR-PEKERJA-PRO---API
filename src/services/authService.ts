@@ -2,6 +2,8 @@ import { MainTabType, PekerjaData } from '../types';
 
 export type UserAccessRole = 
   | 'Super Admin' 
+  | 'Project Manager'
+  | 'Site Engineer'
   | 'HR Admin' 
   | 'Manajer Operasional' 
   | 'Foreman / Mandor' 
@@ -15,6 +17,8 @@ export interface AuthUser {
   scope: string; // 'ALL' or 'Proses Cengkeh' etc.
   allowedTabs: MainTabType[];
   workerRecord?: PekerjaData;
+  isSimulated?: boolean;
+  originalUser?: AuthUser;
 }
 
 export interface InternalAccount {
@@ -35,6 +39,22 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     role: 'Super Admin',
     scope: 'ALL',
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
+  },
+  {
+    email: 'pm@batukarang.com',
+    password: 'pm123',
+    nama: 'Project Manager (Monitoring Lapangan)',
+    role: 'Project Manager',
+    scope: 'ALL',
+    allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
+  },
+  {
+    email: 'engineer@batukarang.com',
+    password: 'engineer123',
+    nama: 'Site Engineer PP1',
+    role: 'Site Engineer',
+    scope: 'ALL',
+    allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'database', 'jadwalmutasi', 'profil', 'hakakses']
   },
   {
     email: 'admin@batukarang.com',

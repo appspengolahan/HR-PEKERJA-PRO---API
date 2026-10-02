@@ -40,6 +40,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [pekerjaError, setPekerjaError] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
+
+  const handleDevQuickLogin = (email: string, pass: string) => {
+    setIsLoading(true);
+    try {
+      const res = authService.loginInternal(email, pass);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDevWorkerQuickLogin = (nama: string, id: string) => {
+    setIsLoading(true);
+    try {
+      const res = authService.loginPekerjaHarian(nama, id, pekerjaList);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInternalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,6 +316,100 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </form>
           )}
 
+        </div>
+
+        {/* Developer & Supervision Shortcut Gate (Only for Lead Developer, PM, Site Engineer) */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+          <button
+            type="button"
+            onClick={() => setIsDevPanelOpen(!isDevPanelOpen)}
+            className="w-full flex items-center justify-between text-xs font-bold text-amber-400/90 hover:text-amber-300 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded bg-amber-500/10 border border-amber-500/30 text-xs">🛠️</span>
+              <span>Akses Supervisi (Developer, PM &amp; Site Engineer)</span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+              {isDevPanelOpen ? 'Tutup ▲' : 'Buka Menu Pintasan ▼'}
+            </span>
+          </button>
+
+          {isDevPanelOpen && (
+            <div className="pt-2 border-t border-slate-800 space-y-2.5 animate-in fade-in duration-150">
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Pintasan simulasi khusus untuk <strong>Lead Developer, Project Manager, dan Site Engineer</strong> guna memantau antarmuka per peran tanpa perlu mengetik kredensial manual:
+              </p>
+
+              {/* Developer / PM Presets */}
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('appspengolahan@gmail.com', 'admin')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-purple-300 border border-purple-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>👑 Lead Developer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('pm@batukarang.com', 'pm123')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-indigo-300 border border-indigo-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>🏗️ Project Manager</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('engineer@batukarang.com', 'engineer123')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-cyan-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>📐 Site Engineer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('hr@batukarang.com', 'hr123')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-blue-300 border border-blue-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>📋 Admin HR PP1</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('manajer@batukarang.com', 'manajer123')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>💼 Manajer Ops</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('mandor.cengkeh@batukarang.com', 'mandor')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>🚜 Mandor Cengkeh</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevQuickLogin('mandor.tembakau@batukarang.com', 'mandor')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>🚜 Mandor Tembakau</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDevWorkerQuickLogin('DEDIK IRAWAN', '37')}
+                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>👷 Pekerja Harian (#37)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Security Footer */}
