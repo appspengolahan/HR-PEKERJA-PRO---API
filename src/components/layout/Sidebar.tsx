@@ -55,7 +55,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'database', label: 'Database Pekerja', icon: Users, badge: '62' },
     { id: 'jadwalmutasi', label: 'Jadwal Mutasi', icon: ArrowRightLeft },
     { id: 'profil', label: isWorkerRole ? 'Profil Kontrak Saya' : 'Profil Pekerja', icon: User },
-    { id: 'calon', label: 'Calon Pekerja', icon: UserCheck, badge: 'Pelatihan' }
+    { id: 'calon', label: 'Calon Pekerja', icon: UserCheck, badge: 'Pelatihan' },
+    { id: 'hakakses', label: 'Hak Akses & Akun', icon: ShieldCheck, badge: 'Admin' }
   ];
 
   // Filter menu berdasarkan hak akses akun yang sedang login

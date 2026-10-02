@@ -327,4 +327,5 @@ export type MainTabType =
   | 'jadwalmutasi'
   | 'profil'
   | 'calon'
-  | 'dashboard';
+  | 'dashboard'
+  | 'hakakses';

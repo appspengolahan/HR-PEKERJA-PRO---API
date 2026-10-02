@@ -76,6 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'jadwalmutasi': return { title: 'Jadwal Mutasi Terjadwal', sub: 'Mutasi Masa Depan yang Diterapkan Otomatis' };
       case 'profil': return { title: 'Profil Pekerja', sub: 'Parameter Presensi Komparatif & Link Arsip Google Drive' };
       case 'calon': return { title: 'Calon Pekerja (Pelatihan)', sub: 'Pelatihan Seleksi, Evaluasi Lolos & Audit Riwayat' };
+      case 'hakakses': return { title: 'Pengaturan Hak Akses', sub: 'Manajemen Akun Internal, Role-Based Access Control & Scope Unit' };
       default: return { title: 'HR Pekerja', sub: 'Divisi Produksi I' };
     }
   };

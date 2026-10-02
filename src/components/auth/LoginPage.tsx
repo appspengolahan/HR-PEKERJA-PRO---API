@@ -10,7 +10,9 @@ import {
   Building2, 
   FileText, 
   CheckCircle2,
-  Users
+  Users,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { AuthUser, authService, WHITELIST_INTERNAL } from '../../services/authService';
 import { PekerjaData } from '../../types';
@@ -29,6 +31,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Internal Form State
   const [internalEmail, setInternalEmail] = useState('');
   const [internalPassword, setInternalPassword] = useState('');
+  const [showInternalPassword, setShowInternalPassword] = useState(false);
   const [internalError, setInternalError] = useState('');
 
   // Pekerja Form State
@@ -175,13 +178,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showInternalPassword ? 'text' : 'password'}
                       required
-                      placeholder="••••••••"
+                      placeholder="Masukkan kata sandi rahasia"
                       value={internalPassword}
                       onChange={(e) => setInternalPassword(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowInternalPassword(!showInternalPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      title={showInternalPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    >
+                      {showInternalPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -189,49 +200,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
               >
                 <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Sistem'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
-              {/* Quick Whitelist Presets for Demo / Testing */}
-              <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Pintasan Akun Whitelist Siap Pakai:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInternalEmail('appspengolahan@gmail.com');
-                      setInternalPassword('admin');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    Super Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInternalEmail('hr@batukarang.com');
-                      setInternalPassword('hr123');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    Admin HR
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInternalEmail('mandor.cengkeh@batukarang.com');
-                      setInternalPassword('mandor');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    Mandor Cengkeh
-                  </button>
-                </div>
+              <div className="pt-2 border-t border-slate-800 text-center">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  🔒 Masuk hanya untuk personil yang terdaftar. Belum memiliki akun atau lupa kata sandi? Hubungi Administrator HR PP1.
+                </p>
               </div>
 
             </form>
@@ -298,49 +276,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
               >
                 <span>{isLoading ? 'Memverifikasi...' : 'Verifikasi & Masuk Portal'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
-              {/* Sample Workers Helper */}
-              <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Contoh Pekerja Terdaftar:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPekerjaNama('MUHAMMAD MIFTAKHUL HAMDAN');
-                      setPekerjaId('62');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    M. Miftakhul Hamdan (#62)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPekerjaNama('DEDIK IRAWAN');
-                      setPekerjaId('37');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    Dedik Irawan (#37)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPekerjaNama('UDIN HARIADI');
-                      setPekerjaId('38');
-                    }}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700"
-                  >
-                    Udin Hariadi (#38)
-                  </button>
-                </div>
+              <div className="pt-2 border-t border-slate-800 text-center">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Masukkan Nama Lengkap sesuai KTP dan Nomor ID Anda. Jika tidak mengetahui ID pekerja Anda, silakan tanyakan kepada Mandor Unit atau HR PP1.
+                </p>
               </div>
 
             </form>

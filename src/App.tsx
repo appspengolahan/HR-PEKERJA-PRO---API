@@ -11,6 +11,7 @@ import { TabJadwalMutasi } from './components/tabs/TabJadwalMutasi';
 import { TabProfilPekerja } from './components/tabs/TabProfilPekerja';
 import { TabCalonPekerja } from './components/tabs/TabCalonPekerja';
 import { TabDashboard } from './components/tabs/TabDashboard';
+import { TabHakAkses } from './components/tabs/TabHakAkses';
 
 import { SuratIjinModal } from './components/modals/SuratIjinModal';
 import { HelpModal } from './components/modals/HelpModal';
@@ -557,6 +558,14 @@ export default function App() {
               onAddCalon={handleAddCalon}
               onUpdateStatusCalon={handleUpdateStatusCalon}
               isLoading={isRefreshing}
+            />
+          )}
+
+          {activeTab === 'hakakses' && (
+            <TabHakAkses
+              currentUser={currentUser}
+              pekerjaList={pekerjaList}
+              onRefreshUserSession={(updatedUser) => setCurrentUser(updatedUser)}
             />
           )}
 
