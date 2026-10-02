@@ -20,6 +20,8 @@ import { SwitchBoardModal } from './components/modals/SwitchBoardModal';
 
 import { gasClient } from './services/gasClient';
 import { storageService } from './services/storageService';
+import { LoginPage } from './components/auth/LoginPage';
+import { authService, AuthUser } from './services/authService';
 import { 
   MainTabType, 
   UserScope, 
@@ -48,6 +50,9 @@ const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
 ];
 
 export default function App() {
+  // Authentication & Role Gate
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
+
   // Navigation & Shell
   const [activeTab, setActiveTab] = useState<MainTabType>('dashboard');
   const [collapsed, setCollapsed] = useState<boolean>(() => storageService.getSidebarCollapsed());
@@ -401,6 +406,29 @@ export default function App() {
     }
   };
 
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+  };
+
+  // GERBANG KEAMANAN UTAMA: WAJIB LOGIN
+  if (!currentUser) {
+    return (
+      <LoginPage
+        pekerjaList={pekerjaList}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          if (user.scope && user.scope !== 'ALL') {
+            setCurrentScope(user.scope);
+          }
+          if (user.allowedTabs && user.allowedTabs.length > 0) {
+            setActiveTab(user.allowedTabs[0]);
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex">
       
@@ -412,6 +440,8 @@ export default function App() {
         setCollapsed={handleToggleSidebar}
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Workspace Area */}
@@ -433,6 +463,8 @@ export default function App() {
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           switchAppUrl={switchAppUrl}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
 
         {/* Tab Panel Viewports */}
@@ -483,6 +515,7 @@ export default function App() {
             <TabSlipUpah
               pekerjaList={pekerjaList}
               currentScope={currentScope}
+              lockedNama={currentUser?.role === 'Pekerja Harian' ? currentUser.workerRecord?.nama : undefined}
             />
           )}
 
@@ -511,6 +544,7 @@ export default function App() {
             <TabProfilPekerja
               pekerjaList={pekerjaList}
               currentScope={currentScope}
+              lockedNama={currentUser?.role === 'Pekerja Harian' ? currentUser.workerRecord?.nama : undefined}
             />
           )}
 

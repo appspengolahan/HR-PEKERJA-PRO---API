@@ -7,10 +7,14 @@ import {
   Database, 
   HelpCircle, 
   ExternalLink,
-  Users
+  Users,
+  LogOut,
+  User as UserIcon,
+  ShieldCheck
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
+import { AuthUser } from '../../services/authService';
 
 interface HeaderProps {
   activeTab: MainTabType;
@@ -23,6 +27,8 @@ interface HeaderProps {
   onOpenScopeModal: () => void;
   onOpenHelpModal: () => void;
   switchAppUrl: string;
+  currentUser: AuthUser | null;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,7 +41,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGasCenter,
   onOpenScopeModal,
   onOpenHelpModal,
-  switchAppUrl
+  switchAppUrl,
+  currentUser,
+  onLogout
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -75,8 +83,10 @@ export const Header: React.FC<HeaderProps> = ({
   const { title, sub } = getPageTitle(activeTab);
 
   const scopeLabel = currentScope === 'ALL' 
-    ? '🔑 Manajer Operasional' 
+    ? '🔑 Seluruh Tim PP1' 
     : `👤 ${currentScope}`;
+
+  const isWorkerRole = currentUser?.role === 'Pekerja Harian';
 
   return (
     <header 
@@ -91,9 +101,17 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-base font-bold text-slate-900 truncate tracking-tight">
               {title}
             </h1>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 truncate">
-              {scopeLabel}
-            </span>
+            {!isWorkerRole && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 truncate">
+                {scopeLabel}
+              </span>
+            )}
+            {isWorkerRole && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                Portal Pekerja Mandiri
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 truncate hidden md:block">
             {sub}
@@ -107,37 +125,60 @@ export const Header: React.FC<HeaderProps> = ({
         {/* PWA In-App Install Prompt */}
         <PWAInstallButton />
 
-        {/* Scope Switcher Button */}
-        <button
-          onClick={onOpenScopeModal}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border border-slate-200"
-          title="Ganti Tim / Lingkup Akses Anda"
-        >
-          <Users className="w-3.5 h-3.5 text-blue-600" />
-          <span className="hidden sm:inline">Ganti Tim</span>
-        </button>
+        {/* User Profile Pill */}
+        {currentUser && (
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-xs">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">
+              {currentUser.nama.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="leading-tight text-left max-w-[130px] truncate">
+              <span className="font-bold text-slate-800 text-[11px] block truncate">
+                {currentUser.nama}
+              </span>
+              <span className="text-[9px] text-blue-600 font-semibold block truncate">
+                {currentUser.role}
+              </span>
+            </div>
+          </div>
+        )}
 
-        {/* Switch App to HR Karyawan */}
-        <a
-          href={switchAppUrl || 'https://appspengolahan.github.io/HR-Karyawan-PP1/'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors border border-indigo-200"
-          title="Buka Aplikasi HR Karyawan (Staff Bulanan)"
-        >
-          <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="hidden md:inline">HR Karyawan</span>
-        </a>
+        {/* Scope Switcher Button (Internal Tim Only) */}
+        {!isWorkerRole && (
+          <button
+            onClick={onOpenScopeModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border border-slate-200"
+            title="Ganti Tim / Lingkup Akses Anda"
+          >
+            <Users className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Ganti Tim</span>
+          </button>
+        )}
 
-        {/* Headless GAS Hub Button */}
-        <button
-          onClick={onOpenGasCenter}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors border border-emerald-300"
-          title="Headless GAS Center Hub"
-        >
-          <Database className="w-3.5 h-3.5 text-emerald-600" />
-          <span className="hidden lg:inline">GAS Hub</span>
-        </button>
+        {/* Switch App to HR Karyawan (Internal Tim Only) */}
+        {!isWorkerRole && (
+          <a
+            href={switchAppUrl || 'https://appspengolahan.github.io/HR-Karyawan-PP1/'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors border border-indigo-200"
+            title="Buka Aplikasi HR Karyawan (Staff Bulanan)"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden md:inline">HR Karyawan</span>
+          </a>
+        )}
+
+        {/* Headless GAS Hub Button (Super Admin / HR only) */}
+        {!isWorkerRole && (currentUser?.role === 'Super Admin' || currentUser?.role === 'HR Admin') && (
+          <button
+            onClick={onOpenGasCenter}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors border border-emerald-300"
+            title="Headless GAS Center Hub"
+          >
+            <Database className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden lg:inline">GAS Hub</span>
+          </button>
+        )}
 
         {/* Refresh Button */}
         <button
@@ -165,6 +206,16 @@ export const Header: React.FC<HeaderProps> = ({
           title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (F11)'}
         >
           {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </button>
+
+        {/* LOGOUT BUTTON */}
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-50 hover:bg-red-100 text-red-700 transition-colors border border-red-200 shadow-xs"
+          title="Keluar / Kunci Sesi Akun"
+        >
+          <LogOut className="w-3.5 h-3.5 text-red-600" />
+          <span className="hidden sm:inline">Keluar</span>
         </button>
 
       </div>

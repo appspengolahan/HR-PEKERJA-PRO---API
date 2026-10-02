@@ -13,9 +13,13 @@ import {
   ChevronRight, 
   Factory,
   Database,
-  Printer
+  Printer,
+  LogOut,
+  ShieldCheck,
+  FileText
 } from 'lucide-react';
 import { MainTabType } from '../../types';
+import { AuthUser } from '../../services/authService';
 
 export type ActiveTab = MainTabType;
 
@@ -26,6 +30,8 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
   onOpenGasCenter: () => void;
   onOpenSwitchBoard: () => void;
+  currentUser: AuthUser | null;
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,19 +40,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   setCollapsed,
   onOpenGasCenter,
-  onOpenSwitchBoard
+  onOpenSwitchBoard,
+  currentUser,
+  onLogout
 }) => {
-  const menuItems: { id: MainTabType; label: string; icon: React.ElementType; badge?: string }[] = [
+  const isWorkerRole = currentUser?.role === 'Pekerja Harian';
+
+  const allMenuItems: { id: MainTabType; label: string; icon: React.ElementType; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'presensi', label: 'Presensi & Ijin', icon: CalendarCheck, badge: 'Harian' },
     { id: 'lembur', label: 'Lembur', icon: Clock, badge: 'Tier' },
     { id: 'rekap', label: 'Rekap Presensi', icon: BarChart3 },
-    { id: 'slip', label: 'Slip Upah', icon: BadgePercent, badge: 'Mingguan' },
+    { id: 'slip', label: isWorkerRole ? 'Slip Upah Saya' : 'Slip Upah', icon: BadgePercent, badge: 'Mingguan' },
     { id: 'database', label: 'Database Pekerja', icon: Users, badge: '62' },
     { id: 'jadwalmutasi', label: 'Jadwal Mutasi', icon: ArrowRightLeft },
-    { id: 'profil', label: 'Profil Pekerja', icon: User },
+    { id: 'profil', label: isWorkerRole ? 'Profil Kontrak Saya' : 'Profil Pekerja', icon: User },
     { id: 'calon', label: 'Calon Pekerja', icon: UserCheck, badge: 'Pelatihan' }
   ];
+
+  // Filter menu berdasarkan hak akses akun yang sedang login
+  const allowedMenuItems = allMenuItems.filter(item => {
+    if (!currentUser || !currentUser.allowedTabs) return false;
+    return currentUser.allowedTabs.includes(item.id);
+  });
 
   return (
     <aside 
@@ -57,9 +73,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-3 border-b border-slate-800/80 bg-slate-950/40">
         <div 
-          onClick={onOpenSwitchBoard}
-          className="flex items-center gap-3 cursor-pointer group overflow-hidden"
-          title="Buka Master Switch Board PP1"
+          onClick={!isWorkerRole ? onOpenSwitchBoard : undefined}
+          className={`flex items-center gap-3 overflow-hidden ${!isWorkerRole ? 'cursor-pointer group' : ''}`}
+          title={!isWorkerRole ? 'Buka Master Switch Board PP1' : 'HR Pekerja Divisi PP1'}
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-900/30 group-hover:scale-105 transition-transform flex-shrink-0">
             <Factory className="w-5 h-5" />
@@ -85,15 +101,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
+      {/* User Info Badge in Sidebar */}
+      {!collapsed && currentUser && (
+        <div className="px-3 pt-3 pb-1">
+          <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/90 text-xs flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {currentUser.nama.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="font-bold text-slate-200 block truncate text-[11px]">
+                {currentUser.nama}
+              </span>
+              <span className="text-[10px] text-blue-400 font-semibold block truncate">
+                {currentUser.role}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Nav List */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
         {!collapsed && (
           <div className="px-3 text-[10px] font-bold text-slate-400 tracking-wider mb-2 uppercase">
-            9 Modul Operasional
+            {isWorkerRole ? 'Akses Mandiri Anda' : `${allowedMenuItems.length} Modul Akses`}
           </div>
         )}
 
-        {menuItems.map((item) => {
+        {allowedMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
@@ -116,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               )}
 
-              {!collapsed && item.badge && (
+              {!collapsed && item.badge && !isWorkerRole && (
                 <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
                   isActive 
                     ? 'bg-blue-700 text-blue-100 border border-blue-400/30' 
@@ -136,23 +171,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer Tools */}
       <div className="p-2 border-t border-slate-800/80 bg-slate-950/60 space-y-1.5">
+        
+        {/* Headless GAS Hub (Super Admin & HR only) */}
+        {!isWorkerRole && (currentUser?.role === 'Super Admin' || currentUser?.role === 'HR Admin') && (
+          <button
+            onClick={onOpenGasCenter}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium bg-emerald-950/40 border border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/40 transition-colors ${
+              collapsed ? 'px-0' : ''
+            }`}
+            title="Headless GAS Center & Sheets Sync"
+          >
+            <Database className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            {!collapsed && <span className="truncate font-semibold">Headless GAS Hub</span>}
+          </button>
+        )}
+
+        {/* LOGOUT BUTTON IN SIDEBAR */}
         <button
-          onClick={onOpenGasCenter}
-          className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium bg-emerald-950/40 border border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/40 transition-colors ${
+          onClick={onLogout}
+          className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-semibold bg-red-950/40 border border-red-800/40 text-red-400 hover:bg-red-900/40 hover:text-red-300 transition-colors ${
             collapsed ? 'px-0' : ''
           }`}
-          title="Headless GAS Center & Sheets Sync"
+          title="Keluar / Kunci Sesi Akun"
         >
-          <Database className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          {!collapsed && <span className="truncate font-semibold">Headless GAS Hub</span>}
+          <LogOut className="w-4 h-4 text-red-400 flex-shrink-0" />
+          {!collapsed && <span className="truncate">Keluar Akun</span>}
         </button>
 
         {!collapsed && (
           <div className="px-2 pt-1 pb-1 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Baseline v1.1</span>
+            <span>PP1 Keamanan v2.0</span>
             <span className="flex items-center gap-1 text-emerald-400 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Live Sheets
+              Terenkripsi
             </span>
           </div>
         )}

@@ -18,17 +18,19 @@ import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 interface TabProfilPekerjaProps {
   pekerjaList: PekerjaData[];
   currentScope: string;
+  lockedNama?: string;
 }
 
 export const TabProfilPekerja: React.FC<TabProfilPekerjaProps> = ({
   pekerjaList,
-  currentScope
+  currentScope,
+  lockedNama
 }) => {
   const filteredPekerja = pekerjaList.filter(p => {
     return currentScope === 'ALL' || p.unitSekup === currentScope;
   });
 
-  const [selectedNama, setSelectedNama] = useState(filteredPekerja[0]?.nama || '');
+  const [selectedNama, setSelectedNama] = useState(lockedNama || filteredPekerja[0]?.nama || '');
   const [links, setLinks] = useState<LinkArsipRecord[]>([
     { row: 1, label: 'Folder Arsip Dokumen KTP & KK', url: 'https://drive.google.com' },
     { row: 2, label: 'Surat Lamaran & Pakta Integritas K3', url: 'https://drive.google.com' }
@@ -72,15 +74,22 @@ export const TabProfilPekerja: React.FC<TabProfilPekerjaProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={selectedNama}
-            onChange={(e) => setSelectedNama(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-900 focus:outline-none"
-          >
-            {filteredPekerja.map(p => (
-              <option key={p.id} value={p.nama}>{p.nama} ({p.unit})</option>
-            ))}
-          </select>
+          {lockedNama ? (
+            <div className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/80 text-xs font-bold text-blue-900 flex items-center gap-2">
+              <span>{lockedNama}</span>
+              <span className="text-[10px] bg-blue-200 px-1.5 py-0.5 rounded text-blue-800 font-semibold">Terkunci</span>
+            </div>
+          ) : (
+            <select
+              value={selectedNama}
+              onChange={(e) => setSelectedNama(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-900 focus:outline-none"
+            >
+              {filteredPekerja.map(p => (
+                <option key={p.id} value={p.nama}>{p.nama} ({p.unit})</option>
+              ))}
+            </select>
+          )}
 
           <button
             onClick={() => window.print()}

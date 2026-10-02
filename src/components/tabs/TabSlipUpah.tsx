@@ -13,14 +13,16 @@ import { gasClient } from '../../services/gasClient';
 interface TabSlipUpahProps {
   pekerjaList: PekerjaData[];
   currentScope: string;
+  lockedNama?: string;
 }
 
 export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
   pekerjaList,
-  currentScope
+  currentScope,
+  lockedNama
 }) => {
   const [mode, setMode] = useState<'bulan' | 'rentang'>('bulan');
-  const [selectedNama, setSelectedNama] = useState(pekerjaList[0]?.nama || '');
+  const [selectedNama, setSelectedNama] = useState(lockedNama || pekerjaList[0]?.nama || '');
   const [bulan, setBulan] = useState(String(new Date().getMonth() + 1));
   const [tahun, setTahun] = useState(String(new Date().getFullYear()));
   
@@ -191,15 +193,22 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
           
           <div>
             <label className="block text-slate-500 font-bold mb-1">Nama Pekerja *</label>
-            <select
-              value={selectedNama}
-              onChange={(e) => setSelectedNama(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 font-semibold"
-            >
-              {filteredPekerja.map(p => (
-                <option key={p.id} value={p.nama}>{p.nama}</option>
-              ))}
-            </select>
+            {lockedNama ? (
+              <div className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/80 font-bold text-blue-900 flex items-center justify-between">
+                <span className="truncate">{lockedNama}</span>
+                <span className="text-[10px] bg-blue-200 px-1.5 py-0.5 rounded text-blue-800 font-semibold flex-shrink-0">Terkunci</span>
+              </div>
+            ) : (
+              <select
+                value={selectedNama}
+                onChange={(e) => setSelectedNama(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 font-semibold"
+              >
+                {filteredPekerja.map(p => (
+                  <option key={p.id} value={p.nama}>{p.nama}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {mode === 'bulan' ? (
