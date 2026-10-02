@@ -473,6 +473,7 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <TabDashboard
               pekerjaList={pekerjaList}
+              presensiList={presensiList}
               currentScope={currentScope}
               onNavigateTab={setActiveTab}
             />
