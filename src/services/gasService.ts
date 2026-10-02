@@ -297,6 +297,20 @@ function getCalonPekerjaList_(scope) {
   const numRows = Math.min(lastRow, ROWS.CALON_LAST) - ROWS.CALON_START + 1;
   const data = sh.getRange(ROWS.CALON_START, 3, numRows, 11).getValues(); // C..M
   const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  // Ambil daftar nama pekerja yang sudah resmi terdaftar di MASTER_PEKERJA
+  let masterNames = [];
+  const shMaster = getSheet_(SHEET.MASTER);
+  if (shMaster) {
+    const lastM = shMaster.getLastRow();
+    if (lastM >= ROWS.MASTER_START) {
+      masterNames = shMaster.getRange(ROWS.MASTER_START, 3, Math.min(lastM, ROWS.MASTER_LAST) - ROWS.MASTER_START + 1, 1)
+        .getValues()
+        .flat()
+        .map(n => String(n || '').trim().toUpperCase());
+    }
+  }
+
   const res = [];
   data.forEach((r, i) => {
     const nama = r[0];
@@ -305,7 +319,12 @@ function getCalonPekerjaList_(scope) {
     const unitSekup = (sekup && unit) ? (sekup + ' ' + unit) : '';
     if (scope && scope !== 'ALL' && unitSekup !== scope) return;
 
-    const status = String(r[7] || 'Sedang Berjalan');
+    let status = String(r[7] || 'Sedang Berjalan');
+    // Jika nama sudah ada di MASTER_PEKERJA, status otomatis diakui sebagai 'Lolos'
+    if (masterNames.indexOf(String(nama).trim().toUpperCase()) !== -1) {
+      status = 'Lolos';
+    }
+
     const tglMulai = r[3], tglAkhir = r[4];
     let durasi = '', sisaHari = '';
     if (tglMulai instanceof Date && tglAkhir instanceof Date) {

@@ -88,10 +88,10 @@ export default function App() {
       tanggalMulai: "07/07/2026",
       tanggalAkhir: "19/09/2026",
       durasi: 75,
-      sisaHari: -12,
-      status: "Sedang Berjalan",
+      sisaHari: 0,
+      status: "Lolos",
       jumlahPerpanjangan: 1,
-      catatan: "Pelatihan sortir bahan mentah"
+      catatan: "Resmi lulus pelatihan dan diangkat menjadi Pekerja Harian #62"
     }
   ]);
   const [gasConfig, setGasConfig] = useState<GasConfig>(() => storageService.getGasConfig());
@@ -368,6 +368,31 @@ export default function App() {
     tanggalAkhirBaru?: string;
     alasan?: string;
   }) => {
+    // Optimistic update: jika lolos, langsung daftarkan ke pekerjaList lokal
+    const targetCalon = calonList.find(c => c.rowNum === data.rowNum);
+    if (data.status === 'Lolos' && targetCalon) {
+      const alreadyInList = pekerjaList.some(p => p.nama.trim().toUpperCase() === targetCalon.nama.trim().toUpperCase());
+      if (!alreadyInList) {
+        const newWorker: PekerjaData = {
+          rowNum: 6 + pekerjaList.length,
+          id: pekerjaList.length + 1,
+          nama: targetCalon.nama,
+          unit: data.unit || targetCalon.unit,
+          sekup: data.sekup || targetCalon.sekup,
+          unitSekup: `${data.sekup || targetCalon.sekup} ${data.unit || targetCalon.unit}`,
+          jabatan: 'Harian',
+          status: data.statusKepegawaian || 'PKWT 1',
+          awalPKWT: data.awalPKWT || new Date().toLocaleDateString('id-ID'),
+          akhirPKWT: '-',
+          statusPKWT: 'PKWT Berjalan',
+          upahHarian: data.upahHarian || 146264,
+          pendidikanTerakhir: '-'
+        };
+        setPekerjaList(prev => [...prev, newWorker]);
+      }
+      setCalonList(prev => prev.map(c => c.rowNum === data.rowNum ? { ...c, status: 'Lolos' } : c));
+    }
+
     const res = await gasClient.postMutation('updateStatusCalon', data);
     if (res.status === 'success') {
       await syncLiveData();
@@ -492,6 +517,7 @@ export default function App() {
           {activeTab === 'calon' && (
             <TabCalonPekerja
               calonList={calonList}
+              pekerjaList={pekerjaList}
               currentScope={currentScope}
               onAddCalon={handleAddCalon}
               onUpdateStatusCalon={handleUpdateStatusCalon}

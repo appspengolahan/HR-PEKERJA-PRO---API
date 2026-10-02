@@ -7,12 +7,18 @@ import {
   CheckCircle2, 
   Clock, 
   X, 
-  Printer 
+  Printer,
+  Check,
+  Search,
+  ArrowRight,
+  ShieldCheck,
+  FileCheck
 } from 'lucide-react';
-import { CalonPekerjaRecord } from '../../types';
+import { CalonPekerjaRecord, PekerjaData } from '../../types';
 
 interface TabCalonPekerjaProps {
   calonList: CalonPekerjaRecord[];
+  pekerjaList: PekerjaData[];
   currentScope: string;
   onAddCalon: (data: Partial<CalonPekerjaRecord>) => Promise<void>;
   onUpdateStatusCalon: (data: {
@@ -31,11 +37,13 @@ interface TabCalonPekerjaProps {
 
 export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
   calonList,
+  pekerjaList,
   currentScope,
   onAddCalon,
   onUpdateStatusCalon,
   isLoading
 }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'aktif' | 'riwayat'>('aktif');
   const [showAddModal, setShowAddModal] = useState(false);
   const [updatingCalon, setUpdatingCalon] = useState<CalonPekerjaRecord | null>(null);
 
@@ -55,11 +63,32 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
   const [alasan, setAlasan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Map nama pekerja yang sudah resmi terdaftar di MASTER_PEKERJA
+  const registeredWorkerMap = new Map<string, PekerjaData>();
+  pekerjaList.forEach(p => {
+    registeredWorkerMap.set(p.nama.trim().toUpperCase(), p);
+  });
+
   const filtered = calonList.filter(c => {
     return currentScope === 'ALL' || `${c.sekup} ${c.unit}` === currentScope;
   });
 
-  const alerts = filtered.filter(c => {
+  // Calon Aktif: HANYA yang masih dalam masa pelatihan DAN namanya BELUM ada di Database Pekerja serta belum berstatus 'Lolos'
+  const calonAktif = filtered.filter(c => {
+    const isAlreadyInMaster = registeredWorkerMap.has(c.nama.trim().toUpperCase());
+    const isGraduated = c.status === 'Lolos';
+    return !isAlreadyInMaster && !isGraduated;
+  });
+
+  // Riwayat Kelulusan: Calon yang sudah Lolos / resmi masuk ke Database Pekerja atau Tidak Lolos
+  const calonRiwayat = filtered.filter(c => {
+    const isAlreadyInMaster = registeredWorkerMap.has(c.nama.trim().toUpperCase());
+    const isGraduated = c.status === 'Lolos';
+    return isAlreadyInMaster || isGraduated || c.status === 'Tidak Lolos';
+  });
+
+  // Alert HANYA untuk calon pelatihan aktif yang sisa harinya < 10
+  const alerts = calonAktif.filter(c => {
     const sisa = Number(c.sisaHari);
     return c.status === 'Sedang Berjalan' && !isNaN(sisa) && sisa < 10;
   });
@@ -102,14 +131,14 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
         sekup: updatingCalon.sekup,
         statusKepegawaian: lolosStatusKep,
         upahHarian: parseFloat(lolosUpah) || 146264,
-        awalPKWT: new Date().toISOString().slice(0, 10),
+        awalPKWT: updatingCalon.tanggalAkhir,
         tanggalAkhirBaru: perpanjangTglBaru,
-        alasan
+        alasan: alasan
       });
       setUpdatingCalon(null);
       setAlasan('');
     } catch (err) {
-      alert('Gagal memproses status: ' + err);
+      alert('Gagal mengupdate status calon: ' + err);
     } finally {
       setIsSubmitting(false);
     }
@@ -118,27 +147,74 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       
-      {/* Policy Info Banner */}
-      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-1.5 shadow-xs">
-        <div className="font-extrabold text-emerald-900 flex items-center gap-1.5">
-          <UserCheck className="w-4 h-4 text-emerald-600" />
-          Alur Masa Pelatihan &amp; Seleksi Calon Pekerja:
+      {/* Metric Highlights */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div 
+          onClick={() => setActiveSubTab('aktif')}
+          className={`p-5 bg-white rounded-2xl border shadow-xs cursor-pointer transition-all ${
+            activeSubTab === 'aktif' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Calon Pelatihan Aktif
+            </span>
+            <Clock className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-3xl font-black text-slate-900 mt-2 font-mono">
+            {calonAktif.length}
+          </div>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Sedang menjalani masa evaluasi &amp; seleksi
+          </span>
         </div>
-        <p className="leading-relaxed">
-          Setiap calon pekerja menjalani masa pelatihan. Status <strong>Lolos</strong> otomatis memindahkan data ke <code>MASTER_PEKERJA</code> dan mengosongkan baris calon untuk mencegah penambahan ganda. Status <strong>Diperpanjang</strong> menambah tanggal akhir, dan <strong>Tidak Lolos</strong> mencatat riwayat ke log arsip.
-        </p>
+
+        <div 
+          onClick={() => setActiveSubTab('riwayat')}
+          className={`p-5 bg-white rounded-2xl border shadow-xs cursor-pointer transition-all ${
+            activeSubTab === 'riwayat' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Lulus &amp; Masuk Database
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-3xl font-black text-blue-700 mt-2 font-mono">
+            {calonRiwayat.length}
+          </div>
+          <span className="text-[11px] text-blue-600 mt-1 block font-semibold">
+            Otomatis terdaftar di MASTER_PEKERJA
+          </span>
+        </div>
+
+        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Peringatan Jatuh Tempo
+            </span>
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="text-3xl font-black text-amber-700 mt-2 font-mono">
+            {alerts.length}
+          </div>
+          <span className="text-[11px] text-slate-400 mt-1 block">
+            Sisa masa pelatihan &lt; 10 hari
+          </span>
+        </div>
       </div>
 
-      {/* Alert Banner for Calon Ending Soon */}
+      {/* Alert Banner for Calon Ending Soon (Hanya Calon Aktif) */}
       {alerts.length > 0 && (
-        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-amber-800">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-xs text-amber-950 space-y-2 shadow-xs">
+          <div className="flex items-center gap-2 font-bold text-amber-900">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
             <span>Peringatan: {alerts.length} Calon Pekerja dengan Masa Pelatihan Akan Berakhir (&lt; 10 Hari)</span>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {alerts.map(c => (
-              <span key={c.rowNum} className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-medium">
+              <span key={c.rowNum} className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-medium text-amber-950">
                 {c.nama} ({c.unit}) — Sisa: <strong>{c.sisaHari} Hari</strong> (Akhir: {c.tanggalAkhir})
               </span>
             ))}
@@ -146,13 +222,42 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
         </div>
       )}
 
-      {/* Table Card */}
+      {/* Table Card with Sub-Tab Selector */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Daftar Calon Pekerja ({filtered.length})</h2>
-            <p className="text-[11px] text-slate-500">Masa pelatihan dan evaluasi kelulusan</p>
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+          
+          {/* Sub-Tab Navigation */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/70 rounded-xl">
+            <button
+              onClick={() => setActiveSubTab('aktif')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeSubTab === 'aktif' 
+                  ? 'bg-white text-slate-900 shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Pelatihan Aktif</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 font-mono">
+                {calonAktif.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('riwayat')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeSubTab === 'riwayat' 
+                  ? 'bg-white text-slate-900 shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Riwayat Lulus &amp; Database</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-blue-800 font-mono">
+                {calonRiwayat.length}
+              </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -173,82 +278,162 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 px-3">Nama Calon</th>
-                <th className="py-2.5 px-3">Proyeksi Unit</th>
-                <th className="py-2.5 px-3">Proyeksi Sekup</th>
-                <th className="py-2.5 px-3">Mulai</th>
-                <th className="py-2.5 px-3">Akhir</th>
-                <th className="py-2.5 px-3 text-center">Durasi</th>
-                <th className="py-2.5 px-3 text-center">Sisa Hari</th>
-                <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filtered.length === 0 ? (
+        {/* View 1: Pelatihan Aktif */}
+        {activeSubTab === 'aktif' && (
+          <div className="overflow-x-auto">
+            {calonAktif.length === 0 ? (
+              <div className="p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Tidak Ada Calon Pekerja dalam Masa Pelatihan Aktif
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Kandidat yang telah dinyatakan <strong>Lolos</strong> (seperti <em>MUHAMMAD MIFTAKHUL HAMDAN</em>) otomatis terdaftar di Database Pekerja (#62) dan tidak ditampilkan lagi pada daftar aktif ini.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    onClick={() => setActiveSubTab('riwayat')}
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                  >
+                    Buka Riwayat Kelulusan <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">Nama Calon</th>
+                    <th className="py-2.5 px-3">Proyeksi Unit</th>
+                    <th className="py-2.5 px-3">Proyeksi Sekup</th>
+                    <th className="py-2.5 px-3">Mulai</th>
+                    <th className="py-2.5 px-3">Akhir</th>
+                    <th className="py-2.5 px-3 text-center">Durasi</th>
+                    <th className="py-2.5 px-3 text-center">Sisa Hari</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {calonAktif.map(c => {
+                    const sisa = Number(c.sisaHari);
+                    const isUrgent = c.status === 'Sedang Berjalan' && !isNaN(sisa) && sisa < 10;
+
+                    return (
+                      <tr key={c.rowNum} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-extrabold text-slate-900">{c.nama}</td>
+                        <td className="py-2.5 px-3 font-medium text-slate-800">{c.unit}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{c.sekup}</td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">{c.tanggalMulai}</td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">{c.tanggalAkhir}</td>
+                        <td className="py-2.5 px-3 text-center font-mono">{c.durasi} Hari</td>
+                        <td className="py-2.5 px-3 text-center font-mono">
+                          <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                            isUrgent ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {c.sisaHari} Hari
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              setUpdatingCalon(c);
+                              setStatusAction('Lolos');
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold transition-colors border border-emerald-200"
+                          >
+                            Evaluasi
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* View 2: Riwayat Lolos & Masuk Database */}
+        {activeSubTab === 'riwayat' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400 italic">
-                    {isLoading ? 'Memuat daftar calon pekerja...' : 'Belum ada calon pekerja dalam masa pelatihan saat ini.'}
-                  </td>
+                  <th className="py-2.5 px-3">Nama Pekerja</th>
+                  <th className="py-2.5 px-3">Unit &amp; Sekup</th>
+                  <th className="py-2.5 px-3">Periode Pelatihan</th>
+                  <th className="py-2.5 px-3 text-center">Durasi</th>
+                  <th className="py-2.5 px-3 text-center">Status Kelulusan</th>
+                  <th className="py-2.5 px-3 text-center">Integrasi Database</th>
+                  <th className="py-2.5 px-3">Catatan Evaluasi</th>
                 </tr>
-              ) : (
-                filtered.map(c => {
-                  const sisa = Number(c.sisaHari);
-                  const isUrgent = c.status === 'Sedang Berjalan' && !isNaN(sisa) && sisa < 10;
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {calonRiwayat.map(c => {
+                  const masterRecord = registeredWorkerMap.get(c.nama.trim().toUpperCase());
 
                   return (
                     <tr key={c.rowNum} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-extrabold text-slate-900">{c.nama}</td>
-                      <td className="py-2.5 px-3 font-medium text-slate-800">{c.unit}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{c.sekup}</td>
-                      <td className="py-2.5 px-3 font-mono text-[11px]">{c.tanggalMulai}</td>
-                      <td className="py-2.5 px-3 font-mono text-[11px]">{c.tanggalAkhir}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-extrabold text-slate-900">{c.nama}</div>
+                        {masterRecord && (
+                          <div className="text-[10px] font-mono font-bold text-blue-600">ID #{masterRecord.id}</div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-medium text-slate-800">{c.unit}</span> • <span className="text-slate-500">{c.sekup}</span>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px]">
+                        {c.tanggalMulai} s/d {c.tanggalAkhir}
+                      </td>
                       <td className="py-2.5 px-3 text-center font-mono">{c.durasi} Hari</td>
-                      <td className="py-2.5 px-3 text-center font-mono">
-                        <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                          isUrgent ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {c.sisaHari} Hari
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Lolos Seleksi
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
-                          {c.status}
-                        </span>
+                        {masterRecord ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                            <ShieldCheck className="w-3 h-3 text-blue-600" />
+                            Aktif di Database (#{masterRecord.id})
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">Telah Disetujui</span>
+                        )}
                       </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => {
-                            setUpdatingCalon(c);
-                            setStatusAction('Lolos');
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] transition-colors"
-                        >
-                          Update Status
-                        </button>
+                      <td className="py-2.5 px-3 text-slate-500 italic text-[11px]">
+                        {c.catatan || 'Resmi lulus seleksi dan diangkat menjadi Pekerja Harian'}
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
       </div>
 
       {/* Modal Add Calon */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold">Daftarkan Calon Pekerja Baru</h3>
-                <p className="text-[11px] text-slate-400">Periode masa pelatihan seleksi</p>
+                <h3 className="text-sm font-bold">Pendaftaran Calon Pekerja Baru</h3>
+                <p className="text-[11px] text-slate-400">Pencatatan awal masa pelatihan &amp; orientasi</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
@@ -260,11 +445,11 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
 
             <form onSubmit={handleAddSubmit} className="p-5 space-y-3.5">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Nama Calon *</label>
+                <label className="block font-bold text-slate-700 mb-1">Nama Lengkap Calon *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: RIZKI PRATAMA"
+                  placeholder="Contoh: BAGUS KURNIAWAN"
                   value={newNama}
                   onChange={(e) => setNewNama(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold text-slate-900"
@@ -277,7 +462,7 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
                   <select
                     value={newUnit}
                     onChange={(e) => setNewUnit(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
                   >
                     <option value="Cengkeh">Cengkeh</option>
                     <option value="Blend">Blend</option>
@@ -290,7 +475,7 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
                   <select
                     value={newSekup}
                     onChange={(e) => setNewSekup(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
                   >
                     <option value="Proses">Proses</option>
                     <option value="Persediaan">Persediaan</option>
@@ -300,7 +485,7 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tanggal Mulai Pelatihan *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Tanggal Mulai</label>
                   <input
                     type="date"
                     required
@@ -310,7 +495,7 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Tanggal Akhir Pelatihan *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Tanggal Akhir (Target)</label>
                   <input
                     type="date"
                     required
@@ -322,28 +507,28 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Catatan</label>
-                <input
-                  type="text"
-                  placeholder="Catatan pelamar / pelatihan..."
+                <label className="block font-bold text-slate-700 mb-1">Catatan / Rencana Penugasan</label>
+                <textarea
+                  rows={2}
+                  placeholder="Misal: Pelatihan sortir daun tembakau / blender"
                   value={newCatatan}
                   onChange={(e) => setNewCatatan(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold disabled:opacity-50"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Daftarkan Calon'}
                 </button>
@@ -353,14 +538,14 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
         </div>
       )}
 
-      {/* Modal Update Status Calon */}
+      {/* Modal Evaluasi Kelulusan */}
       {updatingCalon && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold">Evaluasi Kelulusan: {updatingCalon.nama}</h3>
-                <p className="text-[11px] text-slate-400">Unit: {updatingCalon.unit} - {updatingCalon.sekup}</p>
+                <h3 className="text-sm font-bold">Evaluasi Kelulusan Calon Pekerja</h3>
+                <p className="text-[11px] text-slate-400">Tentukan status akhir masa pelatihan</p>
               </div>
               <button 
                 onClick={() => setUpdatingCalon(null)}
@@ -371,30 +556,55 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
             </div>
 
             <form onSubmit={handleStatusSubmit} className="p-5 space-y-3.5">
-              
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-400 block">Nama Calon Pekerja:</span>
+                <span className="text-sm font-extrabold text-slate-900">{updatingCalon.nama}</span>
+                <span className="text-xs text-slate-500 block mt-0.5">
+                  Unit: {updatingCalon.unit} • Sekup: {updatingCalon.sekup}
+                </span>
+              </div>
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Keputusan Status *</label>
-                <select
-                  value={statusAction}
-                  onChange={(e) => setStatusAction(e.target.value as 'Lolos' | 'Diperpanjang' | 'Tidak Lolos')}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold"
-                >
-                  <option value="Lolos">Lolos (Otomatis Masuk ke Database Pekerja)</option>
-                  <option value="Diperpanjang">Diperpanjang (Tambah Masa Pelatihan)</option>
-                  <option value="Tidak Lolos">Tidak Lolos (Arsipkan &amp; Kosongkan Baris)</option>
-                </select>
+                <label className="block font-bold text-slate-700 mb-1">Keputusan Evaluasi *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Lolos', 'Diperpanjang', 'Tidak Lolos'] as const).map(act => (
+                    <button
+                      key={act}
+                      type="button"
+                      onClick={() => setStatusAction(act)}
+                      className={`py-2 px-1 rounded-xl font-bold text-xs border text-center transition-all ${
+                        statusAction === act
+                          ? act === 'Lolos' 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                            : act === 'Diperpanjang' 
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-xs' 
+                              : 'bg-red-600 text-white border-red-600 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {act}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {statusAction === 'Lolos' && (
-                <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 space-y-3">
-                  <div className="font-bold text-emerald-900">Parameter Tambah ke Database Pekerja:</div>
-                  <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-3">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Otomatis Masuk ke Database Pekerja</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700">
+                    Pekerja akan otomatis mendapatkan nomor ID baru di <strong>MASTER_PEKERJA</strong> dan keluar dari daftar aktif calon pekerja.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] font-semibold text-emerald-950 mb-1">Status Kepegawaian</label>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Status Kepegawaian</label>
                       <select
                         value={lolosStatusKep}
                         onChange={(e) => setLolosStatusKep(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded border border-emerald-300 bg-white"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white text-xs font-bold text-slate-800"
                       >
                         <option value="PKWT 1">PKWT 1</option>
                         <option value="PKWT 2">PKWT 2</option>
@@ -402,14 +612,12 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-emerald-950 mb-1">Upah Harian (Rp)</label>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Upah Harian (Rp)</label>
                       <input
                         type="number"
-                        step="any"
-                        required
                         value={lolosUpah}
                         onChange={(e) => setLolosUpah(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded border border-emerald-300 bg-white font-mono font-bold"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white font-mono text-xs font-bold"
                       />
                     </div>
                   </div>
@@ -417,64 +625,45 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
               )}
 
               {statusAction === 'Diperpanjang' && (
-                <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 space-y-3">
-                  <div>
-                    <label className="block font-semibold text-blue-950 mb-1">Tanggal Akhir Pelatihan Baru *</label>
-                    <input
-                      type="date"
-                      required
-                      value={perpanjangTglBaru}
-                      onChange={(e) => setPerpanjangTglBaru(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded border border-blue-300 bg-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-blue-950 mb-1">Alasan Perpanjangan</label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Perlu peningkatan keterampilan sortir"
-                      value={alasan}
-                      onChange={(e) => setAlasan(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded border border-blue-300 bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {statusAction === 'Tidak Lolos' && (
-                <div className="p-3.5 bg-red-50 rounded-xl border border-red-200 space-y-2">
-                  <div className="font-bold text-red-900">Alasan Tidak Lolos *:</div>
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                  <label className="block font-bold text-amber-900">Tanggal Selesai Pelatihan Baru</label>
                   <input
-                    type="text"
+                    type="date"
                     required
-                    placeholder="Contoh: Kriteria ketepatan dan disiplin belum memenuhi standar"
-                    value={alasan}
-                    onChange={(e) => setAlasan(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-red-300 bg-white"
+                    value={perpanjangTglBaru}
+                    onChange={(e) => setPerpanjangTglBaru(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white font-mono"
                   />
-                  <p className="text-[10px] text-red-700 italic">
-                    * Baris calon pekerja ini akan dikosongkan dari daftar, dan catatan riwayat tersimpan di LOG_RIWAYAT_PELATIHAN.
-                  </p>
                 </div>
               )}
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Alasan / Catatan Penilaian</label>
+                <textarea
+                  rows={2}
+                  placeholder="Catatan keaktifan, kedisiplinan, atau pertimbangan pengangkatan..."
+                  value={alasan}
+                  onChange={(e) => setAlasan(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setUpdatingCalon(null)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold disabled:opacity-50"
                 >
                   {isSubmitting ? 'Memproses...' : 'Simpan Keputusan'}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
