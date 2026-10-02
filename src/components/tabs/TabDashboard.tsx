@@ -9,9 +9,12 @@ import {
   Printer, 
   ArrowRight,
   TrendingUp,
-  FileText
+  FileText,
+  AlertOctagon,
+  CheckCircle2
 } from 'lucide-react';
 import { PekerjaData, MainTabType } from '../../types';
+import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 
 interface TabDashboardProps {
   pekerjaList: PekerjaData[];
@@ -31,12 +34,21 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     return currentScope === 'ALL' || p.unitSekup === currentScope;
   });
 
-  const totalPekerja = filteredPekerja.length;
-  const tetapCount = filteredPekerja.filter(p => p.status === 'TETAP').length;
-  const pkwtCount = totalPekerja - tetapCount;
-  const segeraBerakhirCount = filteredPekerja.filter(p => p.statusPKWT === 'Segera Berakhir').length;
+  // Sinkronisasi status PKWT dengan tanggal akhir nyata
+  const enrichedPekerja = filteredPekerja.map(p => ({
+    ...p,
+    pkwtInfo: getPKWTStatusInfo(p.status, p.akhirPKWT)
+  }));
 
-  const pkwtAlerts = filteredPekerja.filter(p => p.statusPKWT === 'Segera Berakhir');
+  const totalPekerja = enrichedPekerja.length;
+  const tetapCount = enrichedPekerja.filter(p => p.status === 'TETAP').length;
+  const pkwtCount = totalPekerja - tetapCount;
+  
+  // 1. Segera Berakhir (0 <= sisaHari <= 26)
+  const segeraBerakhirAlerts = enrichedPekerja.filter(p => p.pkwtInfo.isUrgent);
+  
+  // 2. Sudah Berakhir / Kadaluarsa (sisaHari < 0 dan bukan TETAP)
+  const expiredAlerts = enrichedPekerja.filter(p => p.pkwtInfo.isExpired);
 
   // Total Beban Upah calculation (Standard 26 days/month)
   const HARI_KERJA_TERSEDIA = 26;
@@ -91,42 +103,112 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
         </div>
       </div>
 
-      {/* PKWT Alert Card if any */}
-      {pkwtAlerts.length > 0 && (
-        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-2">
+      {/* 1. PKWT Segera Berakhir Alert Card (<= 26 Hari) */}
+      {segeraBerakhirAlerts.length > 0 && (
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-xs text-amber-950 space-y-2.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-amber-800">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>Peringatan PKWT Segera Berakhir (&le; 26 Hari)</span>
+            <div className="flex items-center gap-2 font-bold text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>Peringatan: PKWT Segera Berakhir (&le; 26 Hari Jatuh Tempo)</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-200 text-amber-900 font-bold">
+                {segeraBerakhirAlerts.length} Pekerja
+              </span>
             </div>
             <button
               onClick={() => onNavigateTab('database')}
-              className="font-bold text-amber-800 hover:underline flex items-center gap-1"
+              className="font-bold text-amber-800 hover:underline flex items-center gap-1 text-[11px]"
             >
-              Lihat di Database <ArrowRight className="w-3.5 h-3.5" />
+              Buka di Database Pekerja <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
+          
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[11px] bg-white rounded-xl border border-amber-200 overflow-hidden">
-              <thead className="bg-amber-100/60 font-bold text-amber-950">
+              <thead className="bg-amber-100/70 font-bold text-amber-950">
                 <tr>
-                  <th className="p-2">Nama Pekerja</th>
-                  <th className="p-2">Unit &amp; Sekup</th>
-                  <th className="p-2">Jabatan</th>
-                  <th className="p-2">Akhir PKWT</th>
-                  <th className="p-2 text-center">Status</th>
+                  <th className="p-2.5">Nama Pekerja</th>
+                  <th className="p-2.5">Unit &amp; Sekup</th>
+                  <th className="p-2.5">Status Kepegawaian</th>
+                  <th className="p-2.5">Akhir PKWT</th>
+                  <th className="p-2.5">Sisa Waktu</th>
+                  <th className="p-2.5 text-center">Status Kontrak</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-100">
-                {pkwtAlerts.slice(0, 5).map(p => (
-                  <tr key={p.id}>
-                    <td className="p-2 font-bold text-slate-900">{p.nama}</td>
-                    <td className="p-2">{p.unit} • {p.sekup}</td>
-                    <td className="p-2">{p.jabatan || 'Harian'}</td>
-                    <td className="p-2 font-mono font-bold text-red-600">{p.akhirPKWT}</td>
-                    <td className="p-2 text-center">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                {segeraBerakhirAlerts.map(p => (
+                  <tr key={p.id} className="hover:bg-amber-50/50">
+                    <td className="p-2.5 font-bold text-slate-900">{p.nama}</td>
+                    <td className="p-2.5 text-slate-700">{p.unit} • {p.sekup}</td>
+                    <td className="p-2.5">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="p-2.5 font-mono font-bold text-amber-700">{p.akhirPKWT}</td>
+                    <td className="p-2.5 font-bold text-amber-800">
+                      {p.pkwtInfo.labelDetail}
+                    </td>
+                    <td className="p-2.5 text-center">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                         Segera Berakhir
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 2. PKWT Sudah Berakhir Alert Card (Tanggal Lewat) */}
+      {expiredAlerts.length > 0 && (
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-300 text-xs text-red-950 space-y-2.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-red-900">
+              <AlertOctagon className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <span>Perhatian: Masa Berlaku PKWT Telah Berakhir (Perlu Tindakan / Pembaruan)</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-200 text-red-900 font-bold">
+                {expiredAlerts.length} Pekerja
+              </span>
+            </div>
+            <button
+              onClick={() => onNavigateTab('database')}
+              className="font-bold text-red-800 hover:underline flex items-center gap-1 text-[11px]"
+            >
+              Perbarui Kontrak di Database <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] bg-white rounded-xl border border-red-200 overflow-hidden">
+              <thead className="bg-red-100/70 font-bold text-red-950">
+                <tr>
+                  <th className="p-2.5">Nama Pekerja</th>
+                  <th className="p-2.5">Unit &amp; Sekup</th>
+                  <th className="p-2.5">Status Kepegawaian</th>
+                  <th className="p-2.5">Akhir PKWT</th>
+                  <th className="p-2.5">Keterangan Waktu</th>
+                  <th className="p-2.5 text-center">Status Kontrak</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-100">
+                {expiredAlerts.slice(0, 6).map(p => (
+                  <tr key={p.id} className="hover:bg-red-50/50">
+                    <td className="p-2.5 font-bold text-slate-900">{p.nama}</td>
+                    <td className="p-2.5 text-slate-700">{p.unit} • {p.sekup}</td>
+                    <td className="p-2.5">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="p-2.5 font-mono font-bold text-red-600">{p.akhirPKWT}</td>
+                    <td className="p-2.5 font-semibold text-red-700">
+                      {p.pkwtInfo.labelDetail}
+                    </td>
+                    <td className="p-2.5 text-center">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-200">
+                        Sudah Berakhir
                       </span>
                     </td>
                   </tr>
@@ -180,49 +262,51 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
           <div className="text-3xl font-black text-slate-900 tracking-tight font-mono">
             {pkwtCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            PKWT 1 / PKWT 2 / PKWT 3
+          <div className="text-[11px] text-slate-500 mt-1">
+            Kontrak berkala (1, 2, atau 3)
           </div>
         </div>
 
         <div 
           onClick={() => onNavigateTab('database')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-amber-400 cursor-pointer transition-all"
+          className="bg-white p-5 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-xs hover:border-amber-400 cursor-pointer transition-all"
         >
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-            Segera Berakhir
+          <div className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
+            PKWT Segera Berakhir
           </div>
-          <div className="text-3xl font-black text-amber-600 tracking-tight font-mono">
-            {segeraBerakhirCount}
+          <div className="text-3xl font-black text-amber-700 tracking-tight font-mono">
+            {segeraBerakhirAlerts.length}
           </div>
-          <div className="text-[11px] text-amber-700 font-semibold mt-1">
-            &le; 26 Hari Kalender
+          <div className="text-[11px] text-amber-700 mt-1 font-semibold">
+            {expiredAlerts.length > 0 ? `+ ${expiredAlerts.length} sudah berakhir` : '&le; 26 hari jatuh tempo'}
           </div>
         </div>
 
       </div>
 
-      {/* Card: Total Beban Upah Bulanan */}
+      {/* Section Beban Upah Bulanan */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-sm font-bold text-slate-900">
-                Total Beban Upah (Upah Harian &times; 26 Hari Kerja Tersedia)
-              </h3>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+              <DollarSign className="w-4 h-4" />
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Standar 26 hari kerja per bulan (angka tetap sesuai kebijakan perusahaan)
-            </p>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Ringkasan Beban Upah Harian Periode Ini
+              </h3>
+              <p className="text-xs text-slate-500">
+                Estimasi ketentuan 26 hari kerja (Senin - Sabtu) dikurangi potongan ijin
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
             <select
               value={selectedBulan}
               onChange={(e) => setSelectedBulan(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 font-bold"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 font-bold"
             >
               {bulanOptions.map(b => (
                 <option key={b.val} value={b.val}>{b.label}</option>
@@ -231,7 +315,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
             <select
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 font-bold"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 font-bold"
             >
               <option value="2025">2025</option>
               <option value="2026">2026</option>
@@ -239,44 +323,89 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-              Total Ketentuan ({totalPekerja} Pekerja)
-            </span>
-            <div className="text-xl font-black text-slate-900 font-mono">
-              Rp {Math.round(totalKetentuan).toLocaleString('id-ID')}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Ketentuan Upah Standar</span>
+            <div className="text-xl font-extrabold text-slate-800 font-mono">
+              Rp {totalKetentuan.toLocaleString('id-ID')}
             </div>
-            <span className="text-[10px] text-slate-400 mt-1 block">
-              Sebelum dikurangi potongan ijin
-            </span>
+            <span className="text-[10px] text-slate-400">Total pekerja &times; 26 hari kerja</span>
           </div>
 
-          <div className="p-4 bg-red-50/60 rounded-xl border border-red-200">
-            <span className="text-[11px] font-bold text-red-900 uppercase block mb-1">
-              Total Potongan Ijin (Bulan Ini)
-            </span>
-            <div className="text-xl font-black text-red-700 font-mono">
-              - Rp {Math.round(totalPotongan).toLocaleString('id-ID')}
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200">
+            <span className="text-xs font-bold text-red-700 block mb-1">Estimasi Potongan Ijin</span>
+            <div className="text-xl font-extrabold text-red-700 font-mono">
+              - Rp {totalPotongan.toLocaleString('id-ID')}
             </div>
-            <span className="text-[10px] text-red-600/80 mt-1 block">
-              Dari akumulasi Faktor Potongan
-            </span>
+            <span className="text-[10px] text-red-500">Ijin tanpa upah, sakit tanpa surat, alpha</span>
           </div>
 
-          <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200">
-            <span className="text-[11px] font-bold text-blue-900 uppercase block mb-1">
-              Total Setelah Potongan
-            </span>
-            <div className="text-xl font-black text-blue-800 font-mono">
-              Rp {Math.round(totalSetelahPotongan).toLocaleString('id-ID')}
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+            <span className="text-xs font-bold text-emerald-800 block mb-1">Total Estimasi Dibayarkan</span>
+            <div className="text-xl font-black text-emerald-700 font-mono">
+              Rp {totalSetelahPotongan.toLocaleString('id-ID')}
             </div>
-            <span className="text-[10px] text-blue-700 mt-1 block">
-              Estimasi beban upah bersih
-            </span>
+            <span className="text-[10px] text-emerald-600 font-medium">Belum termasuk tambahan lembur</span>
           </div>
+        </div>
 
+      </div>
+
+      {/* Quick Navigation Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        
+        <div 
+          onClick={() => onNavigateTab('presensi')}
+          className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer group transition-all"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <CalendarCheck className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
+          </div>
+          <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+            Presensi &amp; Ijin Potong Upah
+          </h4>
+          <p className="text-xs text-slate-500 mt-1">
+            Input ketidakhadiran, cetak formulir ijin 20.5 &times; 16 cm resmi, dan tracking faktor potongan.
+          </p>
+        </div>
+
+        <div 
+          onClick={() => onNavigateTab('lembur')}
+          className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 cursor-pointer group transition-all"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Clock className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition-colors" />
+          </div>
+          <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+            Lembur Mandor Shift
+          </h4>
+          <p className="text-xs text-slate-500 mt-1">
+            Pencatatan lembur borongan sekaligus multi-pekerja dengan formula rate bertingkat.
+          </p>
+        </div>
+
+        <div 
+          onClick={() => onNavigateTab('slip')}
+          className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-emerald-400 cursor-pointer group transition-all"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <FileText className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+          </div>
+          <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+            Slip Upah (Bulan &amp; Rentang)
+          </h4>
+          <p className="text-xs text-slate-500 mt-1">
+            Cetak slip gaji per bulan atau rentang mingguan bebas lengkap rincian lembur dan potongan.
+          </p>
         </div>
 
       </div>

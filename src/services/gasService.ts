@@ -228,6 +228,23 @@ function getAllPekerja_(scope) {
     if (!nama) return;
     const unitSekup = r[4];
     if (scope && scope !== 'ALL' && unitSekup !== scope) return;
+    const rawStatus = String(r[6] || '').trim();
+    let computedStatusPKWT = r[9] || '';
+    if (rawStatus.toUpperCase() === 'TETAP') {
+      computedStatusPKWT = 'TETAP';
+    } else if (r[8] instanceof Date) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const dAkhir = new Date(r[8]); dAkhir.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((dAkhir - today) / 86400000);
+      if (diffDays < 0) {
+        computedStatusPKWT = 'Sudah Berakhir';
+      } else if (diffDays <= 26) {
+        computedStatusPKWT = 'Segera Berakhir';
+      } else {
+        computedStatusPKWT = 'PKWT Berjalan';
+      }
+    }
+
     res.push({
       rowNum: ROWS.MASTER_START + i,
       id: r[0],
@@ -236,10 +253,10 @@ function getAllPekerja_(scope) {
       sekup: r[3],
       unitSekup: unitSekup,
       jabatan: r[5] || '-',
-      status: r[6] || '-',
+      status: rawStatus || '-',
       awalPKWT: fmtTgl_(r[7]),
       akhirPKWT: fmtTgl_(r[8]),
-      statusPKWT: r[9] || '',
+      statusPKWT: computedStatusPKWT,
       upahHarian: Number(r[10]) || 0,
       pendidikanTerakhir: r[11] || ''
     });

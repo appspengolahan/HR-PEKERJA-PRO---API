@@ -13,6 +13,7 @@ import {
   FolderOpen
 } from 'lucide-react';
 import { PekerjaData, LinkArsipRecord } from '../../types';
+import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 
 interface TabProfilPekerjaProps {
   pekerjaList: PekerjaData[];
@@ -140,11 +141,21 @@ export const TabProfilPekerja: React.FC<TabProfilPekerjaProps> = ({
               </div>
               <div>
                 <span className="text-slate-400 block">Akhir PKWT:</span>
-                <span className="font-mono text-slate-800">{currentPekerja.akhirPKWT || '-'}</span>
+                <span className="font-mono font-bold text-slate-800">{currentPekerja.akhirPKWT || '-'}</span>
               </div>
               <div>
-                <span className="text-slate-400 block">Status PKWT:</span>
-                <span className="font-semibold text-blue-700">{currentPekerja.statusPKWT || '-'}</span>
+                <span className="text-slate-400 block">Status Kontrak / PKWT:</span>
+                {(() => {
+                  const info = getPKWTStatusInfo(currentPekerja.status, currentPekerja.akhirPKWT);
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border ${info.badgeColor}`}>
+                      <span>{info.statusText}</span>
+                      {info.statusText !== 'TETAP' && info.statusText !== '-' && (
+                        <span className="font-normal opacity-85 text-[10px]">({info.labelDetail})</span>
+                      )}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>

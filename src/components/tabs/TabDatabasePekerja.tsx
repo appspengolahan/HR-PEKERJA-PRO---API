@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { PekerjaData } from '../../types';
 import { exportPekerjaToCSV } from '../../utils/exportUtils';
+import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { Download } from 'lucide-react';
 
 interface TabDatabasePekerjaProps {
@@ -66,11 +67,13 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const [mutasiKeterangan, setMutasiKeterangan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // PKWT Alerts: Akhir PKWT expiring in <= 26 days
+  // PKWT Alerts: Akhir PKWT expiring in <= 26 days (synchronized)
   const pkwtAlerts = pekerjaList.filter(p => {
-    if (!p.akhirPKWT || p.akhirPKWT === '-' || p.status === 'TETAP') return false;
-    // Check if statusPKWT says "Segera Berakhir" or date check
-    return p.statusPKWT === 'Segera Berakhir';
+    return getPKWTStatusInfo(p.status, p.akhirPKWT).isUrgent;
+  });
+
+  const expiredAlerts = pekerjaList.filter(p => {
+    return getPKWTStatusInfo(p.status, p.akhirPKWT).isExpired;
   });
 
   const filtered = pekerjaList.filter(p => {
@@ -162,14 +165,31 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
       
       {/* Alert Card if PKWT <= 26 days */}
       {pkwtAlerts.length > 0 && (
-        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-amber-800">
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-300 text-xs text-amber-950 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
             <span>Peringatan: {pkwtAlerts.length} Pekerja dengan Status PKWT Segera Berakhir (&le; 26 Hari)</span>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {pkwtAlerts.slice(0, 6).map(p => (
-              <span key={p.id} className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-medium">
+              <span key={p.id} className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-medium text-amber-950">
+                {p.nama} ({p.unit}) — Akhir: <strong>{p.akhirPKWT}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Alert Card if PKWT Expired */}
+      {expiredAlerts.length > 0 && (
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-300 text-xs text-red-950 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-red-900">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+            <span>Perhatian: {expiredAlerts.length} Pekerja dengan Tanggal Akhir PKWT Telah Terlewat (Perlu Pembaruan)</span>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {expiredAlerts.slice(0, 6).map(p => (
+              <span key={p.id} className="px-2.5 py-1 rounded-lg bg-white border border-red-300 font-medium text-red-900">
                 {p.nama} ({p.unit}) — Akhir: <strong>{p.akhirPKWT}</strong>
               </span>
             ))}
@@ -243,16 +263,17 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                 <th className="py-2.5 px-3">No / ID</th>
                 <th className="py-2.5 px-3">Nama Pekerja</th>
                 <th className="py-2.5 px-3">Unit &amp; Sekup</th>
-                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3">Status Kepegawaian</th>
                 <th className="py-2.5 px-3 text-right">Upah Harian</th>
                 <th className="py-2.5 px-3">Akhir PKWT</th>
+                <th className="py-2.5 px-3">Status Kontrak</th>
                 <th className="py-2.5 px-3 text-center">Pendidikan</th>
                 <th className="py-2.5 px-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filtered.map(p => {
-                const isUrgent = p.statusPKWT === 'Segera Berakhir';
+                const pkwtInfo = getPKWTStatusInfo(p.status, p.akhirPKWT);
 
                 return (
                   <tr key={p.rowNum} className="hover:bg-slate-50">
@@ -268,8 +289,8 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                     <td className="py-2.5 px-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         p.status === 'TETAP' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-slate-100 text-slate-700'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
                       }`}>
                         {p.status}
                       </span>
@@ -281,10 +302,20 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                       {p.status === 'TETAP' ? (
                         <span className="text-slate-400 text-[11px] italic">TETAP</span>
                       ) : (
-                        <span className={`font-mono ${isUrgent ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
+                        <span className={`font-mono font-bold ${
+                          pkwtInfo.isUrgent ? 'text-amber-700' : pkwtInfo.isExpired ? 'text-red-600' : 'text-slate-700'
+                        }`}>
                           {p.akhirPKWT}
                         </span>
                       )}
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border ${pkwtInfo.badgeColor}`}>
+                        <span>{pkwtInfo.statusText}</span>
+                        {pkwtInfo.statusText !== 'TETAP' && pkwtInfo.statusText !== '-' && (
+                          <span className="font-normal opacity-85 text-[9px]">({pkwtInfo.labelDetail})</span>
+                        )}
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-center font-medium">
                       {p.pendidikanTerakhir || '-'}
