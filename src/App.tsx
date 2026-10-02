@@ -446,8 +446,8 @@ export default function App() {
 
       {/* Main Workspace Area */}
       <div 
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-12 ${
-          collapsed ? 'ml-[68px]' : 'ml-64'
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-20 lg:pb-12 ${
+          collapsed ? 'lg:ml-[68px] ml-0' : 'lg:ml-64 ml-0'
         }`}
       >
         
@@ -608,6 +608,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
+        currentUser={currentUser}
       />
 
     </div>
