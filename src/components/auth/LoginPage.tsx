@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
@@ -40,7 +40,58 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [pekerjaError, setPekerjaError] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
+  
+  // Hidden Developer & Supervisory Gate State
+  const [isDevUnlocked, setIsDevUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('bk_dev_sim_unlocked') === 'true';
+  });
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [inputPin, setInputPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [logoClicks, setLogoClicks] = useState(0);
+
+  // Logo multi-click trigger (5 clicks activates developer prompt)
+  const handleLogoClick = () => {
+    setLogoClicks(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setShowPinModal(true);
+        return 0;
+      }
+      return next;
+    });
+    setTimeout(() => setLogoClicks(0), 3000);
+  };
+
+  // Keyboard shortcut listener (Ctrl+Shift+D or Cmd+Shift+D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        setShowPinModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleUnlockPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputPin === 'admin' || inputPin === 'pp1dev') {
+      setIsDevUnlocked(true);
+      sessionStorage.setItem('bk_dev_sim_unlocked', 'true');
+      setShowPinModal(false);
+      setInputPin('');
+      setPinError('');
+    } else {
+      setPinError('PIN Kunci Pengembang salah!');
+    }
+  };
+
+  const handleLockDeveloper = () => {
+    setIsDevUnlocked(false);
+    sessionStorage.removeItem('bk_dev_sim_unlocked');
+  };
 
   const handleDevQuickLogin = (email: string, pass: string) => {
     setIsLoading(true);
@@ -110,7 +161,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/10 mb-2">
+          <div 
+            onClick={handleLogoClick}
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 shadow-lg shadow-blue-500/10 mb-2 cursor-pointer active:scale-95 transition-transform select-none"
+            title="Sistem HR PP1"
+          >
             <Building2 className="w-7 h-7" />
           </div>
           <div className="space-y-0.5">
@@ -318,107 +373,189 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
         </div>
 
-        {/* Developer & Supervision Shortcut Gate (Only for Lead Developer, PM, Site Engineer) */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 space-y-3">
-          <button
-            type="button"
-            onClick={() => setIsDevPanelOpen(!isDevPanelOpen)}
-            className="w-full flex items-center justify-between text-xs font-bold text-amber-400/90 hover:text-amber-300 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded bg-amber-500/10 border border-amber-500/30 text-xs">🛠️</span>
-              <span>Akses Supervisi (Developer, PM &amp; Site Engineer)</span>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
-              {isDevPanelOpen ? 'Tutup ▲' : 'Buka Menu Pintasan ▼'}
-            </span>
-          </button>
-
-          {isDevPanelOpen && (
-            <div className="pt-2 border-t border-slate-800 space-y-2.5 animate-in fade-in duration-150">
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Pintasan simulasi khusus untuk <strong>Lead Developer, Project Manager, dan Site Engineer</strong> guna memantau antarmuka per peran tanpa perlu mengetik kredensial manual:
-              </p>
-
-              {/* Developer / PM Presets */}
-              <div className="space-y-1.5">
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('appspengolahan@gmail.com', 'admin')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-purple-300 border border-purple-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>👑 Lead Developer</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('pm@batukarang.com', 'pm123')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-indigo-300 border border-indigo-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>🏗️ Project Manager</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('engineer@batukarang.com', 'engineer123')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-cyan-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>📐 Site Engineer</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('hr@batukarang.com', 'hr123')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-blue-300 border border-blue-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>📋 Admin HR PP1</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('manajer@batukarang.com', 'manajer123')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>💼 Manajer Ops</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('mandor.cengkeh@batukarang.com', 'mandor')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>🚜 Mandor Cengkeh</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevQuickLogin('mandor.tembakau@batukarang.com', 'mandor')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>🚜 Mandor Tembakau</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDevWorkerQuickLogin('DEDIK IRAWAN', '37')}
-                    className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-300 border border-emerald-900/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <span>👷 Pekerja Harian (#37)</span>
-                  </button>
+        {/* Developer & Supervision Shortcut Gate (Only visible if unlocked via Master PIN) */}
+        {isDevUnlocked && (
+          <div className="bg-slate-900/90 border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded bg-amber-500/20 border border-amber-500/40 text-xs">🛠️</span>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-300">
+                    Mode Pengembang &amp; Supervisi Aktif
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    Akses khusus Developer, PM &amp; Site Engineer (Terbuka)
+                  </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={handleLockDeveloper}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-red-950/60 text-slate-400 hover:text-red-300 border border-slate-700 text-[10px] font-bold transition-colors flex items-center gap-1"
+                title="Kunci kembali dan sembunyikan panel"
+              >
+                <Lock className="w-3 h-3" />
+                <span>Kunci</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Security Footer */}
+            <p className="text-[10px] text-slate-300 leading-relaxed">
+              Pilih peran di bawah ini untuk langsung memantau antarmuka dan batasan hak akses per peran:
+            </p>
+
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('appspengolahan@gmail.com', 'admin')}
+                  className="p-2 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 text-purple-200 border border-purple-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>👑 Lead Developer</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('pm@batukarang.com', 'pm123')}
+                  className="p-2 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-200 border border-indigo-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🏗️ Project Manager</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('engineer@batukarang.com', 'engineer123')}
+                  className="p-2 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-200 border border-cyan-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>📐 Site Engineer</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('hr@batukarang.com', 'hr123')}
+                  className="p-2 rounded-xl bg-blue-950/40 hover:bg-blue-900/60 text-blue-200 border border-blue-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>📋 Admin HR PP1</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('manajer@batukarang.com', 'manajer123')}
+                  className="p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-200 border border-emerald-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>💼 Manajer Ops</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('mandor.cengkeh@batukarang.com', 'mandor')}
+                  className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🚜 Mandor Cengkeh</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('mandor.tembakau@batukarang.com', 'mandor')}
+                  className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🚜 Mandor Tembakau</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevWorkerQuickLogin('DEDIK IRAWAN', '37')}
+                  className="p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-200 border border-emerald-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>👷 Pekerja Harian (#37)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Security Footer with Discreet Developer Trigger */}
         <div className="text-center text-[11px] text-slate-500 space-y-1">
           <p>Sesi login disimpan secara aman per-perangkat.</p>
-          <p className="font-mono text-slate-600">&copy; 2026 PT Batu Karang • All Rights Reserved</p>
+          <div className="flex items-center justify-center gap-1 font-mono text-slate-600 text-[10px]">
+            <span>&copy; 2026 PT Batu Karang &bull; All Rights Reserved</span>
+            <button
+              type="button"
+              onClick={() => setShowPinModal(true)}
+              className="text-slate-600 hover:text-slate-400 p-0.5 transition-colors"
+              title="Otorisasi Pengembang (Ctrl+Shift+D)"
+            >
+              <Key className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+            </button>
+          </div>
         </div>
 
       </div>
+
+      {/* Developer Master PIN Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 p-5 space-y-4 shadow-2xl text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs font-bold text-white">Otorisasi Pengembang &amp; Supervisi</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPinModal(false);
+                  setInputPin('');
+                  setPinError('');
+                }}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Area terbatas. Masukkan Master PIN Pengembang untuk membuka fitur simulasi peran:
+            </p>
+
+            <form onSubmit={handleUnlockPin} className="space-y-3">
+              <div>
+                <input
+                  type="password"
+                  autoFocus
+                  placeholder="Masukkan Master PIN (default: admin)"
+                  value={inputPin}
+                  onChange={(e) => {
+                    setInputPin(e.target.value);
+                    setPinError('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-center tracking-widest text-amber-300 focus:outline-none focus:border-amber-500 placeholder:tracking-normal placeholder:font-sans"
+                />
+                {pinError && (
+                  <p className="text-[10px] text-red-400 mt-1 font-bold text-center">
+                    {pinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-xs font-bold text-slate-950 shadow-sm"
+                >
+                  Buka Kunci
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
