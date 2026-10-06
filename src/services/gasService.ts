@@ -113,7 +113,7 @@ function doGet(e) {
           configJamKerja: getConfigJamKerja_(),
           jadwalMutasi: getJadwalMutasi_(),
           calonPekerja: getCalonPekerjaList_(scope),
-          presensi: getPresensiList_(currentMonth, currentYear, '', scope),
+          presensi: getPresensiList_('', '', '', scope),
           lembur: getRekapLembur_('', '', 'Semua', 'Semua', scope)
         }
       });

@@ -1,23 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, 
   Search, 
   Printer, 
   TrendingUp, 
   Award,
-  Filter
+  Filter,
+  Download
 } from 'lucide-react';
-import { PekerjaData } from '../../types';
+import { PekerjaData, PresensiIjinRecord } from '../../types';
 import { exportRekapPresensiToCSV } from '../../utils/exportUtils';
-import { Download } from 'lucide-react';
+import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 
 interface TabRekapPresensiProps {
   pekerjaList: PekerjaData[];
+  presensiList?: PresensiIjinRecord[];
   currentScope: string;
 }
 
 export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   pekerjaList,
+  presensiList,
   currentScope
 }) => {
   const [tahun, setTahun] = useState('2026');
@@ -27,48 +30,91 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   const [bulanAwal, setBulanAwal] = useState('1');
   const [bulanAkhir, setBulanAkhir] = useState('12');
 
-  const filteredPekerja = pekerjaList.filter(p => {
-    const matchScope = currentScope === 'ALL' || p.unitSekup === currentScope;
-    const matchUnit = unit === 'Semua' || p.unit === unit;
-    const matchSekup = sekup === 'Semua' || p.sekup === sekup;
-    const matchNama = nama === 'Semua' || p.nama === nama;
-    return matchScope && matchUnit && matchSekup && matchNama;
-  });
+  const filteredPekerja = useMemo(() => {
+    return pekerjaList.filter(p => {
+      const matchScope = currentScope === 'ALL' || p.unitSekup === currentScope;
+      const matchUnit = unit === 'Semua' || p.unit === unit;
+      const matchSekup = sekup === 'Semua' || p.sekup === sekup;
+      const matchNama = nama === 'Semua' || p.nama === nama;
+      return matchScope && matchUnit && matchSekup && matchNama;
+    });
+  }, [pekerjaList, currentScope, unit, sekup, nama]);
 
-  // Calculate synthetic baseline for visualization (using 26 days * 420 mins = 10,920 mins/month)
+  // Use presensiList if provided and non-empty, otherwise use authentic initial dataset
+  const effectivePresensi = useMemo(() => {
+    return (presensiList && presensiList.length > 0)
+      ? presensiList
+      : INITIAL_PRESENSI_FALLBACK;
+  }, [presensiList]);
+
+  // Aggregate minutes by worker name and month (0 to 11) from authentic presensi records
+  const workerMonthlyMap = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    effectivePresensi.forEach(item => {
+      if (!item.nama) return;
+      const cleanName = item.nama.trim().toUpperCase();
+      if (!map[cleanName]) {
+        map[cleanName] = Array(12).fill(0);
+      }
+
+      let m = -1;
+      let yr = '';
+      if (item.tanggalIso) {
+        const parts = item.tanggalIso.split('-');
+        yr = parts[0];
+        m = parseInt(parts[1], 10) - 1;
+      } else if (item.tanggal) {
+        const parts = item.tanggal.split('/');
+        yr = parts[2] || '';
+        m = parseInt(parts[1], 10) - 1;
+      }
+
+      // Check year filter (if year is specified and matches)
+      if (tahun && yr && yr !== tahun) return;
+
+      if (m >= 0 && m < 12) {
+        map[cleanName][m] += Number(item.durasiMenit) || 0;
+      }
+    });
+    return map;
+  }, [effectivePresensi, tahun]);
+
+  // Standard available minutes per month (26 days * 420 mins = 10,920 mins; standard 10,440 mins)
   const MENIT_TERSEDIA_BULAN = 10440;
   
-  const rekapRows = filteredPekerja.map(p => {
-    // Generate realistic simulated monthly minutes based on worker status
-    const seed = p.id.toString().charCodeAt(0) || 50;
-    const bulanan: number[] = [];
-    let totalIjin = 0;
+  const rekapRows = useMemo(() => {
+    return filteredPekerja.map(p => {
+      const cleanName = p.nama.trim().toUpperCase();
+      const recordedMonths = workerMonthlyMap[cleanName] || Array(12).fill(0);
+      const bulanan: number[] = [];
+      let totalIjin = 0;
 
-    for (let b = 1; b <= 12; b++) {
-      if (b >= Number(bulanAwal) && b <= Number(bulanAkhir)) {
-        const ijin = (seed * b * 7) % 360; // 0 to 360 mins
-        bulanan.push(ijin);
-        totalIjin += ijin;
-      } else {
-        bulanan.push(0);
+      for (let b = 1; b <= 12; b++) {
+        if (b >= Number(bulanAwal) && b <= Number(bulanAkhir)) {
+          const menit = recordedMonths[b - 1] || 0;
+          bulanan.push(menit);
+          totalIjin += menit;
+        } else {
+          bulanan.push(0);
+        }
       }
-    }
 
-    const jmlBulan = Number(bulanAkhir) - Number(bulanAwal) + 1;
-    const totalTersedia = MENIT_TERSEDIA_BULAN * jmlBulan;
-    const pctKehadiran = totalTersedia > 0 
-      ? Math.max(0, Math.round((100 - (totalIjin / totalTersedia * 100)) * 100) / 100) 
-      : 100;
+      const jmlBulan = Number(bulanAkhir) - Number(bulanAwal) + 1;
+      const totalTersedia = MENIT_TERSEDIA_BULAN * jmlBulan;
+      const pctKehadiran = totalTersedia > 0 
+        ? Math.max(0, Math.round((100 - (totalIjin / totalTersedia * 100)) * 100) / 100) 
+        : 100;
 
-    return {
-      nama: p.nama,
-      unit: p.unit,
-      sekup: p.sekup,
-      bulanan,
-      totalIjin,
-      pctKehadiran
-    };
-  }).sort((a, b) => a.pctKehadiran - b.pctKehadiran); // lowest first for attention
+      return {
+        nama: p.nama,
+        unit: p.unit,
+        sekup: p.sekup,
+        bulanan,
+        totalIjin,
+        pctKehadiran
+      };
+    }).sort((a, b) => b.totalIjin - a.totalIjin); // Highest total ijin first so supervisor can immediately see who took the most leave
+  }, [filteredPekerja, workerMonthlyMap, bulanAwal, bulanAkhir]);
 
   // Calculate monthly average for line trend
   const bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -298,7 +344,13 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                   <td className="py-2 px-3 text-slate-500 text-[11px]">{r.unit} • {r.sekup}</td>
                   {r.bulanan.map((m, mIdx) => (
                     <td key={mIdx} className="py-2 px-2 text-center font-mono text-[11px]">
-                      {m > 0 ? <span className="text-amber-700 font-semibold">{m}</span> : '-'}
+                      {m > 0 ? (
+                        <span className="text-amber-600 font-bold">
+                          {m}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">0</span>
+                      )}
                     </td>
                   ))}
                   <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">

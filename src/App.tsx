@@ -35,6 +35,7 @@ import {
   SuratIjinData,
   GasConfig 
 } from './types';
+import { INITIAL_PRESENSI_FALLBACK } from './data/initialPresensi';
 
 // Fallback initial workers if completely offline before first sync
 const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
@@ -83,7 +84,10 @@ export default function App() {
     'Ijin Keluar Sementara', 'Ijin Pulang Awal', 'Ijin Normatif', 'Alpha'
   ]);
   const [switchAppUrl, setSwitchAppUrl] = useState('https://appspengolahan.github.io/HR-Karyawan-PP1/');
-  const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>([]);
+  const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>(() => {
+    const cached = localStorage.getItem('hr_presensi_cache');
+    return cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
+  });
   const [lemburList, setLemburList] = useState<LemburRecord[]>([]);
   const [jadwalMutasiList, setJadwalMutasiList] = useState<JadwalMutasiRecord[]>([]);
   const [calonList, setCalonList] = useState<CalonPekerjaRecord[]>([
@@ -140,8 +144,9 @@ export default function App() {
         if (d.calonPekerja) {
           setCalonList(d.calonPekerja);
         }
-        if (d.presensi && Array.isArray(d.presensi)) {
+        if (d.presensi && Array.isArray(d.presensi) && d.presensi.length > 0) {
           setPresensiList(d.presensi);
+          localStorage.setItem('hr_presensi_cache', JSON.stringify(d.presensi));
         }
         if (d.lembur) {
           if (Array.isArray(d.lembur)) {
@@ -149,6 +154,17 @@ export default function App() {
           } else if (d.lembur.rows && Array.isArray(d.lembur.rows)) {
             setLemburList(d.lembur.rows);
           }
+        }
+
+        // Fetch complete annual presensi history to guarantee full 12-month rekap accuracy
+        try {
+          const presensiHistory = await gasClient.getPresensi('', '2026', '', currentScope);
+          if (presensiHistory.status === 'success' && Array.isArray(presensiHistory.data) && presensiHistory.data.length > 0) {
+            setPresensiList(presensiHistory.data);
+            localStorage.setItem('hr_presensi_cache', JSON.stringify(presensiHistory.data));
+          }
+        } catch (e) {
+          console.warn('Presensi history fetch note:', e);
         }
       }
     } catch (err) {
@@ -526,6 +542,7 @@ export default function App() {
           {activeTab === 'rekap' && (
             <TabRekapPresensi
               pekerjaList={pekerjaList}
+              presensiList={presensiList}
               currentScope={currentScope}
             />
           )}
