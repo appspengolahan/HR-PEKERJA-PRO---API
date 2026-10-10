@@ -154,30 +154,35 @@ function doPost(e) {
     const raw = e.postData ? e.postData.contents : '{}';
     const payload = JSON.parse(raw);
     const action = payload.action;
+    const currentUser = payload.currentUser || 'Web App User';
+    const rowNum = (payload.data && payload.data.rowNum) || payload.rowNum;
 
     if (action === 'addPresensiIjin') {
-      return jsonResponse_(addPresensiIjin_(payload.data));
+      return jsonResponse_(addPresensiIjin_(payload.data, currentUser));
+    }
+    if (action === 'updatePresensiIjin') {
+      return jsonResponse_(updatePresensiIjin_(payload.data, currentUser));
     }
     if (action === 'deletePresensiIjin') {
-      return jsonResponse_(deletePresensiIjin_(payload.rowNum, payload.currentUser));
+      return jsonResponse_(deletePresensiIjin_(rowNum, currentUser));
     }
     if (action === 'submitLemburBatch') {
-      return jsonResponse_(submitLemburBatch_(payload.data));
+      return jsonResponse_(submitLemburBatch_(payload.data, currentUser));
     }
     if (action === 'addNewPekerja') {
-      return jsonResponse_(addNewPekerja_(payload.data));
+      return jsonResponse_(addNewPekerja_(payload.data, currentUser));
     }
     if (action === 'updatePekerja') {
-      return jsonResponse_(updatePekerja_(payload.data));
+      return jsonResponse_(updatePekerja_(payload.data, currentUser));
     }
     if (action === 'deletePekerja') {
-      return jsonResponse_(deletePekerja_(payload.rowNum, payload.currentUser));
+      return jsonResponse_(deletePekerja_(rowNum, currentUser));
     }
     if (action === 'submitMutasi') {
-      return jsonResponse_(submitMutasi_(payload.data, payload.currentUser));
+      return jsonResponse_(submitMutasi_(payload.data, currentUser));
     }
     if (action === 'updateStatusCalon') {
-      return jsonResponse_(updateStatusCalon_(payload.data, payload.currentUser));
+      return jsonResponse_(updateStatusCalon_(payload.data, currentUser));
     }
 
     return jsonResponse_({ status: 'error', message: 'Action doPost tidak dikenali: ' + action });
@@ -588,5 +593,311 @@ function pasangPemicuOtomatisHarian_() {
     .everyDays(1)
     .atHour(1)
     .create();
+}
+
+// =========================================================================
+// MUTASI DATA DUA ARAH (TWO-WAY SPREADSHEET CRUD ENGINE)
+// =========================================================================
+
+function addPresensiIjin_(data, currentUser) {
+  const sh = getSheet_(SHEET.PRESENSI);
+  if (!sh) throw new Error('Sheet ' + SHEET.PRESENSI + ' tidak ditemukan.');
+  
+  const shMaster = getSheet_(SHEET.MASTER);
+  let unit = '', sekup = '';
+  if (shMaster) {
+    const lastM = shMaster.getLastRow();
+    if (lastM >= ROWS.MASTER_START) {
+      const mData = shMaster.getRange(ROWS.MASTER_START, 3, Math.min(lastM, ROWS.MASTER_LAST) - ROWS.MASTER_START + 1, 3).getValues();
+      for (let i = 0; i < mData.length; i++) {
+        if (mData[i][0] === data.nama) {
+          unit = mData[i][1];
+          sekup = mData[i][2];
+          break;
+        }
+      }
+    }
+  }
+
+  const tanggalList = Array.isArray(data.tanggalList) && data.tanggalList.length > 0
+    ? data.tanggalList
+    : [{ tanggal: data.tanggal, jamAwal: data.jamAwal, jamAkhir: data.jamAkhir }];
+
+  const rowsToAdd = [];
+  tanggalList.forEach(t => {
+    const tglObj = toDateValue_(t.tanggal);
+    let durasiMenit = 0;
+    if (t.jamAwal && t.jamAkhir) {
+      const p1 = String(t.jamAwal).split(':').map(Number);
+      const p2 = String(t.jamAkhir).split(':').map(Number);
+      if (p1.length === 2 && p2.length === 2) {
+        durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
+      }
+    }
+    if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha' || data.jenisIjin === 'Ijin Normatif')) {
+      durasiMenit = 420; // 1 hari kerja normal
+    }
+
+    const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
+    const tahun = tglObj ? tglObj.getFullYear() : '';
+    
+    let faktorPotongan = 0;
+    if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Dokter)') || data.jenisIjin === 'Ijin Normatif')) {
+      faktorPotongan = 0;
+    } else if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Tangan)') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha')) {
+      faktorPotongan = 1;
+    } else {
+      faktorPotongan = Math.round((durasiMenit / 420) * 100) / 100;
+    }
+
+    // Col C..P (14 cols)
+    rowsToAdd.push([
+      tglObj || t.tanggal,
+      data.nama,
+      unit,
+      sekup,
+      t.jamAwal || '-',
+      t.jamAkhir || '-',
+      durasiMenit,
+      data.jenisIjin,
+      data.keperluan || '-',
+      data.lampiran || 'Tidak',
+      data.catatan || '',
+      bulan,
+      tahun,
+      faktorPotongan
+    ]);
+  });
+
+  if (rowsToAdd.length > 0) {
+    const nextRow = sh.getLastRow() + 1;
+    sh.getRange(nextRow, 3, rowsToAdd.length, 14).setValues(rowsToAdd);
+  }
+
+  return { status: 'success', message: 'Berhasil mencatat ' + rowsToAdd.length + ' presensi/ijin ke spreadsheet.' };
+}
+
+function updatePresensiIjin_(data, currentUser) {
+  const sh = getSheet_(SHEET.PRESENSI);
+  if (!sh) throw new Error('Sheet ' + SHEET.PRESENSI + ' tidak ditemukan.');
+  const rowNum = Number(data.rowNum);
+  if (!rowNum || rowNum < ROWS.PRESENSI_START) throw new Error('Nomor baris tidak valid.');
+
+  let durasiMenit = 0;
+  if (data.jamAwal && data.jamAkhir) {
+    const p1 = String(data.jamAwal).split(':').map(Number);
+    const p2 = String(data.jamAkhir).split(':').map(Number);
+    if (p1.length === 2 && p2.length === 2) {
+      durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
+    }
+  }
+
+  const tglObj = toDateValue_(data.tanggal);
+  const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
+  const tahun = tglObj ? tglObj.getFullYear() : '';
+
+  let faktorPotongan = 0;
+  if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Dokter)') || data.jenisIjin === 'Ijin Normatif')) {
+    faktorPotongan = 0;
+  } else if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Tangan)') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha')) {
+    faktorPotongan = 1;
+  } else {
+    faktorPotongan = Math.round((durasiMenit / 420) * 100) / 100;
+  }
+
+  sh.getRange(rowNum, 7).setValue(data.jamAwal || '-');
+  sh.getRange(rowNum, 8).setValue(data.jamAkhir || '-');
+  sh.getRange(rowNum, 9).setValue(durasiMenit);
+  sh.getRange(rowNum, 10).setValue(data.jenisIjin);
+  sh.getRange(rowNum, 11).setValue(data.keperluan || '-');
+  sh.getRange(rowNum, 12).setValue(data.lampiran || 'Tidak');
+  sh.getRange(rowNum, 13).setValue(data.catatan || '');
+  sh.getRange(rowNum, 14).setValue(bulan);
+  sh.getRange(rowNum, 15).setValue(tahun);
+  sh.getRange(rowNum, 16).setValue(faktorPotongan);
+
+  return { status: 'success', message: 'Data presensi baris #' + rowNum + ' berhasil diperbarui di spreadsheet.' };
+}
+
+function deletePresensiIjin_(rowNum, currentUser) {
+  const sh = getSheet_(SHEET.PRESENSI);
+  if (!sh) throw new Error('Sheet ' + SHEET.PRESENSI + ' tidak ditemukan.');
+  const r = Number(rowNum);
+  if (!r || r < ROWS.PRESENSI_START || r > sh.getLastRow()) {
+    throw new Error('Baris #' + rowNum + ' tidak ditemukan atau di luar rentang.');
+  }
+
+  const rowVals = sh.getRange(r, 3, 1, 14).getValues()[0];
+  const shArsip = getSheet_(SHEET.ARSIP_HAPUS_PRESENSI);
+  if (shArsip) {
+    const nextA = shArsip.getLastRow() + 1;
+    shArsip.getRange(nextA, 1, 1, 16).setValues([[
+      new Date(),
+      currentUser || 'Web App User',
+      ...rowVals
+    ]]);
+  }
+
+  sh.deleteRow(r);
+  return { status: 'success', message: 'Baris presensi #' + r + ' berhasil dihapus dari spreadsheet.' };
+}
+
+function submitLemburBatch_(data, currentUser) {
+  const sh = getSheet_(SHEET.LEMBUR);
+  if (!sh) throw new Error('Sheet ' + SHEET.LEMBUR + ' tidak ditemukan.');
+  
+  const shMaster = getSheet_(SHEET.MASTER);
+  const workerMap = {};
+  if (shMaster) {
+    const lastM = shMaster.getLastRow();
+    if (lastM >= ROWS.MASTER_START) {
+      const mData = shMaster.getRange(ROWS.MASTER_START, 3, Math.min(lastM, ROWS.MASTER_LAST) - ROWS.MASTER_START + 1, 10).getValues();
+      mData.forEach(m => {
+        workerMap[m[0]] = { unit: m[1], sekup: m[2], upahHarian: Number(m[9]) || 146675.96 };
+      });
+    }
+  }
+
+  const p1 = String(data.jamMulai || '').split(':').map(Number);
+  const p2 = String(data.jamSelesai || '').split(':').map(Number);
+  let jmlJam = 0;
+  if (p1.length === 2 && p2.length === 2) {
+    jmlJam = Math.max(0, Math.round(((p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1])) / 60 * 100) / 100);
+  }
+
+  const tglObj = toDateValue_(data.tanggal);
+  const rows = [];
+  (data.namaList || []).forEach(nama => {
+    const w = workerMap[nama] || { unit: '-', sekup: '-', upahHarian: 146675.96 };
+    const upahPerJam = Math.round(w.upahHarian / 7);
+    const nominal = Math.round(jmlJam * upahPerJam * 1.5);
+
+    rows.push([
+      tglObj || data.tanggal,
+      nama,
+      w.unit,
+      w.sekup,
+      data.kategori || 'Hari Kerja',
+      data.jamMulai || '-',
+      data.jamSelesai || '-',
+      jmlJam,
+      1.5,
+      w.upahHarian,
+      'Lembur Harian',
+      nominal,
+      currentUser || 'Mandor'
+    ]);
+  });
+
+  if (rows.length > 0) {
+    const nextRow = sh.getLastRow() + 1;
+    sh.getRange(nextRow, 3, rows.length, 13).setValues(rows);
+  }
+
+  return { status: 'success', message: 'Berhasil mencatat lembur untuk ' + rows.length + ' pekerja di spreadsheet.' };
+}
+
+function addNewPekerja_(data, currentUser) {
+  const sh = getSheet_(SHEET.MASTER);
+  if (!sh) throw new Error('Sheet ' + SHEET.MASTER + ' tidak ditemukan.');
+  
+  const nextRow = sh.getLastRow() + 1;
+  const newId = nextRow - ROWS.MASTER_START + 1;
+  const unitSekup = (data.sekup && data.unit) ? (data.sekup + ' ' + data.unit) : '';
+
+  const newRow = [
+    newId,
+    data.nama,
+    data.unit,
+    data.sekup,
+    unitSekup,
+    data.jabatan || 'Harian',
+    data.status || 'PKWT',
+    toDateValue_(data.awalPKWT) || data.awalPKWT || '-',
+    toDateValue_(data.akhirPKWT) || data.akhirPKWT || '-',
+    data.statusPKWT || 'PKWT Berjalan',
+    Number(data.upahHarian) || 146675.96,
+    data.pendidikanTerakhir || '-'
+  ];
+
+  sh.getRange(nextRow, 2, 1, 12).setValues([newRow]);
+  return { status: 'success', message: 'Pekerja ' + data.nama + ' berhasil ditambahkan ke spreadsheet.' };
+}
+
+function updatePekerja_(data, currentUser) {
+  const sh = getSheet_(SHEET.MASTER);
+  if (!sh) throw new Error('Sheet ' + SHEET.MASTER + ' tidak ditemukan.');
+  const r = Number(data.rowNum);
+  if (!r || r < ROWS.MASTER_START) throw new Error('Nomor baris pekerja tidak valid.');
+
+  const unitSekup = (data.sekup && data.unit) ? (data.sekup + ' ' + data.unit) : '';
+  sh.getRange(r, 3).setValue(data.nama);
+  sh.getRange(r, 4).setValue(data.unit);
+  sh.getRange(r, 5).setValue(data.sekup);
+  sh.getRange(r, 6).setValue(unitSekup);
+  sh.getRange(r, 7).setValue(data.jabatan || 'Harian');
+  sh.getRange(r, 8).setValue(data.status || 'PKWT');
+  sh.getRange(r, 9).setValue(toDateValue_(data.awalPKWT) || data.awalPKWT || '-');
+  sh.getRange(r, 10).setValue(toDateValue_(data.akhirPKWT) || data.akhirPKWT || '-');
+  sh.getRange(r, 11).setValue(data.statusPKWT || '-');
+  sh.getRange(r, 12).setValue(Number(data.upahHarian) || 146675.96);
+  sh.getRange(r, 13).setValue(data.pendidikanTerakhir || '-');
+
+  return { status: 'success', message: 'Data pekerja ' + data.nama + ' berhasil diperbarui di spreadsheet.' };
+}
+
+function deletePekerja_(rowNum, currentUser) {
+  const sh = getSheet_(SHEET.MASTER);
+  if (!sh) throw new Error('Sheet ' + SHEET.MASTER + ' tidak ditemukan.');
+  const r = Number(rowNum);
+  if (!r || r < ROWS.MASTER_START) throw new Error('Nomor baris pekerja tidak valid.');
+
+  const rowVals = sh.getRange(r, 2, 1, 12).getValues()[0];
+  const shArsip = getSheet_(SHEET.ARSIP_HAPUS_PEKERJA);
+  if (shArsip) {
+    const nextA = shArsip.getLastRow() + 1;
+    shArsip.getRange(nextA, 1, 1, 14).setValues([[
+      new Date(),
+      currentUser || 'Web App User',
+      ...rowVals
+    ]]);
+  }
+
+  sh.deleteRow(r);
+  return { status: 'success', message: 'Data pekerja baris #' + r + ' berhasil dihapus dari spreadsheet.' };
+}
+
+function submitMutasi_(data, currentUser) {
+  const sh = getSheet_(SHEET.MUTASI);
+  if (!sh) throw new Error('Sheet ' + SHEET.MUTASI + ' tidak ditemukan.');
+
+  const nextRow = sh.getLastRow() + 1;
+  const newRow = [
+    toDateValue_(data.tanggalEfektif) || data.tanggalEfektif,
+    data.nama,
+    data.jenisMutasi,
+    data.nilaiLama || '-',
+    data.nilaiBaru || '-',
+    data.keterangan || '-',
+    currentUser || 'Admin HR',
+    '',
+    '',
+    'Terjadwal'
+  ];
+
+  sh.getRange(nextRow, 3, 1, 10).setValues([newRow]);
+  return { status: 'success', message: 'Jadwal mutasi berhasil dicatat di spreadsheet.' };
+}
+
+function updateStatusCalon_(data, currentUser) {
+  const sh = getSheet_(SHEET.CALON);
+  if (!sh) throw new Error('Sheet ' + SHEET.CALON + ' tidak ditemukan.');
+  const r = Number(data.rowNum);
+  if (!r || r < ROWS.CALON_START) throw new Error('Nomor baris calon pekerja tidak valid.');
+
+  sh.getRange(r, 10).setValue(data.status);
+  if (data.catatan) sh.getRange(r, 12).setValue(data.catatan);
+
+  return { status: 'success', message: 'Status calon pekerja baris #' + r + ' berhasil diperbarui di spreadsheet.' };
 }
 `;

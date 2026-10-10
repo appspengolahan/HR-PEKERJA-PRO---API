@@ -210,11 +210,50 @@ export default function App() {
     catatan: string;
     tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
   }) => {
-    const res = await gasClient.postMutation('addPresensiIjin', data);
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal menyimpan ijin');
+    // Optimistic local add
+    const worker = pekerjaList.find(p => p.nama === data.nama);
+    const newRecords: PresensiIjinRecord[] = data.tanggalList.map((t, idx) => {
+      let durasiMenit = 0;
+      if (t.jamAwal && t.jamAkhir) {
+        const p1 = t.jamAwal.split(':').map(Number);
+        const p2 = t.jamAkhir.split(':').map(Number);
+        if (p1.length === 2 && p2.length === 2) {
+          durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
+        }
+      }
+      if (data.jenisIjin.startsWith('Sakit') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha' || data.jenisIjin === 'Ijin Normatif') {
+        durasiMenit = 420;
+      }
+      return {
+        rowNum: Date.now() + idx,
+        tanggal: t.tanggal,
+        nama: data.nama,
+        unit: worker?.unit || '-',
+        sekup: worker?.sekup || '-',
+        jamAwal: t.jamAwal || '-',
+        jamAkhir: t.jamAkhir || '-',
+        durasiMenit,
+        jenisIjin: data.jenisIjin,
+        keperluan: data.keperluan,
+        lampiran: data.lampiran,
+        catatan: data.catatan,
+        faktorPotongan: 0
+      };
+    });
+
+    setPresensiList(prev => {
+      const next = [...newRecords, ...prev];
+      localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('addPresensiIjin', data, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync to Google Sheets pending/offline:', err);
     }
   };
 
@@ -228,20 +267,37 @@ export default function App() {
     lampiran: string;
     catatan: string;
   }) => {
-    const res = await gasClient.postMutation('updatePresensiIjin', data);
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal mengupdate ijin');
+    setPresensiList(prev => {
+      const next = prev.map(r => r.rowNum === data.rowNum ? { ...r, ...data } : r);
+      localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('updatePresensiIjin', data, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync to Google Sheets pending/offline:', err);
     }
   };
 
   const handleDeletePresensi = async (rowNum: number) => {
-    const res = await gasClient.postMutation('deletePresensiIjin', { rowNum });
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal menghapus ijin');
+    // Optimistic local deletion
+    setPresensiList(prev => {
+      const next = prev.filter(r => r.rowNum !== rowNum);
+      localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('deletePresensiIjin', { rowNum }, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync to Google Sheets pending/offline:', err);
     }
   };
 
@@ -310,29 +366,70 @@ export default function App() {
 
   // Pekerja Database Handlers
   const handleAddPekerja = async (data: Partial<PekerjaData>) => {
-    const res = await gasClient.postMutation('addNewPekerja', data);
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal menambah pekerja');
+    const newId = pekerjaList.length + 1;
+    const newWorker: PekerjaData = {
+      rowNum: Date.now(),
+      id: newId,
+      nama: data.nama || '',
+      unit: data.unit || 'Cengkeh',
+      sekup: data.sekup || 'Proses',
+      unitSekup: (data.sekup && data.unit) ? `${data.sekup} ${data.unit}` : 'Proses Cengkeh',
+      jabatan: data.jabatan || 'Harian',
+      status: data.status || 'PKWT',
+      awalPKWT: data.awalPKWT || '-',
+      akhirPKWT: data.akhirPKWT || '-',
+      statusPKWT: data.statusPKWT || 'PKWT Berjalan',
+      upahHarian: Number(data.upahHarian) || 146675.96,
+      pendidikanTerakhir: data.pendidikanTerakhir || '-'
+    };
+
+    setPekerjaList(prev => {
+      const next = [...prev, newWorker];
+      localStorage.setItem('hr_pekerja_master', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('addNewPekerja', data, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync new pekerja note:', err);
     }
   };
 
   const handleUpdatePekerja = async (data: Partial<PekerjaData>) => {
-    const res = await gasClient.postMutation('updatePekerja', data);
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal mengupdate pekerja');
+    setPekerjaList(prev => {
+      const next = prev.map(p => (p.rowNum === data.rowNum || p.id === data.id) ? { ...p, ...data } : p);
+      localStorage.setItem('hr_pekerja_master', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('updatePekerja', data, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync update pekerja note:', err);
     }
   };
 
   const handleDeletePekerja = async (rowNum: number, nama: string) => {
-    const res = await gasClient.postMutation('deletePekerja', { rowNum, nama });
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal menghapus pekerja');
+    setPekerjaList(prev => {
+      const next = prev.filter(p => p.rowNum !== rowNum && p.nama !== nama);
+      localStorage.setItem('hr_pekerja_master', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('deletePekerja', { rowNum, nama }, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync delete pekerja note:', err);
     }
   };
 
