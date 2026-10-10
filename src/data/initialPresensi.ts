@@ -1,4 +1,4 @@
-import { PresensiIjinRecord } from "../types";
+import { PresensiIjinRecord } from "../types/index";
 
 export const INITIAL_PRESENSI_FALLBACK: PresensiIjinRecord[] = [
   {
