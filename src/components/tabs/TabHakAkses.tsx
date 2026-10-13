@@ -31,7 +31,9 @@ import {
   authService, 
   InternalAccount, 
   UserAccessRole, 
-  AuthUser 
+  AuthUser,
+  RoleMatrix,
+  DEFAULT_ROLE_MATRIX 
 } from '../../services/authService';
 
 interface TabHakAksesProps {
@@ -63,6 +65,78 @@ const SCOPE_OPTIONS = [
   'Proses Krosok'
 ];
 
+export const MATRIX_ROLES: { 
+  role: UserAccessRole; 
+  title: string; 
+  subtitle: string; 
+  scopeDesc: string; 
+  badgeColor: string;
+}[] = [
+  { 
+    role: 'Super Admin', 
+    title: 'Developer / Super Admin', 
+    subtitle: 'Lead Developer & Admin Sistem', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200' 
+  },
+  { 
+    role: 'Project Manager', 
+    title: 'Project Manager', 
+    subtitle: 'Monitoring & Operasional Proyek', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200' 
+  },
+  { 
+    role: 'Site Engineer', 
+    title: 'Site Engineer', 
+    subtitle: 'Pengawasan Teknis Lapangan', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200' 
+  },
+  { 
+    role: 'HR Admin', 
+    title: 'HR Admin', 
+    subtitle: 'Administrasi Kepegawaian & PKWT', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' 
+  },
+  { 
+    role: 'Manajer Operasional', 
+    title: 'Manajer Operasional', 
+    subtitle: 'Rekap Total Upah & Operasional', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+  },
+  { 
+    role: 'Kepala Pengolahan 2', 
+    title: 'Kepala Pengolahan 2', 
+    subtitle: 'Monitoring & Entri 2 Unit', 
+    scopeDesc: 'Unit Cengkeh & Blend', 
+    badgeColor: 'bg-teal-100 text-teal-800 border-teal-200' 
+  },
+  { 
+    role: 'Kepala Pengolahan 1', 
+    title: 'Kepala Pengolahan 1', 
+    subtitle: 'Monitoring & Entri 2 Unit (Lowong)', 
+    scopeDesc: 'Unit Tembakau & Krosok', 
+    badgeColor: 'bg-sky-100 text-sky-800 border-sky-200' 
+  },
+  { 
+    role: 'Foreman / Mandor', 
+    title: 'Foreman / Mandor', 
+    subtitle: 'Mandor Khusus Unit Lapangan', 
+    scopeDesc: 'Khusus Unit Terkait', 
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' 
+  },
+  { 
+    role: 'Pekerja Harian', 
+    title: 'Pekerja Harian', 
+    subtitle: 'Portal Karyawan Lapangan', 
+    scopeDesc: 'Data Pribadi Mandiri', 
+    badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' 
+  }
+];
+
 export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   currentUser,
   pekerjaList,
@@ -90,9 +164,94 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Dynamic Role Matrix State (Checkboxes per Role & Modul)
+  const [roleMatrix, setRoleMatrix] = useState<RoleMatrix>(() => authService.getRoleMatrix());
+  const [hasMatrixChanges, setHasMatrixChanges] = useState(false);
+
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleToggleRoleTab = (role: UserAccessRole, tabId: MainTabType) => {
+    if (role === 'Super Admin' && tabId === 'hakakses') {
+      showNotification('error', 'Modul Hak Akses untuk Super Admin tidak dapat dinonaktifkan demi keamanan sistem.');
+      return;
+    }
+
+    setRoleMatrix(prev => {
+      const currentTabs = prev[role] || [];
+      const exists = currentTabs.includes(tabId);
+      const nextTabs = exists 
+        ? currentTabs.filter(t => t !== tabId)
+        : [...currentTabs, tabId];
+
+      setHasMatrixChanges(true);
+      return {
+        ...prev,
+        [role]: nextTabs
+      };
+    });
+  };
+
+  const handleToggleAllForRole = (role: UserAccessRole, enableAll: boolean) => {
+    setRoleMatrix(prev => {
+      const allTabIds = ALL_AVAILABLE_TABS.map(t => t.id);
+      let nextTabs: MainTabType[] = [];
+
+      if (enableAll) {
+        nextTabs = [...allTabIds];
+      } else {
+        // If disabling all, keep 'hakakses' for Super Admin to prevent lockouts
+        if (role === 'Super Admin') {
+          nextTabs = ['hakakses'];
+        } else {
+          nextTabs = [];
+        }
+      }
+
+      setHasMatrixChanges(true);
+      return {
+        ...prev,
+        [role]: nextTabs
+      };
+    });
+  };
+
+  const handleSaveRoleMatrix = () => {
+    authService.saveRoleMatrix(roleMatrix);
+    setHasMatrixChanges(false);
+
+    // Sync active session if currentUser role was updated
+    if (currentUser && roleMatrix[currentUser.role]) {
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        allowedTabs: roleMatrix[currentUser.role]
+      };
+      authService.updateCurrentUserSession(updatedUser);
+      onRefreshUserSession(updatedUser);
+    }
+
+    showNotification('success', 'Matriks hak akses peran berhasil disimpan dan diterapkan ke seluruh sistem!');
+  };
+
+  const handleResetRoleMatrix = () => {
+    if (window.confirm('Kembalikan seluruh pengaturan matriks hak akses ke setelan bawaan pabrik?')) {
+      const def = authService.resetRoleMatrix();
+      setRoleMatrix(def);
+      setHasMatrixChanges(false);
+
+      if (currentUser && def[currentUser.role]) {
+        const updatedUser: AuthUser = {
+          ...currentUser,
+          allowedTabs: def[currentUser.role]
+        };
+        authService.updateCurrentUserSession(updatedUser);
+        onRefreshUserSession(updatedUser);
+      }
+
+      showNotification('success', 'Matriks hak akses berhasil di-reset ke setelan standar pabrik.');
+    }
   };
 
   // Filtered accounts
@@ -608,91 +767,256 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         </div>
       )}
 
-      {/* TAB 3: MATRIKS IZIN MODUL (ROLE VS TAB) */}
+      {/* TAB 3: MATRIKS IZIN MODUL (ROLE VS TAB) DENGAN CHECKBOX DINAMIS */}
       {activeSubTab === 'matrix' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Matriks Referensi Izin Hak Akses (*Role-Based Access Matrix*)
-            </h3>
-            <p className="text-xs text-slate-500">
-              Tabel standar acuan izin modul untuk setiap tingkatan pengguna di lingkungan pabrik.
-            </p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-5">
+          
+          {/* Header & Action Bar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Pengaturan Matriks Hak Akses Peran Dinamis (Role-Based Access Control)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Centang (✓) atau kosongkan kotak modul untuk mengaktifkan hak akses setiap peran jabatan. Pengaturan disimpan secara persisten.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {hasMatrixChanges && (
+                <span className="px-3 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold animate-pulse flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Ada Perubahan Belum Disimpan
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={handleResetRoleMatrix}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors"
+                title="Reset seluruh hak akses peran ke standar bawaan pabrik"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Bawaan
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveRoleMatrix}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all ${
+                  hasMatrixChanges
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 ring-2 ring-emerald-400'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Simpan Matriks Peran
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
-              <thead className="bg-slate-100 font-bold text-slate-700">
-                <tr>
-                  <th className="p-3 border-b border-r border-slate-200">Modul Aplikasi</th>
-                  <th className="p-3 border-b border-r border-slate-200 text-center">Super Admin</th>
-                  <th className="p-3 border-b border-r border-slate-200 text-center">HR Admin</th>
-                  <th className="p-3 border-b border-r border-slate-200 text-center">Manajer Operasional</th>
-                  <th className="p-3 border-b border-r border-slate-200 text-center">Foreman / Mandor</th>
-                  <th className="p-3 border-b border-slate-200 text-center">Pekerja Harian</th>
+          {/* Guidance Info Banner */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <div className="flex items-start gap-2">
+              <span className="w-5 h-5 rounded-md bg-teal-100 text-teal-700 font-bold flex items-center justify-center flex-shrink-0 text-[11px]">1</span>
+              <div>
+                <strong className="text-slate-800 block">Kepala Pengolahan 2</strong>
+                <span className="text-slate-500 text-[11px]">Monitoring &amp; Entri khusus 2 unit: <strong>Cengkeh &amp; Blend</strong>.</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className="w-5 h-5 rounded-md bg-sky-100 text-sky-700 font-bold flex items-center justify-center flex-shrink-0 text-[11px]">2</span>
+              <div>
+                <strong className="text-slate-800 block">Kepala Pengolahan 1</strong>
+                <span className="text-slate-500 text-[11px]">Monitoring &amp; Entri 2 unit: <strong>Tembakau &amp; Krosok</strong> (status lowong).</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 font-bold flex items-center justify-center flex-shrink-0 text-[11px]">3</span>
+              <div>
+                <strong className="text-slate-800 block">Mandor Lapangan</strong>
+                <span className="text-slate-500 text-[11px]">Mandor Cengkeh, Blend, &amp; Tembakau hanya mengakses unit kerjanya.</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center flex-shrink-0 text-[11px]">4</span>
+              <div>
+                <strong className="text-slate-800 block">Manajer Operasional</strong>
+                <span className="text-slate-500 text-[11px]">Hak akses seluruh unit dan dapat melihat <strong>Rekap Total Upah</strong>.</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Checkbox Table */}
+          <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-2xs">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 select-none">
+                <tr className="border-b border-slate-200">
+                  <th className="p-3.5 bg-slate-100 sticky left-0 z-20 min-w-[220px] font-bold text-slate-800 border-r border-slate-200 shadow-xs">
+                    Modul / Tab Aplikasi
+                  </th>
+
+                  {MATRIX_ROLES.map(r => {
+                    const activeCount = (roleMatrix[r.role] || []).length;
+                    return (
+                      <th key={r.role} className="p-3 text-center min-w-[140px] border-r border-slate-200 last:border-r-0">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-bold text-slate-900 text-xs text-center leading-tight">
+                            {r.title}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${r.badgeColor}`}>
+                            {r.scopeDesc}
+                          </span>
+                          
+                          <div className="flex items-center gap-1.5 mt-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAllForRole(r.role, true)}
+                              className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold"
+                              title={`Pilih semua modul untuk peran ${r.title}`}
+                            >
+                              Semua
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAllForRole(r.role, false)}
+                              className="text-slate-500 hover:text-red-600 hover:underline font-semibold"
+                              title={`Kosongkan modul untuk peran ${r.title}`}
+                            >
+                              Kosongkan
+                            </button>
+                          </div>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ALL_AVAILABLE_TABS.map(tab => (
-                  <tr key={tab.id} className="hover:bg-slate-50">
-                    <td className="p-3 border-r border-slate-200 font-medium flex items-center gap-2">
-                      <tab.icon className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                      <div>
-                        <div className="font-bold text-slate-900">{tab.label}</div>
-                        <div className="text-[10px] text-slate-400">{tab.desc}</div>
+
+              <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                {ALL_AVAILABLE_TABS.map((tab) => (
+                  <tr key={tab.id} className="hover:bg-indigo-50/30 transition-colors">
+                    
+                    {/* Sticky Module Column */}
+                    <td className="p-3 bg-white sticky left-0 z-10 border-r border-slate-200 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                          <tab.icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                            {tab.label}
+                            {tab.id === 'slip' && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                                Slip Upah
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 line-clamp-1">{tab.desc}</div>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-3 border-r border-slate-200 text-center">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                    </td>
-                    <td className="p-3 border-r border-slate-200 text-center">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
-                    </td>
-                    <td className="p-3 border-r border-slate-200 text-center">
-                      {tab.id !== 'hakakses' ? (
-                        <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-                          <Check className="w-3.5 h-3.5" />
-                        </span>
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center mx-auto">
-                          -
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 border-r border-slate-200 text-center">
-                      {['presensi', 'lembur', 'rekap', 'dashboard'].includes(tab.id) ? (
-                        <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto font-bold text-[10px]" title="Khusus Unit Sekupnya">
-                          &radic;*
-                        </span>
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center mx-auto">
-                          -
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 text-center">
-                      {['slip', 'profil'].includes(tab.id) ? (
-                        <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto font-bold text-[10px]" title="Hanya Data Milik Sendiri">
-                          &radic;
-                        </span>
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center mx-auto">
-                          -
-                        </span>
-                      )}
-                    </td>
+
+                    {/* Role Checkboxes */}
+                    {MATRIX_ROLES.map(r => {
+                      const isAllowed = (roleMatrix[r.role] || []).includes(tab.id);
+                      const isSuperAdminLocked = r.role === 'Super Admin' && tab.id === 'hakakses';
+                      const isSlipForKaPengolahan = tab.id === 'slip' && (r.role === 'Kepala Pengolahan 1' || r.role === 'Kepala Pengolahan 2');
+
+                      return (
+                        <td 
+                          key={r.role} 
+                          className="p-3 text-center border-r border-slate-200 last:border-r-0 cursor-pointer select-none"
+                          onClick={() => {
+                            if (!isSuperAdminLocked) {
+                              handleToggleRoleTab(r.role, tab.id);
+                            }
+                          }}
+                        >
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+                              <input
+                                type="checkbox"
+                                checked={isAllowed}
+                                disabled={isSuperAdminLocked}
+                                readOnly
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                                isSuperAdminLocked
+                                  ? 'bg-purple-600 border-purple-600 text-white cursor-not-allowed opacity-90'
+                                  : isAllowed
+                                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                  : 'bg-slate-50 border-slate-300 text-transparent hover:border-slate-400'
+                              }`}>
+                                {isSuperAdminLocked ? (
+                                  <Lock className="w-3 h-3 text-white" />
+                                ) : (
+                                  <Check className={`w-3.5 h-3.5 text-white transition-transform ${isAllowed ? 'scale-100' : 'scale-0'}`} />
+                                )}
+                              </div>
+                            </label>
+
+                            {isSlipForKaPengolahan && (
+                              <span className="text-[9px] font-bold text-teal-700 bg-teal-50 px-1 rounded border border-teal-200">
+                                Checkbox Slip
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
+
+              <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-[11px] text-slate-700">
+                <tr>
+                  <td className="p-3 sticky left-0 bg-slate-50 border-r border-slate-200 shadow-xs">
+                    Total Modul Diizinkan:
+                  </td>
+                  {MATRIX_ROLES.map(r => {
+                    const count = (roleMatrix[r.role] || []).length;
+                    return (
+                      <td key={r.role} className="p-3 text-center border-r border-slate-200 last:border-r-0 font-mono">
+                        <span className={`px-2 py-0.5 rounded-full font-bold ${
+                          count >= 8 ? 'bg-emerald-100 text-emerald-800' :
+                          count >= 4 ? 'bg-blue-100 text-blue-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {count} / {ALL_AVAILABLE_TABS.length}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500 italic">
-            * Keterangan: Foreman / Mandor hanya dapat mengakses dan menginput data sesuai unit kerja yang ditentukan pada akunnya.
-          </p>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2 pt-2">
+            <p className="italic">
+              * Keterangan: Centang kotak modul di atas akan menentukan tab navigasi mana yang muncul di sidebar dan dapat dibuka oleh masing-masing peran.
+            </p>
+            {hasMatrixChanges && (
+              <button
+                type="button"
+                onClick={handleSaveRoleMatrix}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm ml-auto"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Simpan Perubahan Sekarang
+              </button>
+            )}
+          </div>
+
         </div>
       )}
 

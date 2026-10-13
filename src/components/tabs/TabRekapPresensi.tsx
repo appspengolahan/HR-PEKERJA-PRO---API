@@ -29,6 +29,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   const [nama, setNama] = useState('Semua');
   const [bulanAwal, setBulanAwal] = useState('1');
   const [bulanAkhir, setBulanAkhir] = useState('12');
+  const [sortBy, setSortBy] = useState<'default' | 'totalIjin' | 'kehadiran' | 'nama'>('default');
 
   const filteredPekerja = useMemo(() => {
     return pekerjaList.filter(p => {
@@ -83,7 +84,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   const MENIT_TERSEDIA_BULAN = 10440;
   
   const rekapRows = useMemo(() => {
-    return filteredPekerja.map(p => {
+    const rows = filteredPekerja.map(p => {
       const cleanName = p.nama.trim().toUpperCase();
       const recordedMonths = workerMonthlyMap[cleanName] || Array(12).fill(0);
       const bulanan: number[] = [];
@@ -113,8 +114,18 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
         totalIjin,
         pctKehadiran
       };
-    }).sort((a, b) => b.totalIjin - a.totalIjin); // Highest total ijin first so supervisor can immediately see who took the most leave
-  }, [filteredPekerja, workerMonthlyMap, bulanAwal, bulanAkhir]);
+    });
+
+    if (sortBy === 'totalIjin') {
+      return [...rows].sort((a, b) => b.totalIjin - a.totalIjin);
+    } else if (sortBy === 'kehadiran') {
+      return [...rows].sort((a, b) => a.pctKehadiran - b.pctKehadiran);
+    } else if (sortBy === 'nama') {
+      return [...rows].sort((a, b) => a.nama.localeCompare(b.nama));
+    }
+    // Default: urutan master sheet persis datasheet asli Google Sheets
+    return rows;
+  }, [filteredPekerja, workerMonthlyMap, bulanAwal, bulanAkhir, sortBy]);
 
   // Calculate monthly average for line trend
   const bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -161,7 +172,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 text-xs">
           <div>
             <label className="block text-slate-500 font-bold mb-1">Tahun</label>
             <select
@@ -234,6 +245,19 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
               {bulanLabels.map((lbl, idx) => (
                 <option key={idx} value={String(idx + 1)}>{lbl}</option>
               ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-slate-500 font-bold mb-1">Urutan Baris</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 font-medium"
+            >
+              <option value="default">📋 Urutan Sheet Asli</option>
+              <option value="totalIjin">⏳ Ijin Terbanyak</option>
+              <option value="kehadiran">⚠️ Kehadiran Terendah</option>
+              <option value="nama">🔤 Nama (A - Z)</option>
             </select>
           </div>
         </div>

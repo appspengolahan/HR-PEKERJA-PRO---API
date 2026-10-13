@@ -53,14 +53,19 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
     role: UserAccessRole, 
     nama: string, 
     scope: string, 
-    allowedTabs: any[]
+    units?: string[],
+    fallbackTabs?: any[]
   ) => {
+    const roleMatrix = authService.getRoleMatrix();
+    const allowedTabs = roleMatrix[role] || fallbackTabs || ['dashboard'];
+
     const newUser: AuthUser = {
       id: `sim_${role.toLowerCase().replace(/\s+/g, '_')}`,
       nama: `${nama} (Simulasi)`,
       email: `${role.toLowerCase().replace(/\s+/g, '')}@simulasi.local`,
       role,
       scope,
+      units,
       allowedTabs,
       isSimulated: true,
       originalUser
@@ -152,9 +157,7 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                 </span>
                 <div className="grid grid-cols-1 gap-1">
                   <button
-                    onClick={() => handleSwitchToInternal('Super Admin', 'Lead Developer', 'ALL', [
-                      'dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Super Admin', 'Lead Developer', 'ALL', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-purple-300"
                   >
                     <span>👑 Super Admin / Lead Dev</span>
@@ -162,9 +165,7 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Project Manager', 'Project Manager', 'ALL', [
-                      'dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Project Manager', 'Project Manager', 'ALL', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-indigo-300"
                   >
                     <span>🏗️ Project Manager</span>
@@ -172,9 +173,7 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Site Engineer', 'Site Engineer', 'ALL', [
-                      'dashboard', 'presensi', 'lembur', 'rekap', 'database', 'jadwalmutasi', 'profil', 'hakakses'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Site Engineer', 'Site Engineer', 'ALL', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-cyan-300"
                   >
                     <span>📐 Site Engineer</span>
@@ -182,9 +181,7 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('HR Admin', 'Admin HR', 'ALL', [
-                      'dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'
-                    ])}
+                    onClick={() => handleSwitchToInternal('HR Admin', 'Admin HR', 'ALL', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-blue-300"
                   >
                     <span>📋 Admin HR PP1</span>
@@ -192,13 +189,41 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Manajer Operasional', 'Manajer Operasional', 'ALL', [
-                      'dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Manajer Operasional', 'Manajer Operasional', 'ALL', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-emerald-300"
                   >
-                    <span>💼 Manajer Operasional</span>
+                    <span>💼 Manajer Operasional (Rekap Upah)</span>
                     {currentUser?.role === 'Manajer Operasional' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Kepala Pengolahan (Multi-Unit 2 Unit) */}
+              <div className="space-y-1 pt-1 border-t border-slate-800">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Kepala Pengolahan (2 Unit):
+                </span>
+                <div className="grid grid-cols-1 gap-1">
+                  <button
+                    onClick={() => handleSwitchToInternal('Kepala Pengolahan 2', 'Kepala Pengolahan 2', 'Cengkeh & Blend', ['Cengkeh', 'Blend'])}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-teal-300"
+                  >
+                    <div>
+                      <span className="block">🌿 Kepala Pengolahan 2</span>
+                      <span className="text-[10px] text-teal-400/80">Unit Cengkeh &amp; Blend</span>
+                    </div>
+                    {currentUser?.role === 'Kepala Pengolahan 2' && <Check className="w-3.5 h-3.5 text-teal-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchToInternal('Kepala Pengolahan 1', 'Kepala Pengolahan 1 (Lowong)', 'Tembakau & Krosok', ['Tembakau', 'Krosok'])}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-sky-300"
+                  >
+                    <div>
+                      <span className="block">🍂 Kepala Pengolahan 1 (Lowong)</span>
+                      <span className="text-[10px] text-sky-400/80">Unit Tembakau &amp; Krosok</span>
+                    </div>
+                    {currentUser?.role === 'Kepala Pengolahan 1' && <Check className="w-3.5 h-3.5 text-sky-400" />}
                   </button>
                 </div>
               </div>
@@ -210,33 +235,27 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                 </span>
                 <div className="grid grid-cols-1 gap-1">
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Cengkeh', 'Proses Cengkeh', [
-                      'presensi', 'lembur', 'rekap', 'dashboard'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Cengkeh', 'Proses Cengkeh', ['Cengkeh'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Proses Cengkeh</span>
+                    <span>🚜 Mandor Unit Cengkeh</span>
                     {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Cengkeh' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Tembakau', 'Proses Tembakau', [
-                      'presensi', 'lembur', 'rekap', 'dashboard'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Blend', 'Proses Blend', ['Blend'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Proses Tembakau</span>
-                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Tembakau' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    <span>🚜 Mandor Unit Blend</span>
+                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Blend' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Blend', 'Proses Blend', [
-                      'presensi', 'lembur', 'rekap', 'dashboard'
-                    ])}
+                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Tembakau', 'Proses Tembakau', ['Tembakau'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Proses Blend</span>
-                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Blend' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    <span>🚜 Mandor Unit Tembakau</span>
+                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Tembakau' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                   </button>
                 </div>
               </div>

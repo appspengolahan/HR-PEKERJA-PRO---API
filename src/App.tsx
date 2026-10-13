@@ -649,6 +649,7 @@ export default function App() {
               pekerjaList={pekerjaList}
               currentScope={currentScope}
               lockedNama={currentUser?.role === 'Pekerja Harian' ? currentUser.workerRecord?.nama : undefined}
+              currentUser={currentUser}
             />
           )}
 

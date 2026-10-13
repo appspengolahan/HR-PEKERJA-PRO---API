@@ -6,6 +6,8 @@ export type UserAccessRole =
   | 'Site Engineer'
   | 'HR Admin' 
   | 'Manajer Operasional' 
+  | 'Kepala Pengolahan 1'
+  | 'Kepala Pengolahan 2'
   | 'Foreman / Mandor' 
   | 'Pekerja Harian';
 
@@ -14,7 +16,8 @@ export interface AuthUser {
   nama: string;
   email?: string;
   role: UserAccessRole;
-  scope: string; // 'ALL' or 'Proses Cengkeh' etc.
+  scope: string; // 'ALL' or 'Cengkeh & Blend' or 'Proses Cengkeh'
+  units?: string[]; // Array of unit names for multi-unit assignment (e.g. ['Cengkeh', 'Blend'])
   allowedTabs: MainTabType[];
   workerRecord?: PekerjaData;
   isSimulated?: boolean;
@@ -27,8 +30,24 @@ export interface InternalAccount {
   nama: string;
   role: UserAccessRole;
   scope: string;
+  units?: string[];
   allowedTabs: MainTabType[];
 }
+
+export type RoleMatrix = Record<UserAccessRole, MainTabType[]>;
+
+// Matriks Default Hak Akses Modul per Peran
+export const DEFAULT_ROLE_MATRIX: RoleMatrix = {
+  'Super Admin': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'],
+  'Project Manager': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'],
+  'Site Engineer': ['dashboard', 'presensi', 'lembur', 'rekap', 'database', 'jadwalmutasi', 'profil', 'hakakses'],
+  'HR Admin': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'],
+  'Manajer Operasional': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon'],
+  'Kepala Pengolahan 1': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon'],
+  'Kepala Pengolahan 2': ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon'],
+  'Foreman / Mandor': ['dashboard', 'presensi', 'lembur', 'rekap'],
+  'Pekerja Harian': ['slip', 'profil']
+};
 
 // Whitelist Akun Internal PP1
 export const WHITELIST_INTERNAL: InternalAccount[] = [
@@ -38,6 +57,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Lalu Mahendra (Lead Developer)',
     role: 'Super Admin',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
   },
   {
@@ -46,6 +66,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Project Manager (Monitoring Lapangan)',
     role: 'Project Manager',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
   },
   {
@@ -54,6 +75,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Site Engineer PP1',
     role: 'Site Engineer',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'database', 'jadwalmutasi', 'profil', 'hakakses']
   },
   {
@@ -62,6 +84,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Super Administrator',
     role: 'Super Admin',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
   },
   {
@@ -70,6 +93,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Admin HR Divisi PP1',
     role: 'HR Admin',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
   },
   {
@@ -78,6 +102,25 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Manajer Operasional PP1',
     role: 'Manajer Operasional',
     scope: 'ALL',
+    units: ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'],
+    allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon']
+  },
+  {
+    email: 'ka.pengolahan2@batukarang.com',
+    password: 'ka2',
+    nama: 'Kepala Pengolahan 2',
+    role: 'Kepala Pengolahan 2',
+    scope: 'Cengkeh & Blend',
+    units: ['Cengkeh', 'Blend'],
+    allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon']
+  },
+  {
+    email: 'ka.pengolahan1@batukarang.com',
+    password: 'ka1',
+    nama: 'Kepala Pengolahan 1 (Lowong)',
+    role: 'Kepala Pengolahan 1',
+    scope: 'Tembakau & Krosok',
+    units: ['Tembakau', 'Krosok'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon']
   },
   {
@@ -86,6 +129,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Mandor Unit Cengkeh',
     role: 'Foreman / Mandor',
     scope: 'Proses Cengkeh',
+    units: ['Cengkeh'],
     allowedTabs: ['presensi', 'lembur', 'rekap', 'dashboard']
   },
   {
@@ -94,6 +138,7 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Mandor Unit Tembakau',
     role: 'Foreman / Mandor',
     scope: 'Proses Tembakau',
+    units: ['Tembakau'],
     allowedTabs: ['presensi', 'lembur', 'rekap', 'dashboard']
   },
   {
@@ -102,12 +147,14 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     nama: 'Mandor Unit Blend',
     role: 'Foreman / Mandor',
     scope: 'Proses Blend',
+    units: ['Blend'],
     allowedTabs: ['presensi', 'lembur', 'rekap', 'dashboard']
   }
 ];
 
 const AUTH_STORAGE_KEY = 'bk_pp1_auth_session';
 const ACCOUNTS_STORAGE_KEY = 'bk_pp1_internal_accounts';
+const ROLE_MATRIX_STORAGE_KEY = 'bk_pp1_role_permissions_matrix';
 
 export const authService = {
   // Mendapatkan daftar akun internal (dari localStorage jika ada, fallback ke WHITELIST_INTERNAL)
@@ -185,6 +232,7 @@ export const authService = {
       email: account.email,
       role: account.role,
       scope: account.scope,
+      units: account.units,
       allowedTabs: account.allowedTabs
     };
 
@@ -225,6 +273,7 @@ export const authService = {
       nama: worker.nama,
       role: 'Pekerja Harian',
       scope: worker.unitSekup || 'ALL',
+      units: [worker.unit],
       allowedTabs: ['slip', 'profil'],
       workerRecord: worker
     };
@@ -233,9 +282,81 @@ export const authService = {
     return { success: true, user: authUser };
   },
 
+  // Mendapatkan matriks hak akses peran dinamis
+  getRoleMatrix: (): RoleMatrix => {
+    try {
+      const raw = localStorage.getItem(ROLE_MATRIX_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_ROLE_MATRIX, ...parsed };
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_ROLE_MATRIX;
+  },
+
+  // Menyimpan matriks hak akses peran dinamis
+  saveRoleMatrix: (matrix: RoleMatrix): void => {
+    localStorage.setItem(ROLE_MATRIX_STORAGE_KEY, JSON.stringify(matrix));
+  },
+
+  // Reset matriks hak akses peran ke bawaan
+  resetRoleMatrix: (): RoleMatrix => {
+    localStorage.removeItem(ROLE_MATRIX_STORAGE_KEY);
+    return DEFAULT_ROLE_MATRIX;
+  },
+
   // Logout / Keluar
   logout: (): void => {
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 };
+
+// Helper untuk validasi apakah pekerja berada dalam lingkup hak akses pengguna (Mendukung Multi-Unit)
+export function isWorkerInUserScope(
+  worker: PekerjaData, 
+  user: AuthUser | null, 
+  activeScopeFilter = 'ALL'
+): boolean {
+  if (!user) return true;
+
+  // Level Manajemen Puncak memiliki akses seluruh pekerja
+  const isAllAccessRole = 
+    user.role === 'Super Admin' || 
+    user.role === 'Project Manager' || 
+    user.role === 'HR Admin' || 
+    user.role === 'Site Engineer' || 
+    user.role === 'Manajer Operasional';
+
+  if (isAllAccessRole) {
+    if (activeScopeFilter && activeScopeFilter !== 'ALL') {
+      return worker.unitSekup === activeScopeFilter || worker.unit === activeScopeFilter;
+    }
+    return true;
+  }
+
+  // Jika user memiliki penugasan multi-unit spesifik (misal Kepala Pengolahan 2: ['Cengkeh', 'Blend'])
+  if (Array.isArray(user.units) && user.units.length > 0) {
+    const unitMatch = user.units.includes(worker.unit);
+    if (!unitMatch) return false;
+    if (activeScopeFilter && activeScopeFilter !== 'ALL') {
+      return worker.unitSekup === activeScopeFilter || worker.unit === activeScopeFilter;
+    }
+    return true;
+  }
+
+  // Fallback berdasarkan string scope akun
+  if (user.scope && user.scope !== 'ALL') {
+    if (user.scope.includes('&')) {
+      const units = user.scope.split('&').map(u => u.trim().toLowerCase());
+      return units.some(u => worker.unit.toLowerCase().includes(u));
+    }
+    return worker.unitSekup === user.scope || worker.unit === user.scope;
+  }
+
+  return true;
+}
