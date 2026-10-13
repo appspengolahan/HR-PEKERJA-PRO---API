@@ -447,10 +447,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => handleDevQuickLogin('ka.pengolahan2@batukarang.com', 'ka2')}
+                  className="p-2 rounded-xl bg-teal-950/40 hover:bg-teal-900/60 text-teal-200 border border-teal-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🏭 Ka. Pengolahan 2</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('ka.pengolahan1@batukarang.com', 'ka1')}
+                  className="p-2 rounded-xl bg-teal-950/40 hover:bg-teal-900/60 text-teal-200 border border-teal-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🏭 Ka. Pengolahan 1</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handleDevQuickLogin('mandor.cengkeh@batukarang.com', 'mandor')}
                   className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
                 >
                   <span>🚜 Mandor Cengkeh</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDevQuickLogin('mandor.blend@batukarang.com', 'mandor')}
+                  className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🚜 Mandor Blend</span>
                 </button>
 
                 <button
