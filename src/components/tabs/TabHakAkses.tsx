@@ -24,7 +24,9 @@ import {
   UserCheck, 
   Info,
   Check,
-  X
+  X,
+  Plus,
+  Coins
 } from 'lucide-react';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
@@ -33,6 +35,8 @@ import {
   UserAccessRole, 
   AuthUser,
   RoleMatrix,
+  RoleDefinition,
+  WageSummaryRoleConfig,
   DEFAULT_ROLE_MATRIX 
 } from '../../services/authService';
 
@@ -63,6 +67,18 @@ const SCOPE_OPTIONS = [
   'Persediaan Blend',
   'Persediaan Tembakau',
   'Proses Krosok'
+];
+
+export const BADGE_COLOR_OPTIONS = [
+  { label: 'Indigo', value: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  { label: 'Biru (Blue)', value: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { label: 'Hijau (Emerald)', value: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  { label: 'Teal (Hijau Laut)', value: 'bg-teal-100 text-teal-800 border-teal-200' },
+  { label: 'Cyan (Biru Muda)', value: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
+  { label: 'Ungu (Purple)', value: 'bg-purple-100 text-purple-800 border-purple-200' },
+  { label: 'Kuning (Amber)', value: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { label: 'Merah (Rose)', value: 'bg-rose-100 text-rose-800 border-rose-200' },
+  { label: 'Abu-abu (Slate)', value: 'bg-slate-100 text-slate-800 border-slate-200' }
 ];
 
 export const MATRIX_ROLES: { 
@@ -164,9 +180,28 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Dynamic Role Definitions List (Bawaan + Peran Kustom Tambahan)
+  const [rolesList, setRolesList] = useState<RoleDefinition[]>(() => authService.getRoleDefinitions());
+
   // Dynamic Role Matrix State (Checkboxes per Role & Modul)
   const [roleMatrix, setRoleMatrix] = useState<RoleMatrix>(() => authService.getRoleMatrix());
+
+  // Konfigurasi Visibilitas "Ringkasan Beban Upah Harian Periode Ini" per peran
+  const [wageSummaryConfig, setWageSummaryConfig] = useState<WageSummaryRoleConfig>(() => authService.getWageSummaryConfig());
+
   const [hasMatrixChanges, setHasMatrixChanges] = useState(false);
+
+  // Modal State untuk Tambah Peran Baru
+  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
+  const [newRoleForm, setNewRoleForm] = useState({
+    roleName: '',
+    title: '',
+    subtitle: '',
+    scopeDesc: 'Semua Unit (ALL)',
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    showWageSummary: true,
+    selectedTabs: ['dashboard', 'presensi', 'lembur', 'rekap'] as MainTabType[]
+  });
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -218,8 +253,23 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     });
   };
 
+  // Toggle visibilitas Ringkasan Beban Upah pada Dashboard untuk peran tertentu
+  const handleToggleWageSummary = (role: UserAccessRole) => {
+    setWageSummaryConfig(prev => {
+      const currentVal = Boolean(prev[role]);
+      const updated = {
+        ...prev,
+        [role]: !currentVal
+      };
+      setHasMatrixChanges(true);
+      return updated;
+    });
+  };
+
   const handleSaveRoleMatrix = () => {
     authService.saveRoleMatrix(roleMatrix);
+    authService.saveWageSummaryConfig(wageSummaryConfig);
+    authService.saveRoleDefinitions(rolesList);
     setHasMatrixChanges(false);
 
     // Sync active session if currentUser role was updated
@@ -232,13 +282,18 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       onRefreshUserSession(updatedUser);
     }
 
-    showNotification('success', 'Matriks hak akses peran berhasil disimpan dan diterapkan ke seluruh sistem!');
+    showNotification('success', 'Matriks hak akses dan preferensi beban upah berhasil disimpan!');
   };
 
   const handleResetRoleMatrix = () => {
-    if (window.confirm('Kembalikan seluruh pengaturan matriks hak akses ke setelan bawaan pabrik?')) {
+    if (window.confirm('Kembalikan seluruh pengaturan matriks hak akses, peran, dan visibilitas beban upah ke setelan bawaan pabrik?')) {
       const def = authService.resetRoleMatrix();
+      const defWage = authService.getWageSummaryConfig();
+      const defRoles = authService.getRoleDefinitions();
+
       setRoleMatrix(def);
+      setWageSummaryConfig(defWage);
+      setRolesList(defRoles);
       setHasMatrixChanges(false);
 
       if (currentUser && def[currentUser.role]) {
@@ -250,8 +305,88 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         onRefreshUserSession(updatedUser);
       }
 
-      showNotification('success', 'Matriks hak akses berhasil di-reset ke setelan standar pabrik.');
+      showNotification('success', 'Matriks hak akses peran berhasil di-reset ke setelan standar pabrik.');
     }
+  };
+
+  // Tambah Peran Baru
+  const handleAddNewRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanRoleName = newRoleForm.roleName.trim();
+    if (!cleanRoleName) {
+      showNotification('error', 'Nama singkat peran (Role Key) wajib diisi.');
+      return;
+    }
+
+    if (rolesList.some(r => r.role.toLowerCase() === cleanRoleName.toLowerCase())) {
+      showNotification('error', `Peran dengan nama "${cleanRoleName}" sudah ada di sistem.`);
+      return;
+    }
+
+    const newDef: RoleDefinition = {
+      role: cleanRoleName,
+      title: newRoleForm.title.trim() || cleanRoleName,
+      subtitle: newRoleForm.subtitle.trim() || 'Peran Kustom Sistem',
+      scopeDesc: newRoleForm.scopeDesc.trim() || 'Semua Unit (ALL)',
+      badgeColor: newRoleForm.badgeColor || 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      isCustom: true
+    };
+
+    const nextRoles = [...rolesList, newDef];
+    setRolesList(nextRoles);
+    authService.saveRoleDefinitions(nextRoles);
+
+    // Matriks izin modul untuk peran baru
+    const nextMatrix: RoleMatrix = {
+      ...roleMatrix,
+      [cleanRoleName]: newRoleForm.selectedTabs
+    };
+    setRoleMatrix(nextMatrix);
+    authService.saveRoleMatrix(nextMatrix);
+
+    // Visibilitas beban upah untuk peran baru
+    const nextWageConfig: WageSummaryRoleConfig = {
+      ...wageSummaryConfig,
+      [cleanRoleName]: newRoleForm.showWageSummary
+    };
+    setWageSummaryConfig(nextWageConfig);
+    authService.saveWageSummaryConfig(nextWageConfig);
+
+    setIsAddRoleModalOpen(false);
+    setNewRoleForm({
+      roleName: '',
+      title: '',
+      subtitle: '',
+      scopeDesc: 'Semua Unit (ALL)',
+      badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      showWageSummary: true,
+      selectedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
+    });
+
+    showNotification('success', `Peran baru "${newDef.title}" berhasil ditambahkan ke matriks!`);
+  };
+
+  // Hapus Peran Kustom
+  const handleDeleteCustomRole = (roleToDelete: UserAccessRole) => {
+    if (!window.confirm(`Yakin ingin menghapus peran kustom "${roleToDelete}"? Pengguna dengan peran ini perlu dialihkan ke peran lain.`)) {
+      return;
+    }
+
+    const nextRoles = rolesList.filter(r => r.role !== roleToDelete);
+    setRolesList(nextRoles);
+    authService.saveRoleDefinitions(nextRoles);
+
+    const nextMatrix = { ...roleMatrix };
+    delete nextMatrix[roleToDelete];
+    setRoleMatrix(nextMatrix);
+    authService.saveRoleMatrix(nextMatrix);
+
+    const nextWage = { ...wageSummaryConfig };
+    delete nextWage[roleToDelete];
+    setWageSummaryConfig(nextWage);
+    authService.saveWageSummaryConfig(nextWage);
+
+    showNotification('success', `Peran "${roleToDelete}" telah dihapus.`);
   };
 
   // Filtered accounts
@@ -302,26 +437,14 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
   // Preset role change handler
   const handleRoleChange = (newRole: UserAccessRole) => {
-    let presetTabs: MainTabType[] = [];
+    const roleDef = rolesList.find(r => r.role === newRole);
+    const presetTabs: MainTabType[] = roleMatrix[newRole] || ['dashboard', 'presensi', 'lembur', 'rekap'];
     let presetScope = formData.scope;
 
-    switch (newRole) {
-      case 'Super Admin':
-      case 'HR Admin':
-        presetTabs = ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses'];
-        presetScope = 'ALL';
-        break;
-      case 'Manajer Operasional':
-        presetTabs = ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon'];
-        presetScope = 'ALL';
-        break;
-      case 'Foreman / Mandor':
-        presetTabs = ['presensi', 'lembur', 'rekap', 'dashboard'];
-        if (presetScope === 'ALL') presetScope = 'Proses Cengkeh';
-        break;
-      default:
-        presetTabs = ['slip', 'profil'];
-        break;
+    if (roleDef?.scopeDesc?.includes('ALL') || newRole === 'Super Admin' || newRole === 'HR Admin' || newRole === 'Project Manager' || newRole === 'Manajer Operasional') {
+      presetScope = 'ALL';
+    } else if (newRole === 'Foreman / Mandor' && presetScope === 'ALL') {
+      presetScope = 'Proses Cengkeh';
     }
 
     setFormData(prev => ({
@@ -646,14 +769,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                         <span className="tracking-widest">&bull;&bull;&bull;&bull;&bull;&bull;</span>
                       </td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
-                          acc.role === 'Super Admin' 
-                            ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                            : acc.role === 'HR Admin'
-                            ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                            : acc.role === 'Manajer Operasional'
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                            : 'bg-amber-100 text-amber-900 border border-amber-200'
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block border ${
+                          rolesList.find(r => r.role === acc.role)?.badgeColor || 'bg-slate-100 text-slate-800 border-slate-200'
                         }`}>
                           {acc.role}
                         </span>
@@ -781,7 +898,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                 </h3>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Centang (✓) atau kosongkan kotak modul untuk mengaktifkan hak akses setiap peran jabatan. Pengaturan disimpan secara persisten.
+                Atur hak akses tab modul dan opsi visibilitas <strong>Ringkasan Beban Upah</strong> untuk masing-masing peran. Anda juga dapat menambah peran baru sesuai kebutuhan.
               </p>
             </div>
 
@@ -792,6 +909,16 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                   Ada Perubahan Belum Disimpan
                 </span>
               )}
+
+              <button
+                type="button"
+                onClick={() => setIsAddRoleModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                title="Tambahkan peran baru ke dalam sistem"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Peran Baru
+              </button>
 
               <button
                 type="button"
@@ -847,8 +974,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
             <div className="flex items-start gap-2">
               <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center flex-shrink-0 text-[11px]">4</span>
               <div>
-                <strong className="text-slate-800 block">Manajer Operasional</strong>
-                <span className="text-slate-500 text-[11px]">Hak akses seluruh unit dan dapat melihat <strong>Rekap Total Upah</strong>.</span>
+                <strong className="text-slate-800 block">Fitur Tambah Peran &amp; Finansial</strong>
+                <span className="text-slate-500 text-[11px]">Gunakan tombol <strong>+ Tambah Peran Baru</strong> dan checkbox <strong>Ringkasan Beban Upah</strong> di bawah.</span>
               </div>
             </div>
           </div>
@@ -858,21 +985,40 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 select-none">
                 <tr className="border-b border-slate-200">
-                  <th className="p-3.5 bg-slate-100 sticky left-0 z-20 min-w-[220px] font-bold text-slate-800 border-r border-slate-200 shadow-xs">
-                    Modul / Tab Aplikasi
+                  <th className="p-3.5 bg-slate-100 sticky left-0 z-20 min-w-[240px] font-bold text-slate-800 border-r border-slate-200 shadow-xs">
+                    Modul &amp; Otorisasi Finansial
                   </th>
 
-                  {MATRIX_ROLES.map(r => {
-                    const activeCount = (roleMatrix[r.role] || []).length;
+                  {rolesList.map(r => {
                     return (
-                      <th key={r.role} className="p-3 text-center min-w-[140px] border-r border-slate-200 last:border-r-0">
+                      <th key={r.role} className="p-3 text-center min-w-[150px] border-r border-slate-200 last:border-r-0">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="font-bold text-slate-900 text-xs text-center leading-tight">
-                            {r.title}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${r.badgeColor}`}>
-                            {r.scopeDesc}
-                          </span>
+                          <div className="flex items-center gap-1 justify-center">
+                            <span className="font-bold text-slate-900 text-xs text-center leading-tight">
+                              {r.title}
+                            </span>
+                            {r.isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCustomRole(r.role)}
+                                className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                                title={`Hapus peran kustom "${r.role}"`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 justify-center flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${r.badgeColor}`}>
+                              {r.scopeDesc}
+                            </span>
+                            {r.isCustom && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                Kustom
+                              </span>
+                            )}
+                          </div>
                           
                           <div className="flex items-center gap-1.5 mt-1 text-[10px]">
                             <button
@@ -901,6 +1047,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
               </thead>
 
               <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                {/* 1. Baris Modul / Tab Navigasi */}
                 {ALL_AVAILABLE_TABS.map((tab) => (
                   <tr key={tab.id} className="hover:bg-indigo-50/30 transition-colors">
                     
@@ -924,8 +1071,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                       </div>
                     </td>
 
-                    {/* Role Checkboxes */}
-                    {MATRIX_ROLES.map(r => {
+                    {/* Role Checkboxes for Tabs */}
+                    {rolesList.map(r => {
                       const isAllowed = (roleMatrix[r.role] || []).includes(tab.id);
                       const isSuperAdminLocked = r.role === 'Super Admin' && tab.id === 'hakakses';
                       const isSlipForKaPengolahan = tab.id === 'slip' && (r.role === 'Kepala Pengolahan 1' || r.role === 'Kepala Pengolahan 2');
@@ -975,6 +1122,78 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                     })}
                   </tr>
                 ))}
+
+                {/* 2. BARIS KHUSUS: CHECKBOX RINGKASAN BEBAN UPAH HARIAN PERIODE INI */}
+                <tr className="bg-amber-100/60 border-t-2 border-b-2 border-amber-300">
+                  <td colSpan={rolesList.length + 1} className="py-2 px-3 text-[11px] font-bold text-amber-950">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-amber-700" />
+                      <span>VISIBILITAS KARTU BEBAN UPAH DI DASHBOARD</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr className="bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                  {/* Sticky Feature Column */}
+                  <td className="p-3 bg-amber-50/90 sticky left-0 z-10 border-r border-slate-200 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+                        <Coins className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                          Ringkasan Beban Upah Harian Periode Ini
+                          <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[9px] font-extrabold">
+                            Dashboard
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 line-clamp-1">
+                          Tampilkan kartu nominal beban upah harian &amp; breakdown per unit di Dashboard
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Role Checkboxes for Wage Summary */}
+                  {rolesList.map(r => {
+                    const isVisible = Boolean(wageSummaryConfig[r.role]);
+
+                    return (
+                      <td 
+                        key={r.role} 
+                        className="p-3 text-center border-r border-slate-200 last:border-r-0 cursor-pointer select-none"
+                        onClick={() => handleToggleWageSummary(r.role)}
+                        title={`Klik untuk ${isVisible ? 'menyembunyikan' : 'menampilkan'} Ringkasan Beban Upah bagi peran ${r.title}`}
+                      >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              readOnly
+                              className="sr-only"
+                            />
+                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                              isVisible
+                                ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                                : 'bg-slate-50 border-slate-300 text-transparent hover:border-slate-400'
+                            }`}>
+                              <Check className={`w-3.5 h-3.5 text-white transition-transform ${isVisible ? 'scale-100' : 'scale-0'}`} />
+                            </div>
+                          </label>
+
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                            isVisible 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                          }`}>
+                            {isVisible ? 'Ditampilkan' : 'Disembunyikan'}
+                          </span>
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
               </tbody>
 
               <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-[11px] text-slate-700">
@@ -982,7 +1201,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                   <td className="p-3 sticky left-0 bg-slate-50 border-r border-slate-200 shadow-xs">
                     Total Modul Diizinkan:
                   </td>
-                  {MATRIX_ROLES.map(r => {
+                  {rolesList.map(r => {
                     const count = (roleMatrix[r.role] || []).length;
                     return (
                       <td key={r.role} className="p-3 text-center border-r border-slate-200 last:border-r-0 font-mono">
@@ -1003,7 +1222,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2 pt-2">
             <p className="italic">
-              * Keterangan: Centang kotak modul di atas akan menentukan tab navigasi mana yang muncul di sidebar dan dapat dibuka oleh masing-masing peran.
+              * Keterangan: Centang kotak modul di atas akan menentukan tab mana yang dapat diakses peran terkait. Baris <strong>"Ringkasan Beban Upah Harian Periode Ini"</strong> menentukan apakah kartu finansial upah harian ditampilkan di Dashboard peran tersebut.
             </p>
             {hasMatrixChanges && (
               <button
@@ -1100,10 +1319,11 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                     onChange={(e) => handleRoleChange(e.target.value as UserAccessRole)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-bold"
                   >
-                    <option value="Super Admin">Super Admin (Akses Penuh)</option>
-                    <option value="HR Admin">HR Admin (Manajemen Pekerja)</option>
-                    <option value="Manajer Operasional">Manajer Operasional</option>
-                    <option value="Foreman / Mandor">Foreman / Mandor Lapangan</option>
+                    {rolesList.map(r => (
+                      <option key={r.role} value={r.role}>
+                        {r.title} ({r.role})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1196,6 +1416,211 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm transition-all"
                 >
                   {editingIndex !== null ? 'Simpan Perubahan' : 'Buat Akun Sekarang'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TAMBAH PERAN BARU */}
+      {isAddRoleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+            
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Tambah Peran Pengguna Baru</h3>
+                  <p className="text-xs text-slate-500">Buat peran / level otorisasi baru dalam sistem</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAddRoleModalOpen(false)} 
+                className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewRole} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Nama Singkat Peran (Role Key) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Supervisor Produksi"
+                    value={newRoleForm.roleName}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, roleName: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400">Pengenal unik peran di sistem</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Judul Jabatan (Label Tampilan) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Supervisor Pengolahan Lapangan"
+                    value={newRoleForm.title}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400">Nama lengkap pada header matriks</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Deskripsi Tanggung Jawab</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Pengawasan mutu dan alur kerja"
+                    value={newRoleForm.subtitle}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, subtitle: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Cakupan Wilayah / Scope Default</label>
+                  <select
+                    value={newRoleForm.scopeDesc}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, scopeDesc: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-medium"
+                  >
+                    <option value="Semua Unit (ALL)">Semua Unit (ALL)</option>
+                    <option value="Unit Cengkeh & Blend">Unit Cengkeh &amp; Blend</option>
+                    <option value="Unit Tembakau & Krosok">Unit Tembakau &amp; Krosok</option>
+                    <option value="Khusus Unit Terkait">Khusus Unit Terkait</option>
+                    <option value="Data Pribadi Mandiri">Data Pribadi Mandiri</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Warna Badge / Label Peran</label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                  {BADGE_COLOR_OPTIONS.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setNewRoleForm({ ...newRoleForm, badgeColor: opt.value })}
+                      className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border text-center transition-all ${opt.value} ${
+                        newRoleForm.badgeColor === opt.value ? 'ring-2 ring-indigo-600 scale-102 shadow-xs' : 'opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Checkbox Khusus: Ringkasan Beban Upah */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newRoleForm.showWageSummary}
+                    onChange={(e) => setNewRoleForm({ ...newRoleForm, showWageSummary: e.target.checked })}
+                    className="mt-0.5 rounded text-amber-600 focus:ring-0 w-4 h-4"
+                  />
+                  <div>
+                    <span className="font-bold text-amber-950 block">
+                      Tampilkan "Ringkasan Beban Upah Harian Periode Ini" di Dashboard
+                    </span>
+                    <span className="text-[11px] text-amber-800">
+                      Beri tanda centang jika peran ini diizinkan melihat kartu total nominal pengeluaran upah pekerja harian.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Checklist Pilihan Modul Awal */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800">
+                    Modul yang Boleh Diakses ({newRoleForm.selectedTabs.length} Terpilih):
+                  </label>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setNewRoleForm({ ...newRoleForm, selectedTabs: ALL_AVAILABLE_TABS.map(t => t.id) })}
+                      className="text-indigo-600 font-bold hover:underline"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewRoleForm({ ...newRoleForm, selectedTabs: [] })}
+                      className="text-slate-500 font-bold hover:underline"
+                    >
+                      Kosongkan
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto p-1 scrollbar-thin">
+                  {ALL_AVAILABLE_TABS.map(tab => {
+                    const isChecked = newRoleForm.selectedTabs.includes(tab.id);
+                    const TabIcon = tab.icon;
+
+                    return (
+                      <label
+                        key={tab.id}
+                        className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition-all ${
+                          isChecked
+                            ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950 font-bold'
+                            : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const exists = newRoleForm.selectedTabs.includes(tab.id);
+                            setNewRoleForm({
+                              ...newRoleForm,
+                              selectedTabs: exists
+                                ? newRoleForm.selectedTabs.filter(t => t !== tab.id)
+                                : [...newRoleForm.selectedTabs, tab.id]
+                            });
+                          }}
+                          className="mt-0.5 rounded text-indigo-600 focus:ring-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <TabIcon className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                            <span className="truncate">{tab.label}</span>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddRoleModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Simpan Peran Baru
                 </button>
               </div>
 

@@ -20,19 +20,22 @@ import {
 import { PekerjaData, MainTabType, PresensiIjinRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { gasClient } from '../../services/gasClient';
+import { AuthUser, authService } from '../../services/authService';
 
 interface TabDashboardProps {
   pekerjaList: PekerjaData[];
   presensiList?: PresensiIjinRecord[];
   currentScope: string;
   onNavigateTab: (tab: MainTabType) => void;
+  currentUser?: AuthUser | null;
 }
 
 export const TabDashboard: React.FC<TabDashboardProps> = ({
   pekerjaList,
   presensiList = [],
   currentScope,
-  onNavigateTab
+  onNavigateTab,
+  currentUser
 }) => {
   const [selectedBulan, setSelectedBulan] = useState(String(new Date().getMonth() + 1));
   const [selectedTahun, setSelectedTahun] = useState(String(new Date().getFullYear()));
@@ -41,6 +44,10 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
+
+  // Cek apakah peran akun ini diizinkan melihat Ringkasan Beban Upah Harian Periode Ini
+  const userRole = currentUser?.role || 'Super Admin';
+  const showWageSummary = authService.canRoleViewWageSummary(userRole);
 
   const filteredPekerja = pekerjaList.filter(p => {
     return currentScope === 'ALL' || p.unitSekup === currentScope;
@@ -362,200 +369,202 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
 
       </div>
 
-      {/* Section Beban Upah Bulanan (Sinkron Langsung dari Google Sheets Asli) */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-        
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-              <DollarSign className="w-5 h-5" />
+      {/* Section Beban Upah Bulanan (Sinkron Langsung dari Google Sheets Asli) - Berdasarkan Hak Akses Peran */}
+      {showWageSummary && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Ringkasan Beban Upah Harian Periode Ini
+                  </h3>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Live Spreadsheet
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Ketentuan 26 hari kerja (Senin - Sabtu) dikurangi potongan ijin sah dari <code>LOG_PRESENSI_IJIN</code>
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Ringkasan Beban Upah Harian Periode Ini
-                </h3>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Live Spreadsheet
+
+            {/* Controls: Bulan, Tahun & Tombol Muat Data Ringkasan */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select
+                value={selectedBulan}
+                onChange={(e) => {
+                  const b = e.target.value;
+                  setSelectedBulan(b);
+                  loadRingkasanData(b, selectedTahun);
+                }}
+                className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
+              >
+                {bulanOptions.map(b => (
+                  <option key={b.val} value={b.val}>{b.label}</option>
+                ))}
+              </select>
+              
+              <select
+                value={selectedTahun}
+                onChange={(e) => {
+                  const t = e.target.value;
+                  setSelectedTahun(t);
+                  loadRingkasanData(selectedBulan, t);
+                }}
+                className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
+              >
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+              </select>
+
+              {/* TOMBOL MEMUAT DATA RINGKASAN */}
+              <button
+                onClick={() => loadRingkasanData(selectedBulan, selectedTahun)}
+                disabled={isLoadingSummary}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                title="Tarik &amp; hitung ulang data presensi dari Google Sheets asli"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSummary ? 'animate-spin' : ''}`} />
+                <span>{isLoadingSummary ? 'Memuat Data...' : 'Muat Data Ringkasan'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3 Kartu Beban Upah dengan Angka Presisi dari Sheet Asli */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-xs font-bold text-slate-500 block mb-1">Ketentuan Upah Standar</span>
+              <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                Rp {totalKetentuan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
+                {totalPekerja} pekerja &times; 26 hari kerja ({namaBulanTerpilih} {selectedTahun})
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-red-700">Estimasi Potongan Ijin</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-200 text-red-900">
+                  {totalHariPotong} Hari Terpotong
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Ketentuan 26 hari kerja (Senin - Sabtu) dikurangi potongan ijin sah dari <code>LOG_PRESENSI_IJIN</code>
-              </p>
+              <div className="text-2xl font-black text-red-700 font-mono tracking-tight">
+                - Rp {totalPotonganNominal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[11px] text-red-600 mt-0.5 block">
+                Berdasarkan {deductionRecords.length} entri potongan ijin di spreadsheet
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <span className="text-xs font-bold text-emerald-800 block mb-1">Total Estimasi Dibayarkan</span>
+              <div className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
+                Rp {totalSetelahPotongan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">
+                Belum termasuk tambahan lembur
+              </span>
             </div>
           </div>
 
-          {/* Controls: Bulan, Tahun & Tombol Muat Data Ringkasan */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <select
-              value={selectedBulan}
-              onChange={(e) => {
-                const b = e.target.value;
-                setSelectedBulan(b);
-                loadRingkasanData(b, selectedTahun);
-              }}
-              className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
-            >
-              {bulanOptions.map(b => (
-                <option key={b.val} value={b.val}>{b.label}</option>
-              ))}
-            </select>
-            
-            <select
-              value={selectedTahun}
-              onChange={(e) => {
-                const t = e.target.value;
-                setSelectedTahun(t);
-                loadRingkasanData(selectedBulan, t);
-              }}
-              className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
-            >
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-              <option value="2027">2027</option>
-            </select>
+          {/* Footer Bar Ringkasan & Toggle Rincian */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <span>Status Data:</span>
+              <span className="font-semibold text-slate-700">
+                {isLoadingSummary ? 'Menghitung dari spreadsheet...' : `Terverifikasi ${namaBulanTerpilih} ${selectedTahun} (${summaryPresensi.length} log presensi dibaca)`}
+              </span>
+              {lastLoadedAt && (
+                <span className="text-[10px] text-slate-400 font-mono">Pukul {lastLoadedAt}</span>
+              )}
+            </div>
 
-            {/* TOMBOL MEMUAT DATA RINGKASAN */}
             <button
-              onClick={() => loadRingkasanData(selectedBulan, selectedTahun)}
-              disabled={isLoadingSummary}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
-              title="Tarik &amp; hitung ulang data presensi dari Google Sheets asli"
+              onClick={() => setIsBreakdownOpen(!isBreakdownOpen)}
+              className="font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1 transition-colors self-start sm:self-auto"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSummary ? 'animate-spin' : ''}`} />
-              <span>{isLoadingSummary ? 'Memuat Data...' : 'Muat Data Ringkasan'}</span>
+              <Receipt className="w-3.5 h-3.5" />
+              <span>{isBreakdownOpen ? 'Tutup Rincian Potongan' : `Lihat Rincian Potongan (${totalHariPotong} Hari)`}</span>
+              {isBreakdownOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>
-        </div>
 
-        {/* 3 Kartu Beban Upah dengan Angka Presisi dari Sheet Asli */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <span className="text-xs font-bold text-slate-500 block mb-1">Ketentuan Upah Standar</span>
-            <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
-              Rp {totalKetentuan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">
-              {totalPekerja} pekerja &times; 26 hari kerja ({namaBulanTerpilih} {selectedTahun})
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-red-50 border border-red-200">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-red-700">Estimasi Potongan Ijin</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-200 text-red-900">
-                {totalHariPotong} Hari Terpotong
-              </span>
-            </div>
-            <div className="text-2xl font-black text-red-700 font-mono tracking-tight">
-              - Rp {totalPotonganNominal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <span className="text-[11px] text-red-600 mt-0.5 block">
-              Berdasarkan {deductionRecords.length} entri potongan ijin di spreadsheet
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-            <span className="text-xs font-bold text-emerald-800 block mb-1">Total Estimasi Dibayarkan</span>
-            <div className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
-              Rp {totalSetelahPotongan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">
-              Belum termasuk tambahan lembur
-            </span>
-          </div>
-        </div>
-
-        {/* Footer Bar Ringkasan & Toggle Rincian */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <span>Status Data:</span>
-            <span className="font-semibold text-slate-700">
-              {isLoadingSummary ? 'Menghitung dari spreadsheet...' : `Terverifikasi ${namaBulanTerpilih} ${selectedTahun} (${summaryPresensi.length} log presensi dibaca)`}
-            </span>
-            {lastLoadedAt && (
-              <span className="text-[10px] text-slate-400 font-mono">Pukul {lastLoadedAt}</span>
-            )}
-          </div>
-
-          <button
-            onClick={() => setIsBreakdownOpen(!isBreakdownOpen)}
-            className="font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1 transition-colors self-start sm:self-auto"
-          >
-            <Receipt className="w-3.5 h-3.5" />
-            <span>{isBreakdownOpen ? 'Tutup Rincian Potongan' : `Lihat Rincian Potongan (${totalHariPotong} Hari)`}</span>
-            {isBreakdownOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-
-        {/* Expandable Breakdown Table (Transparansi Penuh Potongan Sheet) */}
-        {isBreakdownOpen && (
-          <div className="pt-3 border-t border-slate-100 space-y-2 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">
-                Daftar Rincian Ijin Terpotong Upah ({namaBulanTerpilih} {selectedTahun})
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Sumber: Tab Sheet <code>LOG_PRESENSI_IJIN</code>
-              </span>
-            </div>
-
-            {deductionDetailList.length === 0 ? (
-              <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-400 italic">
-                Tidak ada pemotongan ijin pada periode bulan ini.
+          {/* Expandable Breakdown Table (Transparansi Penuh Potongan Sheet) */}
+          {isBreakdownOpen && (
+            <div className="pt-3 border-t border-slate-100 space-y-2 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800">
+                  Daftar Rincian Ijin Terpotong Upah ({namaBulanTerpilih} {selectedTahun})
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Sumber: Tab Sheet <code>LOG_PRESENSI_IJIN</code>
+                </span>
               </div>
-            ) : (
-              <div className="overflow-x-auto max-h-64 scrollbar-thin">
-                <table className="w-full text-left text-[11px] bg-slate-50/60 rounded-xl border border-slate-200 overflow-hidden">
-                  <thead className="bg-slate-200/70 font-bold text-slate-700 sticky top-0">
-                    <tr>
-                      <th className="p-2">Tanggal</th>
-                      <th className="p-2">Nama Pekerja</th>
-                      <th className="p-2">Unit &amp; Sekup</th>
-                      <th className="p-2">Jenis Ijin</th>
-                      <th className="p-2">Keperluan</th>
-                      <th className="p-2 text-right">Upah Harian</th>
-                      <th className="p-2 text-center">Faktor</th>
-                      <th className="p-2 text-right">Potongan</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/60">
-                    {deductionDetailList.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-100/70">
-                        <td className="p-2 font-mono">{item.tanggal}</td>
-                        <td className="p-2 font-bold text-slate-900">{item.nama}</td>
-                        <td className="p-2 text-slate-600">{item.unit} • {item.sekup}</td>
-                        <td className="p-2">
-                          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-semibold text-[10px]">
-                            {item.jenisIjin}
-                          </span>
-                        </td>
-                        <td className="p-2 text-slate-500 italic max-w-[150px] truncate">{item.keperluan}</td>
-                        <td className="p-2 text-right font-mono">Rp {Math.round(item.upahHarian).toLocaleString('id-ID')}</td>
-                        <td className="p-2 text-center font-mono font-bold">{item.faktor}</td>
-                        <td className="p-2 text-right font-mono font-bold text-red-600">
-                          - Rp {Math.round(item.subtotal).toLocaleString('id-ID')}
+
+              {deductionDetailList.length === 0 ? (
+                <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-400 italic">
+                  Tidak ada pemotongan ijin pada periode bulan ini.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-64 scrollbar-thin">
+                  <table className="w-full text-left text-[11px] bg-slate-50/60 rounded-xl border border-slate-200 overflow-hidden">
+                    <thead className="bg-slate-200/70 font-bold text-slate-700 sticky top-0">
+                      <tr>
+                        <th className="p-2">Tanggal</th>
+                        <th className="p-2">Nama Pekerja</th>
+                        <th className="p-2">Unit &amp; Sekup</th>
+                        <th className="p-2">Jenis Ijin</th>
+                        <th className="p-2">Keperluan</th>
+                        <th className="p-2 text-right">Upah Harian</th>
+                        <th className="p-2 text-center">Faktor</th>
+                        <th className="p-2 text-right">Potongan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/60">
+                      {deductionDetailList.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-100/70">
+                          <td className="p-2 font-mono">{item.tanggal}</td>
+                          <td className="p-2 font-bold text-slate-900">{item.nama}</td>
+                          <td className="p-2 text-slate-600">{item.unit} • {item.sekup}</td>
+                          <td className="p-2">
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-semibold text-[10px]">
+                              {item.jenisIjin}
+                            </span>
+                          </td>
+                          <td className="p-2 text-slate-500 italic max-w-[150px] truncate">{item.keperluan}</td>
+                          <td className="p-2 text-right font-mono">Rp {Math.round(item.upahHarian).toLocaleString('id-ID')}</td>
+                          <td className="p-2 text-center font-mono font-bold">{item.faktor}</td>
+                          <td className="p-2 text-right font-mono font-bold text-red-600">
+                            - Rp {Math.round(item.subtotal).toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-200/80 font-bold text-slate-900 sticky bottom-0">
+                      <tr>
+                        <td colSpan={6} className="p-2 text-right">Total Keseluruhan Potongan:</td>
+                        <td className="p-2 text-center font-mono">{totalHariPotong} Hari</td>
+                        <td className="p-2 text-right font-mono text-red-700">
+                          - Rp {Math.round(totalPotonganNominal).toLocaleString('id-ID')}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-slate-200/80 font-bold text-slate-900 sticky bottom-0">
-                    <tr>
-                      <td colSpan={6} className="p-2 text-right">Total Keseluruhan Potongan:</td>
-                      <td className="p-2 text-center font-mono">{totalHariPotong} Hari</td>
-                      <td className="p-2 text-right font-mono text-red-700">
-                        - Rp {Math.round(totalPotonganNominal).toLocaleString('id-ID')}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
-      </div>
+        </div>
+      )}
 
       {/* Quick Navigation Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

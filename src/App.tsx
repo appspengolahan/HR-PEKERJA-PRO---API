@@ -659,6 +659,7 @@ export default function App() {
               presensiList={presensiList}
               currentScope={currentScope}
               onNavigateTab={setActiveTab}
+              currentUser={currentUser}
             />
           )}
 

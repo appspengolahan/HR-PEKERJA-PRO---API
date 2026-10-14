@@ -108,6 +108,9 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
   const sampleWorker1 = pekerjaList.find(p => p.nama.toUpperCase().includes('DEDIK')) || pekerjaList[0];
   const sampleWorker2 = pekerjaList.find(p => p.nama.toUpperCase().includes('MIFTAKHUL')) || pekerjaList[1];
 
+  // Custom roles from storage
+  const customRoles = authService.getRoleDefinitions().filter(r => r.isCustom);
+
   return (
     <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 text-amber-200 border-b border-amber-500/30 px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-3 shadow-md z-40 relative print:hidden">
       
@@ -286,6 +289,27 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Custom Added Roles */}
+              {customRoles.length > 0 && (
+                <div className="space-y-1 pt-1 border-t border-slate-800">
+                  <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
+                    Peran Tambahan (Kustom):
+                  </span>
+                  <div className="grid grid-cols-1 gap-1">
+                    {customRoles.map(cr => (
+                      <button
+                        key={cr.role}
+                        onClick={() => handleSwitchToInternal(cr.role, cr.title, cr.scopeDesc?.includes('ALL') ? 'ALL' : 'Proses Cengkeh', ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'])}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-indigo-300"
+                      >
+                        <span className="truncate">✨ {cr.title} ({cr.role})</span>
+                        {currentUser?.role === cr.role && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </div>
           )}

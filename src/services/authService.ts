@@ -1,15 +1,6 @@
 import { MainTabType, PekerjaData } from '../types';
 
-export type UserAccessRole = 
-  | 'Super Admin' 
-  | 'Project Manager'
-  | 'Site Engineer'
-  | 'HR Admin' 
-  | 'Manajer Operasional' 
-  | 'Kepala Pengolahan 1'
-  | 'Kepala Pengolahan 2'
-  | 'Foreman / Mandor' 
-  | 'Pekerja Harian';
+export type UserAccessRole = string;
 
 export interface AuthUser {
   id: string;
@@ -34,7 +25,19 @@ export interface InternalAccount {
   allowedTabs: MainTabType[];
 }
 
+export interface RoleDefinition {
+  role: UserAccessRole;
+  title: string;
+  subtitle: string;
+  scopeDesc: string;
+  badgeColor: string;
+  isCustom?: boolean;
+}
+
 export type RoleMatrix = Record<UserAccessRole, MainTabType[]>;
+
+// Konfigurasi apakah Ringkasan Beban Upah ditampilkan per peran
+export type WageSummaryRoleConfig = Record<UserAccessRole, boolean>;
 
 // Matriks Default Hak Akses Modul per Peran
 export const DEFAULT_ROLE_MATRIX: RoleMatrix = {
@@ -48,6 +51,86 @@ export const DEFAULT_ROLE_MATRIX: RoleMatrix = {
   'Foreman / Mandor': ['dashboard', 'presensi', 'lembur', 'rekap'],
   'Pekerja Harian': ['slip', 'profil']
 };
+
+// Default visibility 'Ringkasan Beban Upah Harian Periode Ini' per peran
+export const DEFAULT_WAGE_SUMMARY_CONFIG: WageSummaryRoleConfig = {
+  'Super Admin': true,
+  'Project Manager': true,
+  'Site Engineer': true,
+  'HR Admin': true,
+  'Manajer Operasional': true,
+  'Kepala Pengolahan 1': true,
+  'Kepala Pengolahan 2': true,
+  'Foreman / Mandor': false,
+  'Pekerja Harian': false
+};
+
+// Default role list definitions
+export const DEFAULT_ROLE_DEFINITIONS: RoleDefinition[] = [
+  { 
+    role: 'Super Admin', 
+    title: 'Developer / Super Admin', 
+    subtitle: 'Lead Developer & Admin Sistem', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200' 
+  },
+  { 
+    role: 'Project Manager', 
+    title: 'Project Manager', 
+    subtitle: 'Monitoring & Operasional Proyek', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200' 
+  },
+  { 
+    role: 'Site Engineer', 
+    title: 'Site Engineer', 
+    subtitle: 'Pengawasan Teknis Lapangan', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200' 
+  },
+  { 
+    role: 'HR Admin', 
+    title: 'HR Admin', 
+    subtitle: 'Administrasi Kepegawaian & PKWT', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' 
+  },
+  { 
+    role: 'Manajer Operasional', 
+    title: 'Manajer Operasional', 
+    subtitle: 'Rekap Total Upah & Operasional', 
+    scopeDesc: 'Semua Unit (ALL)', 
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+  },
+  { 
+    role: 'Kepala Pengolahan 2', 
+    title: 'Kepala Pengolahan 2', 
+    subtitle: 'Monitoring & Entri 2 Unit', 
+    scopeDesc: 'Unit Cengkeh & Blend', 
+    badgeColor: 'bg-teal-100 text-teal-800 border-teal-200' 
+  },
+  { 
+    role: 'Kepala Pengolahan 1', 
+    title: 'Kepala Pengolahan 1', 
+    subtitle: 'Monitoring & Entri 2 Unit (Lowong)', 
+    scopeDesc: 'Unit Tembakau & Krosok', 
+    badgeColor: 'bg-sky-100 text-sky-800 border-sky-200' 
+  },
+  { 
+    role: 'Foreman / Mandor', 
+    title: 'Foreman / Mandor', 
+    subtitle: 'Mandor Khusus Unit Lapangan', 
+    scopeDesc: 'Khusus Unit Terkait', 
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' 
+  },
+  { 
+    role: 'Pekerja Harian', 
+    title: 'Pekerja Harian', 
+    subtitle: 'Portal Karyawan Lapangan', 
+    scopeDesc: 'Data Pribadi Mandiri', 
+    badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' 
+  }
+];
 
 // Whitelist Akun Internal PP1
 export const WHITELIST_INTERNAL: InternalAccount[] = [
@@ -155,8 +238,68 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
 const AUTH_STORAGE_KEY = 'bk_pp1_auth_session';
 const ACCOUNTS_STORAGE_KEY = 'bk_pp1_internal_accounts';
 const ROLE_MATRIX_STORAGE_KEY = 'bk_pp1_role_permissions_matrix';
+const ROLE_DEFINITIONS_STORAGE_KEY = 'bk_pp1_role_definitions_list';
+const WAGE_SUMMARY_CONFIG_STORAGE_KEY = 'bk_pp1_wage_summary_visibility_per_role';
 
 export const authService = {
+  // Mendapatkan daftar peran terdaftar (bawaan + peran baru yang ditambahkan)
+  getRoleDefinitions: (): RoleDefinition[] => {
+    try {
+      const raw = localStorage.getItem(ROLE_DEFINITIONS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_ROLE_DEFINITIONS;
+  },
+
+  // Menyimpan daftar definisi peran
+  saveRoleDefinitions: (definitions: RoleDefinition[]): void => {
+    localStorage.setItem(ROLE_DEFINITIONS_STORAGE_KEY, JSON.stringify(definitions));
+  },
+
+  // Reset daftar peran ke bawaan
+  resetRoleDefinitions: (): RoleDefinition[] => {
+    localStorage.removeItem(ROLE_DEFINITIONS_STORAGE_KEY);
+    return DEFAULT_ROLE_DEFINITIONS;
+  },
+
+  // Mendapatkan konfigurasi visibilitas Ringkasan Beban Upah per peran
+  getWageSummaryConfig: (): WageSummaryRoleConfig => {
+    try {
+      const raw = localStorage.getItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_WAGE_SUMMARY_CONFIG, ...parsed };
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_WAGE_SUMMARY_CONFIG;
+  },
+
+  // Menyimpan konfigurasi visibilitas Ringkasan Beban Upah per peran
+  saveWageSummaryConfig: (config: WageSummaryRoleConfig): void => {
+    localStorage.setItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  },
+
+  // Memeriksa apakah suatu peran berhak melihat Ringkasan Beban Upah
+  canRoleViewWageSummary: (roleName: string): boolean => {
+    const config = authService.getWageSummaryConfig();
+    if (roleName in config) {
+      return Boolean(config[roleName]);
+    }
+    // Default fallback: Super Admin, HR, Manager true, others false
+    return roleName.toLowerCase().includes('admin') || roleName.toLowerCase().includes('manajer');
+  },
+
   // Mendapatkan daftar akun internal (dari localStorage jika ada, fallback ke WHITELIST_INTERNAL)
   getInternalAccounts: (): InternalAccount[] => {
     try {
@@ -306,6 +449,8 @@ export const authService = {
   // Reset matriks hak akses peran ke bawaan
   resetRoleMatrix: (): RoleMatrix => {
     localStorage.removeItem(ROLE_MATRIX_STORAGE_KEY);
+    localStorage.removeItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY);
+    localStorage.removeItem(ROLE_DEFINITIONS_STORAGE_KEY);
     return DEFAULT_ROLE_MATRIX;
   },
 
