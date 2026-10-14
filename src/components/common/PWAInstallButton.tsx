@@ -93,7 +93,7 @@ export const PWAInstallButton: React.FC = () => {
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center flex-shrink-0 text-[10px]">4</span>
-                  <span>Aplikasi <strong>HR Pekerja</strong> akan muncul seperti aplikasi native di menu HP Anda!</span>
+                  <span>Aplikasi <strong>HR Pekerja - Produksi I</strong> akan muncul seperti aplikasi native di menu HP Anda!</span>
                 </div>
               </div>
             )}

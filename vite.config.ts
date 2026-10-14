@@ -14,8 +14,8 @@ export default defineConfig(() => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'HR Pekerja — Divisi Produksi I',
-          short_name: 'HRPekerja',
+          name: 'HR Pekerja - Produksi I',
+          short_name: 'HR Produksi I',
           description: 'Sistem Manajemen HR & Ketenagakerjaan Divisi Produksi I PT Batu Karang',
           theme_color: '#0f172a',
           background_color: '#0f172a',
