@@ -302,32 +302,84 @@ export default function App() {
   };
 
   const handleOpenSuratIjin = (rec: PresensiIjinRecord) => {
-    const tz = 'Asia/Jakarta';
     const now = new Date();
     const bulans = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     const tglCetak = `${now.getDate()} ${bulans[now.getMonth() + 1]}`;
     const thnCetak = String(now.getFullYear()).slice(-2);
 
-    let checkbox = 'terlambat';
-    if (rec.jenisIjin === 'Ijin Normatif') checkbox = 'normatif';
-    else if (rec.jenisIjin.startsWith('Sakit') || rec.jenisIjin.startsWith('Ijin (S Tangan)') || rec.jenisIjin === 'Alpha') checkbox = 'tidakMasuk';
-    else if (rec.jenisIjin === 'Ijin Keluar Sementara') checkbox = 'keluarSementara';
-    else if (rec.jenisIjin === 'Ijin Pulang Awal') checkbox = 'pulangCepat';
+    // Determine Indonesian day name
+    let hariIndo = 'Senin';
+    try {
+      let d: Date | null = null;
+      if (rec.tanggalIso) {
+        d = new Date(rec.tanggalIso + 'T00:00:00');
+      } else if (rec.tanggal && rec.tanggal.includes('/')) {
+        const p = rec.tanggal.split('/');
+        if (p.length === 3) {
+          d = new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+        }
+      }
+      if (d && !isNaN(d.getTime())) {
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        hariIndo = days[d.getDay()];
+      }
+    } catch (_) {
+      hariIndo = 'Senin';
+    }
+
+    // Lookup worker for exact Jabatan and Unit/Sekup
+    const worker = pekerjaList.find(p => p.nama === rec.nama);
+    const jabatan = worker?.jabatan && worker.jabatan !== '-' ? worker.jabatan : 'Pekerja Harian';
+    const unitSekup = worker?.sekup ? `${worker.unit} (${worker.sekup})` : (rec.unit || 'Cengkeh');
+
+    // Accurate mapping to official 7 checkboxes
+    let checkbox = 'tidakMasuk';
+    const jLower = (rec.jenisIjin || '').toLowerCase();
+    if (jLower.includes('normatif')) {
+      checkbox = 'normatif';
+    } else if (jLower.includes('terlambat')) {
+      checkbox = 'terlambat';
+    } else if (jLower.includes('sementara') || jLower.includes('keluar')) {
+      checkbox = 'keluarSementara';
+    } else if (jLower.includes('pulang') || jLower.includes('awal')) {
+      checkbox = 'pulangCepat';
+    } else if (jLower.includes('ekstern') || jLower.includes('tugas')) {
+      checkbox = 'eksternal';
+    } else if (jLower.includes('hadir') || jLower.includes('absen')) {
+      checkbox = 'formKehadiran';
+    } else {
+      checkbox = 'tidakMasuk';
+    }
 
     const durasi = Number(rec.durasiMenit) || 0;
 
+    // Set time fields logically based on type
+    let jamMasuk = '-';
+    let jamKeluar = '-';
+    let jamMasukKembali = '-';
+
+    if (checkbox === 'terlambat') {
+      jamMasuk = rec.jamAkhir || '08:00';
+    } else if (checkbox === 'pulangCepat') {
+      jamKeluar = rec.jamAwal || '14:00';
+    } else if (checkbox === 'keluarSementara') {
+      jamKeluar = rec.jamAwal || '10:00';
+      jamMasukKembali = rec.jamAkhir || '11:00';
+    }
+
     setSuratIjinData({
       nama: rec.nama,
-      jabatan: 'Harian',
+      jabatan: jabatan,
       divisi: 'Produksi I',
-      unit: rec.unit,
+      unit: unitSekup,
       checkbox,
-      hari: 'Hari Kerja',
-      tanggal: rec.tanggal,
-      keperluan: rec.keperluan,
-      jamMasuk: rec.jenisIjin === 'Ijin Terlambat' ? rec.jamAkhir : '-',
-      jamKeluar: rec.jenisIjin === 'Ijin Pulang Awal' ? rec.jamAwal : '-',
-      jamMasukKembali: rec.jenisIjin === 'Ijin Keluar Sementara' ? rec.jamAkhir : '-',
+      isBulanan: false,
+      hari: hariIndo,
+      tanggal: rec.tanggal || `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`,
+      keperluan: rec.keperluan || '-',
+      jamMasuk,
+      jamKeluar,
+      jamMasukKembali,
       jamBagian: Math.floor(durasi / 60),
       menitBagian: durasi % 60,
       tglCetak,

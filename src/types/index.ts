@@ -284,7 +284,8 @@ export interface SuratIjinData {
   jabatan: string;
   divisi: string;
   unit: string;
-  checkbox: string;
+  checkbox: string; // 'normatif' | 'tidakMasuk' | 'terlambat' | 'keluarSementara' | 'pulangCepat' | 'eksternal' | 'formKehadiran'
+  isBulanan?: boolean;
   hari: string;
   hariAkhir?: string;
   tanggal: string;
@@ -298,6 +299,10 @@ export interface SuratIjinData {
   tglCetak: string;
   thnCetak: string;
   namaTtd: string;
+  menyetujui?: string;
+  mengetahui1?: string;
+  mengetahui2?: string;
+  mengetahui3?: string;
 }
 
 export interface JamKerjaItem {

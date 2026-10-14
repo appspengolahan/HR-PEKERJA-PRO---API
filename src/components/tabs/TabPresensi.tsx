@@ -203,6 +203,30 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     { val: '10', label: 'Oktober' }, { val: '11', label: 'November' }, { val: '12', label: 'Desember' }
   ];
 
+  const handleOpenBlankOrSelectedSuratIjin = () => {
+    const today = new Date();
+    const dStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    const isoStr = today.toISOString().slice(0, 10);
+    const worker = selectedNama ? filteredPekerja.find(p => p.nama === selectedNama) : filteredPekerja[0];
+    
+    onOpenSuratIjin({
+      rowNum: 0,
+      tanggal: dStr,
+      tanggalIso: isoStr,
+      nama: worker?.nama || selectedNama || 'Pekerja Harian',
+      unit: worker?.unit || 'Produksi',
+      sekup: worker?.sekup || '',
+      jamAwal: '07:00',
+      jamAkhir: '14:00',
+      durasiMenit: 420,
+      jenisIjin: 'Ijin Tidak Masuk Kerja',
+      keperluan: '',
+      lampiran: 'Tidak',
+      catatan: '',
+      faktorPotongan: 1
+    });
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       
@@ -222,13 +246,21 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleOpenAdd}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
             >
               <Plus className="w-4 h-4" />
               Tambah Ijin
+            </button>
+            <button
+              onClick={handleOpenBlankOrSelectedSuratIjin}
+              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-indigo-200 transition-colors"
+              title="Buka / Cetak Formulir Fisik Resmi (Standar Kertas 20,5 × 16 cm - GAS Lama)"
+            >
+              <FileText className="w-4 h-4 text-indigo-600" />
+              Formulir Fisik (20,5×16)
             </button>
             <button
               onClick={() => window.print()}
