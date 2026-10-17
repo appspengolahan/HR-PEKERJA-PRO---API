@@ -19,6 +19,8 @@ import { HelpModal } from './components/modals/HelpModal';
 import { ScopeModal } from './components/modals/ScopeModal';
 import { GasCenterModal } from './components/modals/GasCenterModal';
 import { SwitchBoardModal } from './components/modals/SwitchBoardModal';
+import { PublicShareModal } from './components/modals/PublicShareModal';
+import { PublicPortal } from './components/public/PublicPortal';
 
 import { gasClient } from './services/gasClient';
 import { storageService } from './services/storageService';
@@ -64,7 +66,13 @@ export default function App() {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Modals
+  // Modals & Public Linktree Mode
+  const [isPublicMode, setIsPublicMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('view') === 'public' || window.location.hash.includes('public');
+  });
+  const [isPublicShareModalOpen, setIsPublicShareModalOpen] = useState(false);
   const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
@@ -578,6 +586,28 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  // JENDELA PORTAL PUBLIK (LINKTREE / TAMU) - TANPA PERLU LOGIN
+  if (isPublicMode) {
+    return (
+      <PublicPortal
+        pekerjaList={pekerjaList}
+        presensiList={presensiList}
+        onExitPublic={() => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('view');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+          setIsPublicMode(false);
+        }}
+        onSwitchToLogin={() => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('view');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+          setIsPublicMode(false);
+        }}
+      />
+    );
+  }
+
   // GERBANG KEAMANAN UTAMA: WAJIB LOGIN
   if (!currentUser) {
     return (
@@ -592,6 +622,7 @@ export default function App() {
             setActiveTab(user.allowedTabs[0]);
           }
         }}
+        onOpenPublicPortal={() => setIsPublicMode(true)}
       />
     );
   }
@@ -629,6 +660,7 @@ export default function App() {
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
+          onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
           switchAppUrl={switchAppUrl}
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -795,6 +827,12 @@ export default function App() {
       <SwitchBoardModal
         isOpen={isSwitchBoardOpen}
         onClose={() => setIsSwitchBoardOpen(false)}
+      />
+
+      <PublicShareModal
+        isOpen={isPublicShareModalOpen}
+        onClose={() => setIsPublicShareModalOpen(false)}
+        onOpenPreview={() => setIsPublicMode(true)}
       />
 
       {/* Mobile Bottom Navigation */}

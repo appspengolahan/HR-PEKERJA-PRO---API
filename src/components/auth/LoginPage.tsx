@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Users,
   Eye,
-  EyeOff
+  EyeOff,
+  Globe
 } from 'lucide-react';
 import { AuthUser, authService, WHITELIST_INTERNAL } from '../../services/authService';
 import { PekerjaData } from '../../types';
@@ -20,11 +21,13 @@ import { PekerjaData } from '../../types';
 interface LoginPageProps {
   pekerjaList: PekerjaData[];
   onLoginSuccess: (user: AuthUser) => void;
+  onOpenPublicPortal?: () => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   pekerjaList,
-  onLoginSuccess
+  onLoginSuccess,
+  onOpenPublicPortal
 }) => {
   const [activeTab, setActiveTab] = useState<'internal' | 'pekerja'>('internal');
 
@@ -372,6 +375,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           )}
 
         </div>
+
+        {/* Guest Public Portal Access Button */}
+        {onOpenPublicPortal && (
+          <div className="pt-0.5">
+            <button
+              type="button"
+              onClick={onOpenPublicPortal}
+              className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer group"
+            >
+              <Globe className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span>Buka Portal Informasi Publik (Linktree / Tamu)</span>
+              <span className="text-[10px] text-cyan-400 font-mono">↗</span>
+            </button>
+          </div>
+        )}
 
         {/* Developer & Supervision Shortcut Gate (Only visible if unlocked via Master PIN) */}
         {isDevUnlocked && (

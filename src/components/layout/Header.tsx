@@ -11,7 +11,8 @@ import {
   LogOut,
   User as UserIcon,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  Globe
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
@@ -27,6 +28,7 @@ interface HeaderProps {
   onOpenGasCenter: () => void;
   onOpenScopeModal: () => void;
   onOpenHelpModal: () => void;
+  onOpenPublicShareModal: () => void;
   switchAppUrl: string;
   currentUser: AuthUser | null;
   onLogout: () => void;
@@ -42,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGasCenter,
   onOpenScopeModal,
   onOpenHelpModal,
+  onOpenPublicShareModal,
   switchAppUrl,
   currentUser,
   onLogout
@@ -140,6 +143,19 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Action Controls - Clean & Minimalist Navbar */}
       <div className="flex items-center gap-2 flex-shrink-0">
         
+        {/* Portal Publik (Linktree) Button */}
+        <button
+          onClick={onOpenPublicShareModal}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-slate-200 shadow-xs transition-all cursor-pointer"
+          title="Tautan Portal Publik untuk Linktree"
+        >
+          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Portal Publik</span>
+          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800">
+            Linktree
+          </span>
+        </button>
+
         {/* Quick Sync / Refresh Button */}
         <button
           onClick={onRefreshData}
@@ -254,6 +270,25 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   </a>
                 )}
+
+                {/* Portal Publik Linktree Modal */}
+                <button
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    onOpenPublicShareModal();
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <span>Tautan Publik (Linktree)</span>
+                  </div>
+                  <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                    Buka
+                  </span>
+                </button>
 
                 {/* SwitchBoard Modal */}
                 <button
