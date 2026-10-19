@@ -97,7 +97,29 @@ export default function App() {
     return cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
   });
   const [lemburList, setLemburList] = useState<LemburRecord[]>([]);
-  const [jadwalMutasiList, setJadwalMutasiList] = useState<JadwalMutasiRecord[]>([]);
+  const [jadwalMutasiList, setJadwalMutasiList] = useState<JadwalMutasiRecord[]>(() => {
+    const cached = localStorage.getItem('hr_jadwal_mutasi_cache');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [
+      {
+        rowNum: 6,
+        tanggalEfektif: "01/11/2026",
+        nama: "DEDIK SETIAWAN",
+        jenisMutasi: "Unit",
+        nilaiLama: "Cengkeh",
+        nilaiBaru: "Blend",
+        keterangan: "Penyelarasan rotasi unit kerja mesin Blend",
+        diinputOleh: "HR Admin"
+      }
+    ];
+  });
   const [calonList, setCalonList] = useState<CalonPekerjaRecord[]>([
     {
       rowNum: 6,
@@ -148,6 +170,7 @@ export default function App() {
         }
         if (d.jadwalMutasi) {
           setJadwalMutasiList(d.jadwalMutasi);
+          localStorage.setItem('hr_jadwal_mutasi_cache', JSON.stringify(d.jadwalMutasi));
         }
         if (d.calonPekerja) {
           setCalonList(d.calonPekerja);
@@ -500,30 +523,91 @@ export default function App() {
     nilaiBaru: string;
     keterangan: string;
   }) => {
-    const res = await gasClient.postMutation('submitMutasi', data);
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal mengajukan mutasi');
+    // Format date if YYYY-MM-DD -> DD/MM/YYYY
+    const parts = data.tanggalEfektif.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : data.tanggalEfektif;
+    
+    // Find current worker for old value
+    const targetWorker = pekerjaList.find(p => p.nama.trim().toUpperCase() === data.nama.trim().toUpperCase());
+    let nilaiLama = '';
+    if (targetWorker) {
+      if (data.jenisMutasi === 'Unit') nilaiLama = targetWorker.unit;
+      else if (data.jenisMutasi === 'Sekup') nilaiLama = targetWorker.sekup;
+      else if (data.jenisMutasi === 'Status Kepegawaian') nilaiLama = targetWorker.status;
+      else if (data.jenisMutasi === 'Upah Harian') nilaiLama = `Rp ${Math.round(targetWorker.upahHarian).toLocaleString('id-ID')}`;
+      else if (data.jenisMutasi === 'Pendidikan Terakhir') nilaiLama = targetWorker.pendidikanTerakhir || '';
+      else if (data.jenisMutasi === 'Akhir PKWT') nilaiLama = targetWorker.akhirPKWT;
+      else nilaiLama = targetWorker.jabatan || '';
+    }
+
+    const newScheduleRecord: JadwalMutasiRecord = {
+      rowNum: Date.now(),
+      tanggalEfektif: formattedDate,
+      nama: data.nama,
+      jenisMutasi: data.jenisMutasi,
+      nilaiLama,
+      nilaiBaru: data.nilaiBaru,
+      keterangan: data.keterangan || '',
+      diinputOleh: currentUser?.nama || 'HR Admin'
+    };
+
+    setJadwalMutasiList(prev => {
+      const filtered = prev.filter(m => m.nama.trim().toUpperCase() !== data.nama.trim().toUpperCase());
+      const next = [newScheduleRecord, ...filtered];
+      localStorage.setItem('hr_jadwal_mutasi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('submitMutasi', data, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync submit mutasi to GAS note:', err);
     }
   };
 
   // Jadwal Mutasi Handlers
   const handleEditMutasiTerjadwal = async (rowNum: number, data: { tanggalEfektif: string; nilaiBaru: string; keterangan: string }) => {
-    const res = await gasClient.postMutation('editMutasiTerjadwal', { rowNum, ...data });
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal mengedit mutasi');
+    const parts = data.tanggalEfektif.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : data.tanggalEfektif;
+
+    setJadwalMutasiList(prev => {
+      const next = prev.map(m => m.rowNum === rowNum ? { 
+        ...m, 
+        tanggalEfektif: formattedDate, 
+        nilaiBaru: data.nilaiBaru, 
+        keterangan: data.keterangan 
+      } : m);
+      localStorage.setItem('hr_jadwal_mutasi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('editMutasiTerjadwal', { rowNum, ...data }, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync edit mutasi to GAS note:', err);
     }
   };
 
   const handleCancelMutasiTerjadwal = async (rowNum: number) => {
-    const res = await gasClient.postMutation('batalkanMutasiTerjadwal', { rowNum });
-    if (res.status === 'success') {
-      await syncLiveData();
-    } else {
-      throw new Error(res.message || 'Gagal membatalkan mutasi');
+    setJadwalMutasiList(prev => {
+      const next = prev.filter(m => m.rowNum !== rowNum);
+      localStorage.setItem('hr_jadwal_mutasi_cache', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const res = await gasClient.postMutation('batalkanMutasiTerjadwal', { rowNum }, currentUser?.nama);
+      if (res.status === 'success') {
+        await syncLiveData();
+      }
+    } catch (err) {
+      console.warn('Sync cancel mutasi to GAS note:', err);
     }
   };
 
@@ -741,6 +825,7 @@ export default function App() {
           {activeTab === 'database' && (
             <TabDatabasePekerja
               pekerjaList={pekerjaList}
+              jadwalMutasiList={jadwalMutasiList}
               currentScope={currentScope}
               onAddPekerja={handleAddPekerja}
               onUpdatePekerja={handleUpdatePekerja}

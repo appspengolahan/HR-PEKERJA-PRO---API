@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   Search, 
@@ -12,13 +12,14 @@ import {
   FileSpreadsheet,
   Printer
 } from 'lucide-react';
-import { PekerjaData } from '../../types';
+import { PekerjaData, JadwalMutasiRecord } from '../../types';
 import { exportPekerjaToCSV } from '../../utils/exportUtils';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { Download } from 'lucide-react';
 
 interface TabDatabasePekerjaProps {
   pekerjaList: PekerjaData[];
+  jadwalMutasiList?: JadwalMutasiRecord[];
   currentScope: string;
   onAddPekerja: (data: Partial<PekerjaData>) => Promise<void>;
   onUpdatePekerja: (data: Partial<PekerjaData>) => Promise<void>;
@@ -35,6 +36,7 @@ interface TabDatabasePekerjaProps {
 
 export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   pekerjaList,
+  jadwalMutasiList = [],
   currentScope,
   onAddPekerja,
   onUpdatePekerja,
@@ -44,6 +46,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('Semua');
+  const [filterMutasiOnly, setFilterMutasiOnly] = useState(false);
   
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -67,6 +70,24 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const [mutasiKeterangan, setMutasiKeterangan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Map scheduled mutations by worker name (uppercase trim)
+  const scheduledMutasiMap = useMemo(() => {
+    const map = new Map<string, JadwalMutasiRecord>();
+    if (jadwalMutasiList && Array.isArray(jadwalMutasiList)) {
+      for (const m of jadwalMutasiList) {
+        if (m.nama) {
+          map.set(m.nama.trim().toUpperCase(), m);
+        }
+      }
+    }
+    return map;
+  }, [jadwalMutasiList]);
+
+  // Count workers who have scheduled mutations
+  const workersWithMutasiCount = useMemo(() => {
+    return pekerjaList.filter(p => scheduledMutasiMap.has(p.nama?.trim().toUpperCase())).length;
+  }, [pekerjaList, scheduledMutasiMap]);
+
   // PKWT Alerts: Akhir PKWT expiring in <= 26 days (synchronized)
   const pkwtAlerts = pekerjaList.filter(p => {
     return getPKWTStatusInfo(p.status, p.akhirPKWT).isUrgent;
@@ -83,7 +104,8 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
       p.nama.toLowerCase().includes(search.toLowerCase()) || 
       p.jabatan.toLowerCase().includes(search.toLowerCase()) ||
       String(p.id).includes(search);
-    return matchScope && matchUnit && matchSearch;
+    const matchMutasi = !filterMutasiOnly || scheduledMutasiMap.has(p.nama?.trim().toUpperCase());
+    return matchScope && matchUnit && matchSearch && matchMutasi;
   });
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -224,6 +246,24 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
             <option value="Krosok">Krosok</option>
           </select>
 
+          {/* Quick Filter: Mutasi Terjadwal */}
+          {workersWithMutasiCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterMutasiOnly(!filterMutasiOnly)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                filterMutasiOnly
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-200'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+              }`}
+              title={filterMutasiOnly ? 'Tampilkan semua pekerja' : 'Filter khusus pekerja yang sedang terjadwal mutasi'}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span>Mutasi Terjadwal ({workersWithMutasiCount})</span>
+              {filterMutasiOnly && <X className="w-3 h-3 ml-0.5" />}
+            </button>
+          )}
+
           <button
             onClick={() => exportPekerjaToCSV(filtered)}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors"
@@ -248,9 +288,16 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <span className="text-xs font-bold text-slate-800">
-            Database Induk Pekerja Harian ({filtered.length} Terdaftar)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-800">
+              Database Induk Pekerja Harian ({filtered.length} Terdaftar)
+            </span>
+            {filterMutasiOnly && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                Filter Mutasi Aktif
+              </span>
+            )}
+          </div>
           <span className="text-[11px] font-mono text-slate-400">
             Tab Sheet: MASTER_PEKERJA
           </span>
@@ -274,12 +321,23 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filtered.map(p => {
                 const pkwtInfo = getPKWTStatusInfo(p.status, p.akhirPKWT);
+                const activeMutasi = scheduledMutasiMap.get(p.nama?.trim().toUpperCase());
 
                 return (
-                  <tr key={p.rowNum} className="hover:bg-slate-50">
+                  <tr key={p.rowNum} className={`hover:bg-slate-50 transition-colors ${activeMutasi ? 'bg-amber-50/20' : ''}`}>
                     <td className="py-2.5 px-3 font-mono font-bold text-slate-500">#{p.id}</td>
                     <td className="py-2.5 px-3">
-                      <div className="font-extrabold text-slate-900">{p.nama}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-slate-900">{p.nama}</span>
+                        {activeMutasi && (
+                          <span 
+                            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200"
+                            title="Pekerja ini memiliki agenda mutasi terjadwal"
+                          >
+                            Mutasi
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-slate-400">{p.jabatan || 'Harian'}</div>
                     </td>
                     <td className="py-2.5 px-3">
@@ -309,13 +367,28 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border ${pkwtInfo.badgeColor}`}>
-                        <span>{pkwtInfo.statusText}</span>
-                        {pkwtInfo.statusText !== 'TETAP' && pkwtInfo.statusText !== '-' && (
-                          <span className="font-normal opacity-85 text-[9px]">({pkwtInfo.labelDetail})</span>
+                    <td className="py-2.5 px-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border whitespace-nowrap ${pkwtInfo.badgeColor}`}>
+                          <span>{pkwtInfo.statusText}</span>
+                          {pkwtInfo.statusText !== 'TETAP' && pkwtInfo.statusText !== '-' && (
+                            <span className="font-normal opacity-85 text-[9px]">({pkwtInfo.labelDetail})</span>
+                          )}
+                        </span>
+
+                        {/* Keterangan Rencana Mutasi Terjadwal (Opsi A Rekomendasi) */}
+                        {activeMutasi && (
+                          <div 
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors shadow-2xs cursor-help"
+                            title={`Agenda Mutasi Terjadwal:\n• Jenis Perubahan: ${activeMutasi.jenisMutasi}\n• Menuju/Nilai Baru: ${activeMutasi.nilaiBaru}\n• Tanggal Efektif: ${activeMutasi.tanggalEfektif}${activeMutasi.keterangan ? `\n• Alasan/Keterangan: ${activeMutasi.keterangan}` : ''}`}
+                          >
+                            <ArrowRightLeft className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                            <span className="whitespace-nowrap">
+                              Rencana: <strong className="font-bold">{activeMutasi.jenisMutasi}</strong> &rarr; <strong className="font-bold text-amber-950">{activeMutasi.nilaiBaru}</strong> <span className="text-amber-700 font-normal">({activeMutasi.tanggalEfektif})</span>
+                            </span>
+                          </div>
                         )}
-                      </span>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-center font-medium">
                       {p.pendidikanTerakhir || '-'}
