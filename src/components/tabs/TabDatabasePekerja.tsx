@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -47,6 +47,68 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const [search, setSearch] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('Semua');
   const [filterMutasiOnly, setFilterMutasiOnly] = useState(false);
+  
+  // Mobile View Mode: 'cards' with swipe gestures (default on mobile) or 'table'
+  const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Swipe gesture state for cards
+  const [swipedId, setSwipedId] = useState<string | number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const activeSwipingId = useRef<string | number | null>(null);
+
+  const handleTouchStart = (id: string | number, e: React.TouchEvent) => {
+    touchStartPos.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+    activeSwipingId.current = id;
+    if (swipedId !== id) {
+      setSwipedId(null);
+      setSwipeOffset(0);
+    }
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (id: string | number, e: React.TouchEvent) => {
+    if (activeSwipingId.current !== id) return;
+    const dx = e.touches[0].clientX - touchStartPos.current.x;
+    const dy = e.touches[0].clientY - touchStartPos.current.y;
+
+    // Ignore vertical scrolling
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 8) {
+      return;
+    }
+
+    // Limit maximum drag: right +90px, left -150px
+    const clamped = Math.max(-150, Math.min(90, dx));
+    setSwipedId(id);
+    setSwipeOffset(clamped);
+  };
+
+  const handleTouchEnd = (id: string | number) => {
+    setIsDragging(false);
+    activeSwipingId.current = null;
+    if (swipeOffset < -50) {
+      // Snap open to reveal Mutasi and Hapus
+      setSwipedId(id);
+      setSwipeOffset(-140);
+    } else if (swipeOffset > 40) {
+      // Snap open to reveal Edit
+      setSwipedId(id);
+      setSwipeOffset(80);
+    } else {
+      // Snap back to closed
+      setSwipedId(null);
+      setSwipeOffset(0);
+    }
+  };
+
+  const handleResetSwipe = () => {
+    setSwipedId(null);
+    setSwipeOffset(0);
+  };
   
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -287,7 +349,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
       {/* Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-800">
               Database Induk Pekerja Harian ({filtered.length} Terdaftar)
@@ -298,12 +360,230 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
               </span>
             )}
           </div>
-          <span className="text-[11px] font-mono text-slate-400">
-            Tab Sheet: MASTER_PEKERJA
-          </span>
+
+          <div className="flex items-center gap-2">
+            {/* View Switcher for Mobile / Tablet */}
+            <div className="md:hidden flex items-center bg-slate-200/80 p-0.5 rounded-xl border border-slate-300">
+              <button
+                type="button"
+                onClick={() => setMobileViewMode('cards')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  mobileViewMode === 'cards' 
+                    ? 'bg-white text-blue-700 shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ArrowRightLeft className="w-3 h-3 text-blue-600" />
+                <span>Kartu Geser</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileViewMode('table')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  mobileViewMode === 'table' 
+                    ? 'bg-white text-blue-700 shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Tabel</span>
+              </button>
+            </div>
+
+            <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+              Tab Sheet: MASTER_PEKERJA
+            </span>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* 1. Mobile Cards View with Swipe Gestures (< md when mobileViewMode === 'cards') */}
+        <div className={`${mobileViewMode === 'cards' ? 'block md:hidden' : 'hidden'} p-3 space-y-2.5 bg-slate-50/50`}>
+          {/* Swipe Hint Banner */}
+          <div className="p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/90 rounded-xl flex items-center justify-between text-[11px] text-blue-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-blue-600 text-white shadow-2xs flex-shrink-0">
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+              </div>
+              <div className="leading-snug">
+                <span className="font-extrabold text-blue-950 block">Navigasi Gestur Geser (Swipe):</span>
+                <span className="text-[10px] text-blue-800">
+                  Geser ke <strong>Kiri</strong> untuk Mutasi / Hapus • Geser ke <strong>Kanan</strong> untuk Edit
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-xs">
+              Tidak ada pekerja yang sesuai dengan filter pencarian.
+            </div>
+          ) : (
+            filtered.map(p => {
+              const pkwtInfo = getPKWTStatusInfo(p.status, p.akhirPKWT);
+              const activeMutasi = scheduledMutasiMap.get(p.nama?.trim().toUpperCase());
+              const isSwiped = swipedId === p.id;
+              const currentTranslate = isSwiped ? swipeOffset : 0;
+
+              return (
+                <div 
+                  key={p.rowNum}
+                  className="relative overflow-hidden rounded-2xl border border-slate-200/90 shadow-2xs bg-slate-100"
+                >
+                  {/* Background Action: Edit (revealed on Swipe Right) */}
+                  <div className="absolute inset-y-0 left-0 w-24 bg-blue-600 text-white flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetSwipe();
+                        setEditingPekerja(p);
+                      }}
+                      className="flex flex-col items-center justify-center w-full h-full text-white font-bold cursor-pointer active:bg-blue-700"
+                    >
+                      <Edit3 className="w-5 h-5 mb-1" />
+                      <span className="text-[11px]">Edit Data</span>
+                    </button>
+                  </div>
+
+                  {/* Background Actions: Mutasi & Hapus (revealed on Swipe Left) */}
+                  <div className="absolute inset-y-0 right-0 flex w-[140px] items-stretch">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetSwipe();
+                        setMutasiTarget(p);
+                        setMutasiJenis('Unit');
+                        setMutasiNilaiBaru('Blend');
+                      }}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white flex flex-col items-center justify-center cursor-pointer transition-colors"
+                      title="Ajukan Mutasi / Rotasi"
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mb-0.5" />
+                      <span className="text-[10px] font-bold">Mutasi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetSwipe();
+                        if (confirm(`Hapus ${p.nama} dari Database Pekerja? Data akan dikosongkan dan salinannya disimpan ke LOG_RIWAYAT_HAPUS_PEKERJA.`)) {
+                          onDeletePekerja(p.rowNum, p.nama);
+                        }
+                      }}
+                      className="flex-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white flex flex-col items-center justify-center cursor-pointer transition-colors"
+                      title="Hapus / Arsip Pekerja"
+                    >
+                      <Trash2 className="w-4 h-4 mb-0.5" />
+                      <span className="text-[10px] font-bold">Hapus</span>
+                    </button>
+                  </div>
+
+                  {/* Foreground Card (Touch Event Handlers Attached) */}
+                  <div
+                    onTouchStart={(e) => handleTouchStart(p.id, e)}
+                    onTouchMove={(e) => handleTouchMove(p.id, e)}
+                    onTouchEnd={() => handleTouchEnd(p.id)}
+                    style={{
+                      transform: `translateX(${currentTranslate}px)`,
+                      transition: isDragging && isSwiped ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}
+                    className={`relative z-10 bg-white p-3.5 space-y-2 select-none cursor-grab active:cursor-grabbing ${
+                      activeMutasi ? 'bg-amber-50/25' : ''
+                    }`}
+                  >
+                    {/* Header: ID, Name, Scope Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-slate-400 font-bold text-[11px]">#{p.id}</span>
+                          <span className="font-black text-slate-900 text-xs truncate">{p.nama}</span>
+                          {activeMutasi && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Mutasi
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {p.jabatan || 'Harian'} • Pendidikan: <strong className="text-slate-600">{p.pendidikanTerakhir || '-'}</strong>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                          {p.unit}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                          {p.sekup}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle: Status Kontrak & Upah */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Status Kontrak:</span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] border font-bold ${pkwtInfo.badgeColor}`}>
+                            <span>{pkwtInfo.statusText}</span>
+                            {pkwtInfo.statusText !== 'TETAP' && pkwtInfo.statusText !== '-' && (
+                              <span className="font-normal opacity-85 text-[8.5px]">({pkwtInfo.labelDetail})</span>
+                            )}
+                          </span>
+                          {activeMutasi && (
+                            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                              <ArrowRightLeft className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                              <span>Rencana: <strong>{activeMutasi.jenisMutasi} &rarr; {activeMutasi.nilaiBaru}</strong> ({activeMutasi.tanggalEfektif})</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Upah Harian:</span>
+                        <span className="font-mono font-bold text-slate-900 text-xs block">
+                          Rp {Math.round(p.upahHarian).toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          Akhir PKWT: <strong className={pkwtInfo.isUrgent ? 'text-amber-700' : pkwtInfo.isExpired ? 'text-red-600' : 'text-slate-700'}>{p.status === 'TETAP' ? 'TETAP' : p.akhirPKWT}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Footer: Swipe hints & quick tap action shortcuts */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
+                      <span className="text-[9.5px] text-slate-400 flex items-center gap-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span>Geser ‹ Mutasi / Hapus</span>
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingPekerja(p)}
+                          className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMutasiTarget(p);
+                            setMutasiJenis('Unit');
+                            setMutasiNilaiBaru('Blend');
+                          }}
+                          className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10.5px] font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <ArrowRightLeft className="w-3 h-3 text-indigo-600" />
+                          <span>Mutasi</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 2. Full Desktop Table (or when mobileViewMode === 'table') */}
+        <div className={`${mobileViewMode === 'table' ? 'block' : 'hidden md:block'} overflow-x-auto`}>
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
