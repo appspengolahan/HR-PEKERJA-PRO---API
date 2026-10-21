@@ -5,9 +5,8 @@ import {
   Clock, 
   Users, 
   BadgePercent,
-  Layers,
   User,
-  ShieldCheck
+  Menu
 } from 'lucide-react';
 import { MainTabType } from '../../types';
 import { AuthUser } from '../../services/authService';
@@ -15,35 +14,42 @@ import { AuthUser } from '../../services/authService';
 interface BottomNavProps {
   activeTab: MainTabType;
   setActiveTab: (tab: MainTabType) => void;
-  onOpenSwitchBoard: () => void;
+  onOpenSwitchBoard?: () => void;
+  onOpenMobileMenu?: () => void;
+  isMobileMenuOpen?: boolean;
   currentUser: AuthUser | null;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   setActiveTab,
-  onOpenSwitchBoard,
+  onOpenMobileMenu,
+  isMobileMenuOpen = false,
   currentUser
 }) => {
   const isWorker = currentUser?.role === 'Pekerja Harian';
 
   const workerTabs: { id: MainTabType; label: string; icon: React.ElementType }[] = [
-    { id: 'slip', label: 'Slip Upah Saya', icon: BadgePercent },
-    { id: 'profil', label: 'Profil Kontrak', icon: User }
+    { id: 'slip', label: 'Slip Upah', icon: BadgePercent },
+    { id: 'profil', label: 'Profil Saya', icon: User },
+    { id: 'presensi', label: 'Presensi', icon: CalendarCheck }
   ];
 
   const internalTabs: { id: MainTabType; label: string; icon: React.ElementType }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'presensi', label: 'Presensi', icon: CalendarCheck },
     { id: 'lembur', label: 'Lembur', icon: Clock },
-    { id: 'database', label: 'Pekerja', icon: Users },
-    { id: 'slip', label: 'Slip Upah', icon: BadgePercent }
+    { id: 'database', label: 'Pekerja', icon: Users }
   ];
 
   const tabs = isWorker ? workerTabs : internalTabs;
+  const isCurrentTabInExtendedMenu = !tabs.some(t => t.id === activeTab);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-30 flex items-center justify-around px-2 lg:hidden shadow-2xl">
+    <nav 
+      className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 flex items-center justify-around px-2 lg:hidden shadow-2xl select-none"
+      aria-label="Navigasi Bawah Seluler"
+    >
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
@@ -51,26 +57,46 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors ${
-              isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
+              isActive 
+                ? 'text-blue-400 font-bold scale-105' 
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-blue-400' : 'text-slate-400'}`} />
-            <span className="truncate max-w-[70px]">{tab.label}</span>
+            <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-blue-600/20' : ''}`}>
+              <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400 stroke-[2.5]' : 'text-slate-400 stroke-[1.8]'}`} />
+            </div>
+            <span className="truncate max-w-[68px] mt-0.5 leading-tight">{tab.label}</span>
+            {isActive && (
+              <span className="absolute bottom-1 w-1 h-1 rounded-full bg-blue-400" />
+            )}
           </button>
         );
       })}
 
-      {!isWorker && (
-        <button
-          onClick={onOpenSwitchBoard}
-          className="flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium text-slate-400 hover:text-amber-300"
-          title="Master Portal PP1"
-        >
-          <Layers className="w-5 h-5 mb-0.5 text-amber-400" />
-          <span className="truncate">Portal PP1</span>
-        </button>
-      )}
+      {/* Menu / Lainnya Drawer Trigger */}
+      <button
+        onClick={onOpenMobileMenu}
+        className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
+          isMobileMenuOpen || isCurrentTabInExtendedMenu 
+            ? 'text-blue-400 font-bold scale-105' 
+            : 'text-slate-400 hover:text-slate-200'
+        }`}
+        title="Buka Menu Lengkap &amp; Pengaturan"
+      >
+        <div className={`p-1 rounded-xl transition-colors relative ${isMobileMenuOpen || isCurrentTabInExtendedMenu ? 'bg-blue-600/20' : ''}`}>
+          <Menu className={`w-5 h-5 ${isMobileMenuOpen || isCurrentTabInExtendedMenu ? 'text-blue-400 stroke-[2.5]' : 'text-slate-400 stroke-[1.8]'}`} />
+          {isCurrentTabInExtendedMenu && !isMobileMenuOpen && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-900 animate-pulse" />
+          )}
+        </div>
+        <span className="truncate max-w-[68px] mt-0.5 leading-tight">
+          {isCurrentTabInExtendedMenu ? 'Lainnya' : 'Menu'}
+        </span>
+        {(isMobileMenuOpen || isCurrentTabInExtendedMenu) && (
+          <span className="absolute bottom-1 w-1 h-1 rounded-full bg-blue-400" />
+        )}
+      </button>
     </nav>
   );
 };

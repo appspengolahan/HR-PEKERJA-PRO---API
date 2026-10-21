@@ -16,7 +16,9 @@ import {
   Printer,
   LogOut,
   ShieldCheck,
-  FileText
+  FileText,
+  X,
+  Globe
 } from 'lucide-react';
 import { MainTabType } from '../../types';
 import { AuthUser } from '../../services/authService';
@@ -30,8 +32,11 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
   onOpenGasCenter: () => void;
   onOpenSwitchBoard: () => void;
+  onOpenPublicShareModal?: () => void;
   currentUser: AuthUser | null;
   onLogout: () => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,8 +46,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCollapsed,
   onOpenGasCenter,
   onOpenSwitchBoard,
+  onOpenPublicShareModal,
   currentUser,
-  onLogout
+  onLogout,
+  mobileOpen = false,
+  onCloseMobile
 }) => {
   const isWorkerRole = currentUser?.role === 'Pekerja Harian';
 
@@ -66,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
 
   return (
+    <>
     <aside 
       className={`fixed top-0 left-0 h-screen z-30 hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 select-none ${
         collapsed ? 'w-[68px]' : 'w-64'
@@ -210,5 +219,151 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
     </aside>
+
+    {/* Mobile Drawer Backdrop & Drawer Panel (< lg) */}
+    {mobileOpen && (
+      <div className="fixed inset-0 z-50 lg:hidden flex">
+        {/* Backdrop Overlay */}
+        <div 
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+        
+        {/* Slide-out Drawer Panel */}
+        <aside 
+          className="relative w-72 max-w-[85vw] h-full bg-slate-900 border-r border-slate-800 text-slate-300 shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200 select-none"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu Navigasi Mobile"
+        >
+          {/* Brand Header & Close Button */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-950/60">
+            <div 
+              onClick={!isWorkerRole ? onOpenSwitchBoard : undefined}
+              className={`flex items-center gap-3 ${!isWorkerRole ? 'cursor-pointer' : ''}`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-900/30">
+                <Factory className="w-5 h-5" />
+              </div>
+              <div className="leading-tight">
+                <span className="font-extrabold text-sm tracking-wide text-white block">
+                  HR PEKERJA
+                </span>
+                <span className="text-[10px] font-semibold text-blue-400 block tracking-wider">
+                  DIVISI PRODUKSI I
+                </span>
+              </div>
+            </div>
+            
+            <button
+              onClick={onCloseMobile}
+              className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Tutup Menu"
+              aria-label="Tutup Menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* User Info Card in Mobile Drawer */}
+          {currentUser && (
+            <div className="p-3 border-b border-slate-800/80 bg-slate-950/30">
+              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
+                  {currentUser.nama.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-slate-100 block truncate text-xs">
+                    {currentUser.nama}
+                  </span>
+                  <span className="text-[10px] text-blue-400 font-medium block truncate">
+                    {currentUser.role} {currentUser.scope !== 'ALL' ? `• ${currentUser.scope}` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Nav List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="px-2 text-[10px] font-bold text-slate-400 tracking-wider mb-2 uppercase">
+              {isWorkerRole ? 'Menu Mandiri Anda' : `Navigasi Modul (${allowedMenuItems.length})`}
+            </div>
+
+            {allowedMenuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    onCloseMobile?.();
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30 font-bold' 
+                      : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span className="truncate flex-1 text-left">{item.label}</span>
+                  {item.badge && !isWorkerRole && (
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                      isActive ? 'bg-blue-700 text-blue-100' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="p-3 border-t border-slate-800 bg-slate-950/80 space-y-2">
+            {onOpenPublicShareModal && (
+              <button
+                onClick={() => {
+                  onCloseMobile?.();
+                  onOpenPublicShareModal();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-indigo-950/50 border border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50 transition-colors cursor-pointer"
+              >
+                <Globe className="w-4 h-4 text-indigo-400" />
+                <span>Portal Publik (Linktree)</span>
+              </button>
+            )}
+
+            {!isWorkerRole && (currentUser?.role === 'Super Admin' || currentUser?.role === 'HR Admin') && (
+              <button
+                onClick={() => {
+                  onCloseMobile?.();
+                  onOpenGasCenter();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-950/50 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/50 transition-colors cursor-pointer"
+              >
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span>Headless GAS Hub</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                onCloseMobile?.();
+                onLogout();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-red-950/50 border border-red-800/50 text-red-400 hover:bg-red-900/50 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-red-400" />
+              <span>Keluar Akun</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+    )}
+    </>
   );
 };

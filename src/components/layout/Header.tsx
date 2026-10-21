@@ -12,7 +12,8 @@ import {
   User as UserIcon,
   ShieldCheck,
   ChevronDown,
-  Globe
+  Globe,
+  Menu
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
@@ -29,6 +30,7 @@ interface HeaderProps {
   onOpenScopeModal: () => void;
   onOpenHelpModal: () => void;
   onOpenPublicShareModal: () => void;
+  onOpenMobileMenu?: () => void;
   switchAppUrl: string;
   currentUser: AuthUser | null;
   onLogout: () => void;
@@ -45,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScopeModal,
   onOpenHelpModal,
   onOpenPublicShareModal,
+  onOpenMobileMenu,
   switchAppUrl,
   currentUser,
   onLogout
@@ -116,10 +119,21 @@ export const Header: React.FC<HeaderProps> = ({
       }`}
     >
       {/* Title & Scope */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Mobile / Tablet Menu Button */}
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="lg:hidden p-2 -ml-1 rounded-xl text-slate-700 hover:text-blue-600 hover:bg-slate-100 transition-colors flex-shrink-0 cursor-pointer"
+          title="Buka Menu Navigasi"
+          aria-label="Buka Menu Navigasi"
+        >
+          <Menu className="w-5 h-5 text-slate-700" />
+        </button>
+
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold text-slate-900 truncate tracking-tight">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate tracking-tight">
               {title}
             </h1>
             {!isWorkerRole && (
@@ -130,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
             {isWorkerRole && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                 <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                Portal Pekerja Mandiri
+                <span className="hidden xs:inline">Portal </span>Mandiri
               </span>
             )}
           </div>

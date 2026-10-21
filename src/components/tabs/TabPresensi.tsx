@@ -439,22 +439,22 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
       {/* Modal Add Ijin */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Catat Ijin / Ketidakhadiran Pekerja</h3>
                 <p className="text-[11px] text-slate-400">Faktor potongan otomatis terhitung di backend</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleAddSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Pekerja *</label>
@@ -601,22 +601,22 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
       {/* Modal Edit Ijin */}
       {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Ijin: {editingRecord.nama}</h3>
                 <p className="text-[11px] text-slate-400">Baris ke-{editingRecord.rowNum} di LOG_PRESENSI_IJIN</p>
               </div>
               <button 
                 onClick={() => setEditingRecord(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleEditSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tanggal</label>

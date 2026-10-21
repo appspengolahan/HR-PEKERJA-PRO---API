@@ -78,6 +78,7 @@ export default function App() {
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
   const [suratIjinData, setSuratIjinData] = useState<SuratIjinData | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Data Store
   const [pekerjaList, setPekerjaList] = useState<PekerjaData[]>(() => {
@@ -722,13 +723,16 @@ export default function App() {
         setCollapsed={handleToggleSidebar}
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
+        onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
+        mobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Workspace Area */}
       <div 
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-20 lg:pb-12 ${
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-24 lg:pb-12 ${
           collapsed ? 'lg:ml-[68px] ml-0' : 'lg:ml-64 ml-0'
         }`}
       >
@@ -745,6 +749,7 @@ export default function App() {
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           switchAppUrl={switchAppUrl}
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -767,7 +772,7 @@ export default function App() {
         </div>
 
         {/* Tab Panel Viewports */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           
           {activeTab === 'dashboard' && (
             <TabDashboard
@@ -925,6 +930,8 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
+        onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        isMobileMenuOpen={isMobileMenuOpen}
         currentUser={currentUser}
       />
 

@@ -112,18 +112,19 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
   const customRoles = authService.getRoleDefinitions().filter(r => r.isCustom);
 
   return (
-    <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 text-amber-200 border-b border-amber-500/30 px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-3 shadow-md z-40 relative print:hidden">
+    <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 text-amber-200 border-b border-amber-500/30 px-3 sm:px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-md z-40 relative print:hidden">
       
       {/* Active Role Indicator */}
-      <div className="flex items-center gap-2">
-        <span className="flex h-2 w-2 relative">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="flex h-2 w-2 relative flex-shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
         </span>
-        <div className="flex items-center gap-1.5 font-bold">
-          <Eye className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-amber-100">Supervisi &amp; Simulasi Peran:</span>
-          <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono text-[11px]">
+        <div className="flex items-center gap-1.5 font-bold min-w-0">
+          <Eye className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+          <span className="text-amber-100 hidden sm:inline">Supervisi &amp; Simulasi Peran:</span>
+          <span className="text-amber-100 sm:hidden">Simulasi:</span>
+          <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono text-[11px] truncate max-w-[140px] sm:max-w-none">
             {currentUser?.role} {currentUser?.scope !== 'ALL' ? `(${currentUser?.scope})` : ''}
           </span>
         </div>
@@ -136,15 +137,16 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
         <div className="relative">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold border border-amber-400/30 transition-all flex items-center gap-1.5 text-xs shadow-xs"
+            className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold border border-amber-400/30 transition-all flex items-center gap-1.5 text-xs shadow-xs cursor-pointer active:scale-95"
           >
-            <span>Ganti Peran Tampilan</span>
+            <span className="hidden xs:inline">Ganti Peran Tampilan</span>
+            <span className="xs:hidden">Ganti Peran</span>
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Role Switcher Menu Popup */}
           {isOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl p-3 z-50 text-slate-200 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-24px)] max-h-[75vh] overflow-y-auto bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl p-3 z-50 text-slate-200 space-y-3 animate-in fade-in zoom-in-95 duration-150 scrollbar-thin scrollbar-thumb-slate-800">
               
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase">

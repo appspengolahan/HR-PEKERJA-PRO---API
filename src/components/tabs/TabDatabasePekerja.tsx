@@ -435,22 +435,22 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       {/* Modal Add Pekerja */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Tambah Pekerja Baru</h3>
                 <p className="text-[11px] text-slate-400">ID nomor urut dihitung otomatis</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleAddSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Nama Lengkap *</label>
                 <input
@@ -579,22 +579,22 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       {/* Modal Edit Pekerja */}
       {editingPekerja && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Pekerja: {editingPekerja.nama}</h3>
                 <p className="text-[11px] text-slate-400">ID #{editingPekerja.id} • Baris ke-{editingPekerja.rowNum}</p>
               </div>
               <button 
                 onClick={() => setEditingPekerja(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleEditSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -712,22 +712,22 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       {/* Modal Mutasi Pekerja */}
       {mutasiTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Mutasi / Rotasi: {mutasiTarget.nama}</h3>
                 <p className="text-[11px] text-slate-400">Efektif hari ini &rarr; langsung diterapkan; Masa depan &rarr; terjadwal</p>
               </div>
               <button 
                 onClick={() => setMutasiTarget(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleMutasiSubmit} className="p-5 space-y-3.5">
+            <form onSubmit={handleMutasiSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
