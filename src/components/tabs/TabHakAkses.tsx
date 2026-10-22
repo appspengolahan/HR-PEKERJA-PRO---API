@@ -596,7 +596,9 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       updatedList = [...accounts];
       updatedList[editingIndex] = {
         ...formData,
-        email: cleanEmail
+        nama: formData.nama.trim(),
+        email: cleanEmail,
+        password: formData.password.trim()
       };
       showNotification('success', `Akun ${formData.nama} berhasil diperbarui.`);
     } else {
@@ -605,7 +607,9 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         ...accounts,
         {
           ...formData,
-          email: cleanEmail
+          nama: formData.nama.trim(),
+          email: cleanEmail,
+          password: formData.password.trim()
         }
       ];
       showNotification('success', `Akun baru ${formData.nama} berhasil ditambahkan.`);

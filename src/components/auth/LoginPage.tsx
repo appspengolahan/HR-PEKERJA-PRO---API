@@ -126,7 +126,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoading(true);
 
     try {
-      const res = authService.loginInternal(internalEmail, internalPassword);
+      const res = authService.loginInternal(internalEmail.trim(), internalPassword.trim());
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       } else {
@@ -248,7 +248,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="email"
                       required
-                      placeholder="nama@batukarang.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="unitcengkeh.pp1@gmail.com atau nama@batukarang.com"
                       value={internalEmail}
                       onChange={(e) => setInternalEmail(e.target.value)}
                       className="w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
@@ -263,6 +266,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type={showInternalPassword ? 'text' : 'password'}
                       required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       placeholder="Masukkan kata sandi rahasia"
                       value={internalPassword}
                       onChange={(e) => setInternalPassword(e.target.value)}
@@ -481,7 +487,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleDevQuickLogin('mandor.cengkeh@batukarang.com', 'mandor')}
+                  onClick={() => handleDevQuickLogin('unitcengkeh.pp1@gmail.com', 'mandorCKH153')}
                   className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
                 >
                   <span>🚜 Mandor Cengkeh</span>
