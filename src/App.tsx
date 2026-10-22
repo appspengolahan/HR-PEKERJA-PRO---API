@@ -59,12 +59,27 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
 
   // Navigation & Shell
-  const [activeTab, setActiveTab] = useState<MainTabType>('dashboard');
+  const [activeTab, setActiveTab] = useState<MainTabType>(() => {
+    const user = authService.getCurrentUser();
+    if (user?.allowedTabs && user.allowedTabs.length > 0) {
+      return user.allowedTabs[0];
+    }
+    return 'dashboard';
+  });
   const [collapsed, setCollapsed] = useState<boolean>(() => storageService.getSidebarCollapsed());
   const [currentScope, setCurrentScope] = useState<UserScope>(() => {
     return localStorage.getItem('hrPekerjaScope') || 'ALL';
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Strict Role Gate Guard: Pastikan activeTab selalu berada di dalam daftar allowedTabs akun
+  useEffect(() => {
+    if (currentUser && Array.isArray(currentUser.allowedTabs) && currentUser.allowedTabs.length > 0) {
+      if (!currentUser.allowedTabs.includes(activeTab)) {
+        setActiveTab(currentUser.allowedTabs[0]);
+      }
+    }
+  }, [currentUser, activeTab]);
 
   // Modals & Public Linktree Mode
   const [isPublicMode, setIsPublicMode] = useState<boolean>(() => {
@@ -793,7 +808,29 @@ export default function App() {
         {/* Tab Panel Viewports */}
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           
-          {activeTab === 'dashboard' && (
+          {/* Akses Modul Dibatasi Fallback */}
+          {currentUser && Array.isArray(currentUser.allowedTabs) && !currentUser.allowedTabs.includes(activeTab) && (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center max-w-lg mx-auto my-12 space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto text-2xl">
+                🔒
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Akses Modul Dibatasi</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Peran akun Anda (<strong>{currentUser.role}</strong>) tidak diberikan wewenang untuk membuka modul ini berdasarkan pengaturan hak akses sistem.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab(currentUser.allowedTabs[0] || 'dashboard')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Beralih ke Modul Resmi
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'dashboard' && currentUser?.allowedTabs?.includes('dashboard') && (
             <TabDashboard
               pekerjaList={pekerjaList}
               presensiList={presensiList}
@@ -803,7 +840,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'presensi' && (
+          {activeTab === 'presensi' && currentUser?.allowedTabs?.includes('presensi') && (
             <TabPresensi
               presensiList={presensiList}
               pekerjaList={pekerjaList}
@@ -819,7 +856,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'lembur' && (
+          {activeTab === 'lembur' && currentUser?.allowedTabs?.includes('lembur') && (
             <TabLembur
               lemburList={lemburList}
               pekerjaList={pekerjaList}
@@ -831,7 +868,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'rekap' && (
+          {activeTab === 'rekap' && currentUser?.allowedTabs?.includes('rekap') && (
             <TabRekapPresensi
               pekerjaList={pekerjaList}
               presensiList={presensiList}
@@ -840,7 +877,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'slip' && (
+          {activeTab === 'slip' && currentUser?.allowedTabs?.includes('slip') && (
             <TabSlipUpah
               pekerjaList={pekerjaList}
               currentScope={currentScope}
@@ -849,7 +886,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'database' && (
+          {activeTab === 'database' && currentUser?.allowedTabs?.includes('database') && (
             <TabDatabasePekerja
               pekerjaList={pekerjaList}
               jadwalMutasiList={jadwalMutasiList}
@@ -863,7 +900,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'jadwalmutasi' && (
+          {activeTab === 'jadwalmutasi' && currentUser?.allowedTabs?.includes('jadwalmutasi') && (
             <TabJadwalMutasi
               jadwalList={jadwalMutasiList}
               onEditMutasi={handleEditMutasiTerjadwal}
@@ -872,7 +909,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'profil' && (
+          {activeTab === 'profil' && currentUser?.allowedTabs?.includes('profil') && (
             <TabProfilPekerja
               pekerjaList={pekerjaList}
               currentScope={currentScope}
@@ -881,7 +918,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'calon' && (
+          {activeTab === 'calon' && currentUser?.allowedTabs?.includes('calon') && (
             <TabCalonPekerja
               calonList={calonList}
               pekerjaList={pekerjaList}
@@ -893,7 +930,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'hakakses' && (
+          {activeTab === 'hakakses' && currentUser?.allowedTabs?.includes('hakakses') && (
             <TabHakAkses
               currentUser={currentUser}
               pekerjaList={pekerjaList}

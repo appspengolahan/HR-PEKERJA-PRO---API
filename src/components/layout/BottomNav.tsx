@@ -31,18 +31,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const workerTabs: { id: MainTabType; label: string; icon: React.ElementType }[] = [
     { id: 'slip', label: 'Slip Upah', icon: BadgePercent },
-    { id: 'profil', label: 'Profil Saya', icon: User },
-    { id: 'presensi', label: 'Presensi', icon: CalendarCheck }
+    { id: 'profil', label: 'Profil Saya', icon: User }
   ];
 
   const internalTabs: { id: MainTabType; label: string; icon: React.ElementType }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'presensi', label: 'Presensi', icon: CalendarCheck },
     { id: 'lembur', label: 'Lembur', icon: Clock },
+    { id: 'rekap', label: 'Rekap', icon: CalendarCheck },
     { id: 'database', label: 'Pekerja', icon: Users }
   ];
 
-  const tabs = isWorker ? workerTabs : internalTabs;
+  const candidateTabs = isWorker ? workerTabs : internalTabs;
+  // Filter ketat: Hanya tampilkan tab yang benar-benar ada di allowedTabs akun aktif
+  const tabs = candidateTabs.filter(tab => {
+    if (!currentUser || !Array.isArray(currentUser.allowedTabs)) return false;
+    return currentUser.allowedTabs.includes(tab.id);
+  });
+
   const isCurrentTabInExtendedMenu = !tabs.some(t => t.id === activeTab);
 
   return (
