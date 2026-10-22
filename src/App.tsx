@@ -25,7 +25,7 @@ import { PublicPortal } from './components/public/PublicPortal';
 import { gasClient } from './services/gasClient';
 import { storageService } from './services/storageService';
 import { LoginPage } from './components/auth/LoginPage';
-import { authService, AuthUser } from './services/authService';
+import { authService, AuthUser, getUserAuthorizedUnitSekups } from './services/authService';
 import { 
   MainTabType, 
   UserScope, 
@@ -700,8 +700,16 @@ export default function App() {
         pekerjaList={pekerjaList}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
+          const authScopes = getUserAuthorizedUnitSekups(user);
           if (user.scope && user.scope !== 'ALL') {
             setCurrentScope(user.scope);
+            localStorage.setItem('hrPekerjaScope', user.scope);
+          } else if (!authScopes.includes('ALL') && authScopes.length > 0) {
+            setCurrentScope(authScopes[0]);
+            localStorage.setItem('hrPekerjaScope', authScopes[0]);
+          } else {
+            setCurrentScope('ALL');
+            localStorage.setItem('hrPekerjaScope', 'ALL');
           }
           if (user.allowedTabs && user.allowedTabs.length > 0) {
             setActiveTab(user.allowedTabs[0]);
@@ -762,10 +770,21 @@ export default function App() {
             pekerjaList={pekerjaList}
             onSwitchUser={(newUser) => {
               setCurrentUser(newUser);
+              const authScopes = getUserAuthorizedUnitSekups(newUser);
               if (newUser.role === 'Pekerja Harian') {
                 setActiveTab('slip');
               } else if (!newUser.allowedTabs.includes(activeTab)) {
                 setActiveTab(newUser.allowedTabs[0] || 'dashboard');
+              }
+              if (newUser.scope && newUser.scope !== 'ALL') {
+                setCurrentScope(newUser.scope);
+                localStorage.setItem('hrPekerjaScope', newUser.scope);
+              } else if (!authScopes.includes('ALL') && authScopes.length > 0) {
+                setCurrentScope(authScopes[0]);
+                localStorage.setItem('hrPekerjaScope', authScopes[0]);
+              } else {
+                setCurrentScope('ALL');
+                localStorage.setItem('hrPekerjaScope', 'ALL');
               }
             }}
           />
@@ -796,6 +815,7 @@ export default function App() {
               onOpenSuratIjin={handleOpenSuratIjin}
               onFilterChange={handleFilterPresensi}
               isLoading={isRefreshing}
+              currentUser={currentUser}
             />
           )}
 
@@ -807,6 +827,7 @@ export default function App() {
               onSaveLemburBatch={handleSaveLemburBatch}
               onFilterRekap={handleFilterRekapLembur}
               isLoading={isRefreshing}
+              currentUser={currentUser}
             />
           )}
 
@@ -815,6 +836,7 @@ export default function App() {
               pekerjaList={pekerjaList}
               presensiList={presensiList}
               currentScope={currentScope}
+              currentUser={currentUser}
             />
           )}
 
@@ -837,6 +859,7 @@ export default function App() {
               onDeletePekerja={handleDeletePekerja}
               onSubmitMutasi={handleSubmitMutasi}
               isLoading={isRefreshing}
+              currentUser={currentUser}
             />
           )}
 
@@ -854,6 +877,7 @@ export default function App() {
               pekerjaList={pekerjaList}
               currentScope={currentScope}
               lockedNama={currentUser?.role === 'Pekerja Harian' ? currentUser.workerRecord?.nama : undefined}
+              currentUser={currentUser}
             />
           )}
 
@@ -865,6 +889,7 @@ export default function App() {
               onAddCalon={handleAddCalon}
               onUpdateStatusCalon={handleUpdateStatusCalon}
               isLoading={isRefreshing}
+              currentUser={currentUser}
             />
           )}
 
@@ -902,6 +927,7 @@ export default function App() {
         currentScope={currentScope}
         unitSekupList={unitSekupList}
         onSelectScope={handleSelectScope}
+        currentUser={currentUser}
       />
 
       <GasCenterModal

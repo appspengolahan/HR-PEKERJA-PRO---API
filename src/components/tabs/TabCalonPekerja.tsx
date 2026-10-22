@@ -15,6 +15,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { CalonPekerjaRecord, PekerjaData } from '../../types';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabCalonPekerjaProps {
   calonList: CalonPekerjaRecord[];
@@ -33,6 +34,7 @@ interface TabCalonPekerjaProps {
     alasan?: string;
   }) => Promise<void>;
   isLoading: boolean;
+  currentUser?: AuthUser | null;
 }
 
 export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
@@ -41,7 +43,8 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
   currentScope,
   onAddCalon,
   onUpdateStatusCalon,
-  isLoading
+  isLoading,
+  currentUser
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'aktif' | 'riwayat'>('aktif');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -70,7 +73,13 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
   });
 
   const filtered = calonList.filter(c => {
-    return currentScope === 'ALL' || `${c.sekup} ${c.unit}` === currentScope;
+    const pseudoWorker = {
+      nama: c.nama,
+      unit: c.unit,
+      sekup: c.sekup,
+      unitSekup: `${c.sekup} ${c.unit}`
+    } as PekerjaData;
+    return isWorkerInUserScope(pseudoWorker, currentUser || null, currentScope);
   });
 
   // Calon Aktif: HANYA yang masih dalam masa pelatihan DAN namanya BELUM ada di Database Pekerja serta belum berstatus 'Lolos'

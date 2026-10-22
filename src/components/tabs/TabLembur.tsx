@@ -13,6 +13,7 @@ import {
 import { LemburRecord, PekerjaData } from '../../types';
 import { exportLemburToCSV } from '../../utils/exportUtils';
 import { Download } from 'lucide-react';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabLemburProps {
   lemburList: LemburRecord[];
@@ -27,6 +28,7 @@ interface TabLemburProps {
   }) => Promise<void>;
   onFilterRekap: (tglAwal: string, tglAkhir: string, unit: string, sekup: string) => void;
   isLoading: boolean;
+  currentUser?: AuthUser | null;
 }
 
 export const TabLembur: React.FC<TabLemburProps> = ({
@@ -35,7 +37,8 @@ export const TabLembur: React.FC<TabLemburProps> = ({
   currentScope,
   onSaveLemburBatch,
   onFilterRekap,
-  isLoading
+  isLoading,
+  currentUser
 }) => {
   // Form State
   const [tglLembur, setTglLembur] = useState(new Date().toISOString().slice(0, 10));
@@ -56,9 +59,9 @@ export const TabLembur: React.FC<TabLemburProps> = ({
   const [rekapUnit, setRekapUnit] = useState('Semua');
   const [rekapSekup, setRekapSekup] = useState('Semua');
 
-  // Filter workers available in current scope
+  // Filter workers available according to role authorization and current scope
   const availableWorkers = pekerjaList.filter(p => {
-    return currentScope === 'ALL' || p.unitSekup === currentScope;
+    return isWorkerInUserScope(p, currentUser || null, currentScope);
   });
 
   // Filtered workers for display in the checklist

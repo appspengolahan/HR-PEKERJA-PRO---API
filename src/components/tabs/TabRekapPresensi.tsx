@@ -11,17 +11,20 @@ import {
 import { PekerjaData, PresensiIjinRecord } from '../../types';
 import { exportRekapPresensiToCSV } from '../../utils/exportUtils';
 import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabRekapPresensiProps {
   pekerjaList: PekerjaData[];
   presensiList?: PresensiIjinRecord[];
   currentScope: string;
+  currentUser?: AuthUser | null;
 }
 
 export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   pekerjaList,
   presensiList,
-  currentScope
+  currentScope,
+  currentUser
 }) => {
   const [tahun, setTahun] = useState('2026');
   const [unit, setUnit] = useState('Semua');
@@ -33,13 +36,13 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
 
   const filteredPekerja = useMemo(() => {
     return pekerjaList.filter(p => {
-      const matchScope = currentScope === 'ALL' || p.unitSekup === currentScope;
+      const matchScope = isWorkerInUserScope(p, currentUser || null, currentScope);
       const matchUnit = unit === 'Semua' || p.unit === unit;
       const matchSekup = sekup === 'Semua' || p.sekup === sekup;
       const matchNama = nama === 'Semua' || p.nama === nama;
       return matchScope && matchUnit && matchSekup && matchNama;
     });
-  }, [pekerjaList, currentScope, unit, sekup, nama]);
+  }, [pekerjaList, currentScope, unit, sekup, nama, currentUser]);
 
   // Use presensiList if provided and non-empty, otherwise use authentic initial dataset
   const effectivePresensi = useMemo(() => {

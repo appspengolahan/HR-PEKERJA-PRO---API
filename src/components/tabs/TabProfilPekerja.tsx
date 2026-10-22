@@ -14,20 +14,23 @@ import {
 } from 'lucide-react';
 import { PekerjaData, LinkArsipRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabProfilPekerjaProps {
   pekerjaList: PekerjaData[];
   currentScope: string;
   lockedNama?: string;
+  currentUser?: AuthUser | null;
 }
 
 export const TabProfilPekerja: React.FC<TabProfilPekerjaProps> = ({
   pekerjaList,
   currentScope,
-  lockedNama
+  lockedNama,
+  currentUser
 }) => {
   const filteredPekerja = pekerjaList.filter(p => {
-    return currentScope === 'ALL' || p.unitSekup === currentScope;
+    return isWorkerInUserScope(p, currentUser || null, currentScope);
   });
 
   const [selectedNama, setSelectedNama] = useState(lockedNama || filteredPekerja[0]?.nama || '');

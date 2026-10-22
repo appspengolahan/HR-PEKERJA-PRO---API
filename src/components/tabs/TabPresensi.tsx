@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   CalendarCheck, 
   Plus, 
@@ -12,6 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { PresensiIjinRecord, PekerjaData, SuratIjinData } from '../../types';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabPresensiProps {
   presensiList: PresensiIjinRecord[];
@@ -40,6 +41,7 @@ interface TabPresensiProps {
   onOpenSuratIjin: (record: PresensiIjinRecord) => void;
   onFilterChange: (bulan: string, tahun: string, nama: string) => void;
   isLoading: boolean;
+  currentUser?: AuthUser | null;
 }
 
 export const TabPresensi: React.FC<TabPresensiProps> = ({
@@ -52,7 +54,8 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   onDeletePresensi,
   onOpenSuratIjin,
   onFilterChange,
-  isLoading
+  isLoading,
+  currentUser
 }) => {
   const [selectedBulan, setSelectedBulan] = useState(String(new Date().getMonth() + 1));
   const [selectedTahun, setSelectedTahun] = useState(String(new Date().getFullYear()));
@@ -74,10 +77,27 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [addCatatan, setAddCatatan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter pekerja according to current scope
+  // Filter pekerja according to user role authorization and current scope
   const filteredPekerja = pekerjaList.filter(p => {
-    return currentScope === 'ALL' || p.unitSekup === currentScope;
+    return isWorkerInUserScope(p, currentUser || null, currentScope);
   });
+
+  // Set nama pekerja yang diizinkan untuk menyaring riwayat presensi tabel
+  const allowedWorkerNames = useMemo(() => {
+    return new Set(filteredPekerja.map(p => p.nama.trim().toUpperCase()));
+  }, [filteredPekerja]);
+
+  // Daftar presensi yang ditampilkan disaring sesuai otoritas peran
+  const displayedPresensiList = useMemo(() => {
+    if (currentUser?.role === 'Super Admin' && currentScope === 'ALL') {
+      return presensiList;
+    }
+    return presensiList.filter(r => {
+      if (allowedWorkerNames.has((r.nama || '').trim().toUpperCase())) return true;
+      const rUnitSekup = `${r.sekup || ''} ${r.unit || ''}`.trim();
+      return isWorkerInUserScope({ nama: r.nama, unit: r.unit, sekup: r.sekup, unitSekup: rUnitSekup } as any, currentUser || null, currentScope);
+    });
+  }, [presensiList, allowedWorkerNames, currentUser, currentScope]);
 
   const handleApplyFilter = () => {
     onFilterChange(selectedBulan, selectedTahun, selectedNama);
@@ -353,14 +373,14 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {presensiList.length === 0 ? (
+              {displayedPresensiList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 italic">
                     {isLoading ? 'Sedang memuat data langsung dari spreadsheet...' : 'Belum ada data ijin tercatat pada filter ini.'}
                   </td>
                 </tr>
               ) : (
-                presensiList.map((r) => {
+                displayedPresensiList.map((r) => {
                   const faktor = Number(r.faktorPotongan);
                   const jam = (r.jamAwal && r.jamAwal !== '-' && r.jamAkhir && r.jamAkhir !== '-') 
                     ? `${r.jamAwal} - ${r.jamAkhir}` : '-';

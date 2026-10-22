@@ -16,6 +16,7 @@ import { PekerjaData, JadwalMutasiRecord } from '../../types';
 import { exportPekerjaToCSV } from '../../utils/exportUtils';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { Download } from 'lucide-react';
+import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 
 interface TabDatabasePekerjaProps {
   pekerjaList: PekerjaData[];
@@ -31,7 +32,8 @@ interface TabDatabasePekerjaProps {
     nilaiBaru: string;
     keterangan: string;
   }) => Promise<void>;
-  isLoading: boolean;
+  isLoading?: boolean;
+  currentUser?: AuthUser | null;
 }
 
 export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
@@ -42,7 +44,8 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   onUpdatePekerja,
   onDeletePekerja,
   onSubmitMutasi,
-  isLoading
+  isLoading,
+  currentUser
 }) => {
   const [search, setSearch] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('Semua');
@@ -160,7 +163,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   });
 
   const filtered = pekerjaList.filter(p => {
-    const matchScope = currentScope === 'ALL' || p.unitSekup === currentScope;
+    const matchScope = isWorkerInUserScope(p, currentUser || null, currentScope);
     const matchUnit = selectedUnit === 'Semua' || p.unit === selectedUnit;
     const matchSearch = !search || 
       p.nama.toLowerCase().includes(search.toLowerCase()) || 

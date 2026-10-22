@@ -37,7 +37,8 @@ import {
   RoleMatrix,
   RoleDefinition,
   WageSummaryRoleConfig,
-  DEFAULT_ROLE_MATRIX 
+  DEFAULT_ROLE_MATRIX,
+  ALL_UNIT_SEKUPS
 } from '../../services/authService';
 
 interface TabHakAksesProps {
@@ -61,12 +62,7 @@ const ALL_AVAILABLE_TABS: { id: MainTabType; label: string; desc: string; icon: 
 
 const SCOPE_OPTIONS = [
   'ALL',
-  'Proses Cengkeh',
-  'Proses Tembakau',
-  'Proses Blend',
-  'Persediaan Blend',
-  'Persediaan Tembakau',
-  'Proses Krosok'
+  ...ALL_UNIT_SEKUPS
 ];
 
 export const BADGE_COLOR_OPTIONS = [
@@ -197,10 +193,24 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     roleName: '',
     title: '',
     subtitle: '',
-    scopeDesc: 'Semua Unit (ALL)',
+    scopeType: 'ALL' as 'ALL' | 'CUSTOM',
+    selectedUnitSekups: [] as string[],
     badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     showWageSummary: true,
     selectedTabs: ['dashboard', 'presensi', 'lembur', 'rekap'] as MainTabType[]
+  });
+
+  // Modal State untuk Edit Peran
+  const [isEditRoleModalOpen, setIsEditRoleModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
+  const [editRoleForm, setEditRoleForm] = useState({
+    title: '',
+    subtitle: '',
+    scopeType: 'ALL' as 'ALL' | 'CUSTOM',
+    selectedUnitSekups: [] as string[],
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    showWageSummary: true,
+    selectedTabs: ['dashboard', 'presensi'] as MainTabType[]
   });
 
   const showNotification = (type: 'success' | 'error', message: string) => {
@@ -309,6 +319,82 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     }
   };
 
+  // Buka Modal Edit Peran
+  const handleOpenEditRole = (r: RoleDefinition) => {
+    setEditingRole(r);
+    const isAll = !r.allowedUnitSekups || r.allowedUnitSekups.includes('ALL');
+    setEditRoleForm({
+      title: r.title,
+      subtitle: r.subtitle,
+      scopeType: isAll ? 'ALL' : 'CUSTOM',
+      selectedUnitSekups: isAll ? [] : (r.allowedUnitSekups || []),
+      badgeColor: r.badgeColor,
+      showWageSummary: Boolean(wageSummaryConfig[r.role]),
+      selectedTabs: roleMatrix[r.role] || ['dashboard', 'presensi']
+    });
+    setIsEditRoleModalOpen(true);
+  };
+
+  // Simpan Perubahan Edit Peran
+  const handleSaveEditRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRole) return;
+
+    const cleanTitle = editRoleForm.title.trim() || editingRole.title;
+    const cleanSubtitle = editRoleForm.subtitle.trim() || editingRole.subtitle;
+    const allowedUnitSekups = editRoleForm.scopeType === 'ALL'
+      ? ['ALL']
+      : (editRoleForm.selectedUnitSekups.length > 0 ? editRoleForm.selectedUnitSekups : ['ALL']);
+
+    const scopeDesc = editRoleForm.scopeType === 'ALL'
+      ? 'Semua Unit (ALL)'
+      : (allowedUnitSekups.length <= 2 ? allowedUnitSekups.join(' & ') : `${allowedUnitSekups.length} Unit Sekup`);
+
+    const updatedDef: RoleDefinition = {
+      ...editingRole,
+      title: cleanTitle,
+      subtitle: cleanSubtitle,
+      scopeDesc,
+      badgeColor: editRoleForm.badgeColor,
+      allowedUnitSekups
+    };
+
+    const nextRoles = rolesList.map(r => r.role === editingRole.role ? updatedDef : r);
+    setRolesList(nextRoles);
+    authService.saveRoleDefinitions(nextRoles);
+
+    // Update matriks tabs
+    const nextMatrix = {
+      ...roleMatrix,
+      [editingRole.role]: editRoleForm.selectedTabs
+    };
+    setRoleMatrix(nextMatrix);
+    authService.saveRoleMatrix(nextMatrix);
+
+    // Update konfigurasi beban upah
+    const nextWageConfig = {
+      ...wageSummaryConfig,
+      [editingRole.role]: editRoleForm.showWageSummary
+    };
+    setWageSummaryConfig(nextWageConfig);
+    authService.saveWageSummaryConfig(nextWageConfig);
+
+    setIsEditRoleModalOpen(false);
+    setEditingRole(null);
+
+    // Sinkronisasi sesi aktif jika currentUser memiliki peran ini
+    if (currentUser && currentUser.role === editingRole.role) {
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        allowedTabs: editRoleForm.selectedTabs
+      };
+      authService.updateCurrentUserSession(updatedUser);
+      onRefreshUserSession(updatedUser);
+    }
+
+    showNotification('success', `Pengaturan peran "${updatedDef.title}" berhasil diperbarui!`);
+  };
+
   // Tambah Peran Baru
   const handleAddNewRole = (e: React.FormEvent) => {
     e.preventDefault();
@@ -323,12 +409,21 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       return;
     }
 
+    const allowedUnitSekups = newRoleForm.scopeType === 'ALL'
+      ? ['ALL']
+      : (newRoleForm.selectedUnitSekups.length > 0 ? newRoleForm.selectedUnitSekups : ['ALL']);
+
+    const scopeDesc = newRoleForm.scopeType === 'ALL'
+      ? 'Semua Unit (ALL)'
+      : (allowedUnitSekups.length <= 2 ? allowedUnitSekups.join(' & ') : `${allowedUnitSekups.length} Unit Sekup`);
+
     const newDef: RoleDefinition = {
       role: cleanRoleName,
       title: newRoleForm.title.trim() || cleanRoleName,
       subtitle: newRoleForm.subtitle.trim() || 'Peran Kustom Sistem',
-      scopeDesc: newRoleForm.scopeDesc.trim() || 'Semua Unit (ALL)',
+      scopeDesc,
       badgeColor: newRoleForm.badgeColor || 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      allowedUnitSekups,
       isCustom: true
     };
 
@@ -357,7 +452,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       roleName: '',
       title: '',
       subtitle: '',
-      scopeDesc: 'Semua Unit (ALL)',
+      scopeType: 'ALL',
+      selectedUnitSekups: [],
       badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       showWageSummary: true,
       selectedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
@@ -366,9 +462,14 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     showNotification('success', `Peran baru "${newDef.title}" berhasil ditambahkan ke matriks!`);
   };
 
-  // Hapus Peran Kustom
-  const handleDeleteCustomRole = (roleToDelete: UserAccessRole) => {
-    if (!window.confirm(`Yakin ingin menghapus peran kustom "${roleToDelete}"? Pengguna dengan peran ini perlu dialihkan ke peran lain.`)) {
+  // Hapus Peran
+  const handleDeleteRole = (roleToDelete: UserAccessRole) => {
+    if (roleToDelete === 'Super Admin') {
+      showNotification('error', 'Peran Super Admin dilindungi sistem dan tidak dapat dihapus.');
+      return;
+    }
+
+    if (!window.confirm(`Yakin ingin menghapus peran "${roleToDelete}"? Pengguna dengan peran ini perlu dialihkan ke peran lain.`)) {
       return;
     }
 
@@ -991,18 +1092,30 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
                   {rolesList.map(r => {
                     return (
-                      <th key={r.role} className="p-3 text-center min-w-[150px] border-r border-slate-200 last:border-r-0">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="flex items-center gap-1 justify-center">
+                      <th key={r.role} className="p-3 text-center min-w-[170px] border-r border-slate-200 last:border-r-0">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 justify-center">
                             <span className="font-bold text-slate-900 text-xs text-center leading-tight">
                               {r.title}
                             </span>
-                            {r.isCustom && (
+                            
+                            {/* Tombol Edit Peran */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditRole(r)}
+                              className="text-slate-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors"
+                              title={`Edit detail peran "${r.title}"`}
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                            </button>
+
+                            {/* Tombol Hapus Peran (Super Admin dilindungi) */}
+                            {r.role !== 'Super Admin' && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteCustomRole(r.role)}
-                                className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors"
-                                title={`Hapus peran kustom "${r.role}"`}
+                                onClick={() => handleDeleteRole(r.role)}
+                                className="text-slate-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-colors"
+                                title={`Hapus peran "${r.title}"`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1488,19 +1601,99 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Cakupan Wilayah / Scope Default</label>
-                  <select
-                    value={newRoleForm.scopeDesc}
-                    onChange={(e) => setNewRoleForm({ ...newRoleForm, scopeDesc: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-medium"
-                  >
-                    <option value="Semua Unit (ALL)">Semua Unit (ALL)</option>
-                    <option value="Unit Cengkeh & Blend">Unit Cengkeh &amp; Blend</option>
-                    <option value="Unit Tembakau & Krosok">Unit Tembakau &amp; Krosok</option>
-                    <option value="Khusus Unit Terkait">Khusus Unit Terkait</option>
-                    <option value="Data Pribadi Mandiri">Data Pribadi Mandiri</option>
-                  </select>
+                {/* Cakupan Unit Kerja (Multi-Unit Checklist) */}
+                <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-indigo-600" />
+                      Cakupan Unit Kerja Pekerja (Scope Data) *
+                    </label>
+                    <div className="flex items-center gap-3 text-xs">
+                      <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                        <input
+                          type="radio"
+                          name="newScopeType"
+                          checked={newRoleForm.scopeType === 'ALL'}
+                          onChange={() => setNewRoleForm({ ...newRoleForm, scopeType: 'ALL' })}
+                          className="text-indigo-600 focus:ring-0"
+                        />
+                        <span>Akses Penuh (Semua Unit / ALL)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                        <input
+                          type="radio"
+                          name="newScopeType"
+                          checked={newRoleForm.scopeType === 'CUSTOM'}
+                          onChange={() => setNewRoleForm({ ...newRoleForm, scopeType: 'CUSTOM' })}
+                          className="text-indigo-600 focus:ring-0"
+                        />
+                        <span>Pilih Unit Tertentu (Multi-Unit)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {newRoleForm.scopeType === 'CUSTOM' ? (
+                    <div className="space-y-2 pt-1 border-t border-slate-200/60 mt-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">
+                          Centang unit sekup yang dapat diakses oleh peran ini ({newRoleForm.selectedUnitSekups.length} dipilih):
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setNewRoleForm({ ...newRoleForm, selectedUnitSekups: [...ALL_UNIT_SEKUPS] })}
+                            className="text-indigo-600 font-bold hover:underline"
+                          >
+                            Pilih Semua
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setNewRoleForm({ ...newRoleForm, selectedUnitSekups: [] })}
+                            className="text-slate-500 font-bold hover:underline"
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        {ALL_UNIT_SEKUPS.map(unitSekup => {
+                          const isSelected = newRoleForm.selectedUnitSekups.includes(unitSekup);
+                          return (
+                            <label
+                              key={unitSekup}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const exists = newRoleForm.selectedUnitSekups.includes(unitSekup);
+                                  setNewRoleForm({
+                                    ...newRoleForm,
+                                    selectedUnitSekups: exists
+                                      ? newRoleForm.selectedUnitSekups.filter(u => u !== unitSekup)
+                                      : [...newRoleForm.selectedUnitSekups, unitSekup]
+                                  });
+                                }}
+                                className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5"
+                              />
+                              <span className="truncate">{unitSekup}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 italic pt-1">
+                      Peran ini akan memiliki wewenang untuk melihat seluruh pekerja di semua unit kerja Divisi Produksi I tanpa pembatasan sekup.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1621,6 +1814,301 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Simpan Peran Baru
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT DEFINISI PERAN */}
+      {isEditRoleModalOpen && editingRole && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+            
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    Edit Pengaturan Peran: <span className="text-blue-600">{editingRole.title}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Sesuaikan nama judul, cakupan unit pekerja, modul &amp; otorisasi finansial</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsEditRoleModalOpen(false);
+                  setEditingRole(null);
+                }} 
+                className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditRole} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Kode Peran (Sistem)</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={editingRole.role}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-semibold cursor-not-allowed"
+                  />
+                  <span className="text-[10px] text-slate-400">Kode sistem unik (tidak dapat diubah)</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Judul Jabatan (Label Tampilan) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editRoleForm.title}
+                    onChange={(e) => setEditRoleForm({ ...editRoleForm, title: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400">Nama lengkap pada header tabel matriks</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Deskripsi / Subjudul Peran</label>
+                <input
+                  type="text"
+                  value={editRoleForm.subtitle}
+                  onChange={(e) => setEditRoleForm({ ...editRoleForm, subtitle: e.target.value })}
+                  placeholder="Contoh: Supervisi Cengkeh & Blend"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Cakupan Unit Kerja (Multi-Unit Checklist) */}
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-blue-600" />
+                    Cakupan Unit Kerja Pekerja (Scope Data) *
+                  </label>
+                  <div className="flex items-center gap-3 text-xs">
+                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                      <input
+                        type="radio"
+                        name="editScopeType"
+                        checked={editRoleForm.scopeType === 'ALL'}
+                        onChange={() => setEditRoleForm({ ...editRoleForm, scopeType: 'ALL' })}
+                        className="text-blue-600 focus:ring-0"
+                      />
+                      <span>Akses Penuh (Semua Unit / ALL)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                      <input
+                        type="radio"
+                        name="editScopeType"
+                        checked={editRoleForm.scopeType === 'CUSTOM'}
+                        onChange={() => setEditRoleForm({ ...editRoleForm, scopeType: 'CUSTOM' })}
+                        className="text-blue-600 focus:ring-0"
+                      />
+                      <span>Pilih Unit Tertentu (Multi-Unit)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {editRoleForm.scopeType === 'CUSTOM' ? (
+                  <div className="space-y-2 pt-1 border-t border-slate-200/60 mt-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-medium">
+                        Centang unit sekup yang dapat diakses oleh peran ini ({editRoleForm.selectedUnitSekups.length} dipilih):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditRoleForm({ ...editRoleForm, selectedUnitSekups: [...ALL_UNIT_SEKUPS] })}
+                          className="text-blue-600 font-bold hover:underline"
+                        >
+                          Pilih Semua
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditRoleForm({ ...editRoleForm, selectedUnitSekups: [] })}
+                          className="text-slate-500 font-bold hover:underline"
+                        >
+                          Kosongkan
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      {ALL_UNIT_SEKUPS.map(unitSekup => {
+                        const isSelected = editRoleForm.selectedUnitSekups.includes(unitSekup);
+                        return (
+                          <label
+                            key={unitSekup}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold shadow-2xs'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                const exists = editRoleForm.selectedUnitSekups.includes(unitSekup);
+                                setEditRoleForm({
+                                  ...editRoleForm,
+                                  selectedUnitSekups: exists
+                                    ? editRoleForm.selectedUnitSekups.filter(u => u !== unitSekup)
+                                    : [...editRoleForm.selectedUnitSekups, unitSekup]
+                                });
+                              }}
+                              className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
+                            />
+                            <span className="truncate">{unitSekup}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic pt-1">
+                    Peran ini memiliki hak akses penuh ke seluruh pekerja di semua unit kerja Divisi Produksi I tanpa pembatasan sekup.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Warna Badge / Label Peran</label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                  {BADGE_COLOR_OPTIONS.map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setEditRoleForm({ ...editRoleForm, badgeColor: opt.value })}
+                      className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border text-center transition-all ${opt.value} ${
+                        editRoleForm.badgeColor === opt.value ? 'ring-2 ring-blue-600 scale-102 shadow-xs' : 'opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Checkbox Khusus: Ringkasan Beban Upah */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editRoleForm.showWageSummary}
+                    onChange={(e) => setEditRoleForm({ ...editRoleForm, showWageSummary: e.target.checked })}
+                    className="mt-0.5 rounded text-amber-600 focus:ring-0 w-4 h-4"
+                  />
+                  <div>
+                    <span className="font-bold text-amber-950 block">
+                      Tampilkan "Ringkasan Beban Upah Harian Periode Ini" di Dashboard
+                    </span>
+                    <span className="text-[11px] text-amber-800">
+                      Beri tanda centang jika peran ini diizinkan melihat kartu total nominal pengeluaran upah pekerja harian.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Checklist Pilihan Modul */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800">
+                    Modul yang Boleh Diakses ({editRoleForm.selectedTabs.length} Terpilih):
+                  </label>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setEditRoleForm({ ...editRoleForm, selectedTabs: ALL_AVAILABLE_TABS.map(t => t.id) })}
+                      className="text-blue-600 font-bold hover:underline"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditRoleForm({ 
+                        ...editRoleForm, 
+                        selectedTabs: editingRole.role === 'Super Admin' ? ['hakakses'] : [] 
+                      })}
+                      className="text-slate-500 font-bold hover:underline"
+                    >
+                      Kosongkan
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto p-1 scrollbar-thin">
+                  {ALL_AVAILABLE_TABS.map(tab => {
+                    const isChecked = editRoleForm.selectedTabs.includes(tab.id);
+                    const TabIcon = tab.icon;
+
+                    return (
+                      <label
+                        key={tab.id}
+                        className={`flex items-start gap-2 p-2 rounded-xl border cursor-pointer transition-all ${
+                          isChecked
+                            ? 'bg-blue-50/70 border-blue-300 text-blue-950 font-bold'
+                            : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (editingRole.role === 'Super Admin' && tab.id === 'hakakses' && isChecked) {
+                              showNotification('error', 'Modul Hak Akses untuk Super Admin tidak dapat dinonaktifkan.');
+                              return;
+                            }
+                            const exists = editRoleForm.selectedTabs.includes(tab.id);
+                            setEditRoleForm({
+                              ...editRoleForm,
+                              selectedTabs: exists
+                                ? editRoleForm.selectedTabs.filter(t => t !== tab.id)
+                                : [...editRoleForm.selectedTabs, tab.id]
+                            });
+                          }}
+                          className="mt-0.5 rounded text-blue-600 focus:ring-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <TabIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                            <span className="truncate">{tab.label}</span>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditRoleModalOpen(false);
+                    setEditingRole(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Simpan Perubahan Peran
                 </button>
               </div>
 

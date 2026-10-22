@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { UserCheck, Shield, X, Check } from 'lucide-react';
+import { UserCheck, Shield, X, Check, Lock } from 'lucide-react';
 import { UserScope } from '../../types';
+import { AuthUser, getUserAuthorizedUnitSekups } from '../../services/authService';
 
 interface ScopeModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface ScopeModalProps {
   currentScope: UserScope;
   unitSekupList: string[];
   onSelectScope: (scope: UserScope) => void;
+  currentUser?: AuthUser | null;
 }
 
 export const ScopeModal: React.FC<ScopeModalProps> = ({
@@ -15,11 +17,25 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
   onClose,
   currentScope,
   unitSekupList,
-  onSelectScope
+  onSelectScope,
+  currentUser
 }) => {
   const [selected, setSelected] = useState<string>(currentScope || 'ALL');
 
   if (!isOpen) return null;
+
+  const authorizedScopes = getUserAuthorizedUnitSekups(currentUser || null);
+  const canAccessAll = authorizedScopes.includes('ALL');
+
+  // Filter unitSekupList based on user role authorization
+  const availableUnitSekups = canAccessAll
+    ? unitSekupList
+    : unitSekupList.filter(item => {
+        return authorizedScopes.some(auth => 
+          item.toLowerCase().includes(auth.toLowerCase()) || 
+          auth.toLowerCase().includes(item.toLowerCase())
+        );
+      });
 
   const handleSave = () => {
     onSelectScope(selected);
@@ -36,8 +52,10 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
               <UserCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold">Pilih Tim / Peran Anda</h3>
-              <p className="text-[11px] text-slate-400">Atur lingkup data yang ingin Anda kelola</p>
+              <h3 className="text-sm font-bold">Pilih Tim / Sekup Unit</h3>
+              <p className="text-[11px] text-slate-400">
+                {currentUser?.role ? `Peran Anda: ${currentUser.role}` : 'Atur lingkup data yang ingin Anda kelola'}
+              </p>
             </div>
           </div>
           <button 
@@ -50,35 +68,45 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
 
         <div className="p-5 space-y-4 text-xs">
           <p className="text-slate-600 leading-relaxed">
-            Pilih tim (Unit + Sekup) yang Anda awasi. Jika Anda adalah <strong>Manajer Operasional</strong>, pilih opsi akses penuh untuk melihat seluruh pekerja di Divisi Produksi I.
+            {canAccessAll 
+              ? 'Anda memiliki akses penuh. Anda dapat memilih untuk melihat seluruh pekerja atau menyaring ke tim unit tertentu.'
+              : `Berdasarkan hak akses peran (${currentUser?.role}), Anda hanya dapat mengakses data pekerja pada unit yang ditugaskan.`
+            }
           </p>
 
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setSelected('ALL')}
-              className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
-                selected === 'ALL'
-                  ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold shadow-xs'
-                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Shield className="w-4 h-4 text-amber-500" />
-                <div>
-                  <div className="font-bold">🔑 Manajer Operasional</div>
-                  <div className="text-[10px] text-slate-500">Akses Penuh Seluruh Unit &amp; Sekup</div>
+            {canAccessAll && (
+              <button
+                type="button"
+                onClick={() => setSelected('ALL')}
+                className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                  selected === 'ALL'
+                    ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Shield className="w-4 h-4 text-amber-500" />
+                  <div>
+                    <div className="font-bold">🔑 Akses Seluruh Unit (ALL)</div>
+                    <div className="text-[10px] text-slate-500">Melihat seluruh pekerja di Divisi Produksi I</div>
+                  </div>
                 </div>
-              </div>
-              {selected === 'ALL' && <Check className="w-4 h-4 text-blue-600" />}
-            </button>
+                {selected === 'ALL' && <Check className="w-4 h-4 text-blue-600" />}
+              </button>
+            )}
 
-            <div className="pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Tim Operasional Berdasarkan Unit &amp; Sekup:
+            <div className="pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Unit &amp; Sekup yang Diizinkan:</span>
+              {!canAccessAll && (
+                <span className="text-amber-600 font-bold flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Terkunci Hak Akses
+                </span>
+              )}
             </div>
 
             <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-              {unitSekupList.map(item => (
+              {availableUnitSekups.map(item => (
                 <button
                   key={item}
                   type="button"
@@ -93,6 +121,12 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
                   {selected === item && <Check className="w-4 h-4 text-blue-600" />}
                 </button>
               ))}
+
+              {availableUnitSekups.length === 0 && (
+                <div className="p-3 text-center text-slate-400 bg-slate-50 rounded-xl">
+                  Tidak ada unit sekup spesifik yang terdaftar untuk peran ini.
+                </div>
+              )}
             </div>
           </div>
 

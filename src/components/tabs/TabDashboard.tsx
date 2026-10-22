@@ -20,7 +20,7 @@ import {
 import { PekerjaData, MainTabType, PresensiIjinRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { gasClient } from '../../services/gasClient';
-import { AuthUser, authService } from '../../services/authService';
+import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
 
 interface TabDashboardProps {
   pekerjaList: PekerjaData[];
@@ -50,7 +50,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
   const showWageSummary = authService.canRoleViewWageSummary(userRole);
 
   const filteredPekerja = pekerjaList.filter(p => {
-    return currentScope === 'ALL' || p.unitSekup === currentScope;
+    return isWorkerInUserScope(p, currentUser || null, currentScope);
   });
 
   // Sinkronisasi status PKWT dengan tanggal akhir nyata
@@ -75,6 +75,9 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     workerWageMap.set(p.nama.trim().toUpperCase(), Number(p.upahHarian) || 146675.96);
   });
 
+  // Set nama pekerja yang diizinkan untuk isolasi perhitungan dashboard
+  const allowedWorkerNames = new Set(filteredPekerja.map(p => p.nama.trim().toUpperCase()));
+
   // Fungsi memuat data ringkasan asli dari Google Sheets
   const loadRingkasanData = useCallback(async (b = selectedBulan, t = selectedTahun) => {
     setIsLoadingSummary(true);
@@ -96,10 +99,11 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     loadRingkasanData(selectedBulan, selectedTahun);
   }, [loadRingkasanData]);
 
-  // Filter presensi yang menyebabkan potongan upah (faktorPotongan > 0)
+  // Filter presensi yang menyebabkan potongan upah (faktorPotongan > 0) dan di dalam lingkup pekerja peran ini
   const deductionRecords = summaryPresensi.filter(r => {
     const f = Number(r.faktorPotongan);
-    return !isNaN(f) && f > 0;
+    const isAllowed = allowedWorkerNames.has((r.nama || '').trim().toUpperCase());
+    return !isNaN(f) && f > 0 && isAllowed;
   });
 
   let totalPotonganNominal = 0;

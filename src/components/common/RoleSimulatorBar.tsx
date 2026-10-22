@@ -203,10 +203,10 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                 </div>
               </div>
 
-              {/* Kepala Pengolahan (Multi-Unit 2 Unit) */}
+              {/* Kepala Pengolahan & Kepala Gudang (Multi-Unit) */}
               <div className="space-y-1 pt-1 border-t border-slate-800">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Kepala Pengolahan (2 Unit):
+                  Kepala Pengolahan &amp; Gudang (Multi-Unit):
                 </span>
                 <div className="grid grid-cols-1 gap-1">
                   <button
@@ -215,20 +215,31 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                   >
                     <div>
                       <span className="block">🌿 Kepala Pengolahan 2</span>
-                      <span className="text-[10px] text-teal-400/80">Unit Cengkeh &amp; Blend</span>
+                      <span className="text-[10px] text-teal-400/80">Proses &amp; Persediaan Cengkeh + Blend</span>
                     </div>
                     {currentUser?.role === 'Kepala Pengolahan 2' && <Check className="w-3.5 h-3.5 text-teal-400" />}
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Kepala Pengolahan 1', 'Kepala Pengolahan 1 (Lowong)', 'Tembakau & Krosok', ['Tembakau', 'Krosok'])}
+                    onClick={() => handleSwitchToInternal('Kepala Pengolahan 1', 'Kepala Pengolahan 1', 'Tembakau & Krosok', ['Tembakau', 'Krosok'])}
                     className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-sky-300"
                   >
                     <div>
-                      <span className="block">🍂 Kepala Pengolahan 1 (Lowong)</span>
-                      <span className="text-[10px] text-sky-400/80">Unit Tembakau &amp; Krosok</span>
+                      <span className="block">🍂 Kepala Pengolahan 1</span>
+                      <span className="text-[10px] text-sky-400/80">Proses &amp; Persediaan Tembakau + Krosok</span>
                     </div>
                     {currentUser?.role === 'Kepala Pengolahan 1' && <Check className="w-3.5 h-3.5 text-sky-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchToInternal('Kepala Gudang Tembakau & Krosok', 'Kepala Gudang', 'Persediaan Tembakau & Krosok', ['Tembakau', 'Krosok'])}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-orange-300"
+                  >
+                    <div>
+                      <span className="block">📦 Kepala Gudang Tembakau &amp; Krosok</span>
+                      <span className="text-[10px] text-orange-400/80">Persediaan Tembakau &amp; Krosok</span>
+                    </div>
+                    {currentUser?.role === 'Kepala Gudang Tembakau & Krosok' && <Check className="w-3.5 h-3.5 text-orange-400" />}
                   </button>
                 </div>
               </div>
@@ -238,29 +249,53 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
                   Mandor Lapangan (Terkunci Unit):
                 </span>
-                <div className="grid grid-cols-1 gap-1">
+                <div className="grid grid-cols-2 gap-1">
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Cengkeh', 'Proses Cengkeh', ['Cengkeh'])}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
+                    onClick={() => handleSwitchToInternal('Mandor Proses Cengkeh', 'Mandor Proses Cengkeh', 'Proses Cengkeh', ['Cengkeh'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Unit Cengkeh</span>
-                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Cengkeh' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    <span className="truncate">🌱 Proses Cengkeh</span>
+                    {currentUser?.role === 'Mandor Proses Cengkeh' && <Check className="w-3 h-3 text-amber-400" />}
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Blend', 'Proses Blend', ['Blend'])}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
+                    onClick={() => handleSwitchToInternal('Mandor Persediaan Cengkeh', 'Mandor Persediaan Cengkeh', 'Persediaan Cengkeh', ['Cengkeh'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Unit Blend</span>
-                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Blend' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    <span className="truncate">📦 Gudang Cengkeh</span>
+                    {currentUser?.role === 'Mandor Persediaan Cengkeh' && <Check className="w-3 h-3 text-amber-400" />}
                   </button>
 
                   <button
-                    onClick={() => handleSwitchToInternal('Foreman / Mandor', 'Mandor Tembakau', 'Proses Tembakau', ['Tembakau'])}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center justify-between text-amber-300"
+                    onClick={() => handleSwitchToInternal('Mandor Proses Tembakau', 'Mandor Proses Tembakau', 'Proses Tembakau', ['Tembakau'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
                   >
-                    <span>🚜 Mandor Unit Tembakau</span>
-                    {currentUser?.role === 'Foreman / Mandor' && currentUser?.scope === 'Proses Tembakau' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    <span className="truncate">🍂 Proses Tembakau</span>
+                    {currentUser?.role === 'Mandor Proses Tembakau' && <Check className="w-3 h-3 text-amber-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchToInternal('Mandor Proses Krosok', 'Mandor Proses Krosok', 'Proses Krosok', ['Krosok'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
+                  >
+                    <span className="truncate">🌾 Proses Krosok</span>
+                    {currentUser?.role === 'Mandor Proses Krosok' && <Check className="w-3 h-3 text-amber-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchToInternal('Mandor Proses Blend', 'Mandor Proses Blend', 'Proses Blend', ['Blend'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
+                  >
+                    <span className="truncate">🍃 Proses Blend</span>
+                    {currentUser?.role === 'Mandor Proses Blend' && <Check className="w-3 h-3 text-amber-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchToInternal('Mandor Persediaan Blend', 'Mandor Persediaan Blend', 'Persediaan Blend', ['Blend'])}
+                    className="text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-semibold flex items-center justify-between text-amber-300"
+                  >
+                    <span className="truncate">📦 Gudang Blend</span>
+                    {currentUser?.role === 'Mandor Persediaan Blend' && <Check className="w-3 h-3 text-amber-400" />}
                   </button>
                 </div>
               </div>

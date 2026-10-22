@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { PekerjaData, SlipUpahData } from '../../types';
 import { gasClient } from '../../services/gasClient';
-import { AuthUser } from '../../services/authService';
+import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
 
 interface TabSlipUpahProps {
   pekerjaList: PekerjaData[];
@@ -45,6 +45,7 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   const canViewRekapTotal = 
+    authService.canRoleViewWageSummary(currentUser?.role || '') ||
     currentUser?.role === 'Manajer Operasional' ||
     currentUser?.role === 'Super Admin' ||
     currentUser?.role === 'Project Manager' ||
@@ -55,21 +56,21 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
 
   const filteredPekerja = useMemo(() => {
     return pekerjaList.filter(p => {
-      return currentScope === 'ALL' || p.unitSekup === currentScope;
+      return isWorkerInUserScope(p, currentUser || null, currentScope);
     });
-  }, [pekerjaList, currentScope]);
+  }, [pekerjaList, currentScope, currentUser]);
 
   // Data Rekapitulasi Beban Upah Seluruh Tim / Divisi
   const rekapWorkers = useMemo(() => {
     return pekerjaList.filter(p => {
-      const matchScope = currentScope === 'ALL' || p.unitSekup === currentScope;
+      const matchScope = isWorkerInUserScope(p, currentUser || null, currentScope);
       const matchUnit = rekapFilterUnit === 'Semua' || p.unit === rekapFilterUnit;
       const matchSearch = !rekapSearch || 
         p.nama.toLowerCase().includes(rekapSearch.toLowerCase()) || 
         String(p.id).includes(rekapSearch);
       return matchScope && matchUnit && matchSearch;
     });
-  }, [pekerjaList, currentScope, rekapFilterUnit, rekapSearch]);
+  }, [pekerjaList, currentScope, rekapFilterUnit, rekapSearch, currentUser]);
 
   const rekapSummary = useMemo(() => {
     let totalHariKerja = 0;
