@@ -707,7 +707,14 @@ export function isWorkerInUserScope(
 
   let allowedUnitSekups: string[] = [];
 
-  if (roleDef && Array.isArray(roleDef.allowedUnitSekups) && roleDef.allowedUnitSekups.length > 0) {
+  // Prioritas 1: Cakupan unit kustom yang ditentukan secara spesifik pada akun pengguna
+  if (user.units && Array.isArray(user.units) && user.units.length > 0) {
+    if (user.units.includes('ALL')) {
+      allowedUnitSekups = ['ALL'];
+    } else {
+      allowedUnitSekups = user.units;
+    }
+  } else if (roleDef && Array.isArray(roleDef.allowedUnitSekups) && roleDef.allowedUnitSekups.length > 0) {
     allowedUnitSekups = roleDef.allowedUnitSekups;
   } else if (['Project Manager', 'Site Engineer', 'HR Admin', 'Manajer Operasional'].includes(user.role)) {
     allowedUnitSekups = ['ALL'];
@@ -755,6 +762,14 @@ export function isWorkerInUserScope(
 export function getUserAuthorizedUnitSekups(user: AuthUser | null): string[] {
   if (!user) return ALL_UNIT_SEKUPS;
   if (user.role === 'Super Admin') return ['ALL', ...ALL_UNIT_SEKUPS];
+
+  // Prioritas 1: Cakupan unit kustom spesifik pada akun pengguna
+  if (user.units && Array.isArray(user.units) && user.units.length > 0) {
+    if (user.units.includes('ALL')) {
+      return ['ALL', ...ALL_UNIT_SEKUPS];
+    }
+    return user.units;
+  }
 
   const roleDefs = authService.getRoleDefinitions();
   const roleDef = roleDefs.find(r => r.role.toLowerCase() === user.role.toLowerCase());

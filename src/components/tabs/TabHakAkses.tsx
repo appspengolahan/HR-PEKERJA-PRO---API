@@ -513,6 +513,44 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     );
   }, [pekerjaList, searchWorker]);
 
+  // Helper untuk menentukan daftar unit awal saat membuka akun
+  const resolveAccountUnits = (acc: InternalAccount): string[] => {
+    const roleDef = rolesList.find(r => r.role === acc.role);
+    if (acc.units && Array.isArray(acc.units) && acc.units.length > 0) {
+      if (acc.units.includes('ALL')) {
+        return ['ALL', ...ALL_UNIT_SEKUPS];
+      }
+      const res: string[] = [];
+      acc.units.forEach(u => {
+        if (ALL_UNIT_SEKUPS.includes(u)) {
+          if (!res.includes(u)) res.push(u);
+        } else if (u === 'Cengkeh') {
+          ['Proses Cengkeh', 'Persediaan Cengkeh'].forEach(item => { if (!res.includes(item)) res.push(item); });
+        } else if (u === 'Tembakau') {
+          ['Proses Tembakau', 'Persediaan Tembakau'].forEach(item => { if (!res.includes(item)) res.push(item); });
+        } else if (u === 'Krosok') {
+          ['Proses Krosok', 'Persediaan Krosok'].forEach(item => { if (!res.includes(item)) res.push(item); });
+        } else if (u === 'Blend') {
+          ['Proses Blend', 'Persediaan Blend'].forEach(item => { if (!res.includes(item)) res.push(item); });
+        }
+      });
+      if (res.length > 0) return res;
+    }
+    if (acc.scope === 'ALL') {
+      return ['ALL', ...ALL_UNIT_SEKUPS];
+    }
+    if (ALL_UNIT_SEKUPS.includes(acc.scope)) {
+      return [acc.scope];
+    }
+    if (roleDef?.allowedUnitSekups && roleDef.allowedUnitSekups.length > 0) {
+      if (roleDef.allowedUnitSekups.includes('ALL')) {
+        return ['ALL', ...ALL_UNIT_SEKUPS];
+      }
+      return [...roleDef.allowedUnitSekups];
+    }
+    return ['ALL', ...ALL_UNIT_SEKUPS];
+  };
+
   // Handle open modal for new account
   const handleAddNew = () => {
     setEditingIndex(null);
@@ -522,6 +560,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       nama: '',
       role: 'Foreman / Mandor',
       scope: 'Proses Cengkeh',
+      units: ['Proses Cengkeh'],
       allowedTabs: ['presensi', 'lembur', 'rekap', 'dashboard']
     });
     setShowPassword(false);
@@ -531,7 +570,12 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   // Handle open modal for edit
   const handleEdit = (index: number) => {
     setEditingIndex(index);
-    setFormData({ ...accounts[index] });
+    const acc = accounts[index];
+    const initialUnits = resolveAccountUnits(acc);
+    setFormData({ 
+      ...acc,
+      units: initialUnits
+    });
     setShowPassword(false);
     setIsModalOpen(true);
   };
@@ -540,19 +584,107 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   const handleRoleChange = (newRole: UserAccessRole) => {
     const roleDef = rolesList.find(r => r.role === newRole);
     const presetTabs: MainTabType[] = roleMatrix[newRole] || ['dashboard', 'presensi', 'lembur', 'rekap'];
-    let presetScope = formData.scope;
-
-    if (roleDef?.scopeDesc?.includes('ALL') || newRole === 'Super Admin' || newRole === 'HR Admin' || newRole === 'Project Manager' || newRole === 'Manajer Operasional') {
-      presetScope = 'ALL';
-    } else if (newRole === 'Foreman / Mandor' && presetScope === 'ALL') {
-      presetScope = 'Proses Cengkeh';
+    
+    let defaultUnits: string[] = ['ALL', ...ALL_UNIT_SEKUPS];
+    if (roleDef?.allowedUnitSekups && roleDef.allowedUnitSekups.length > 0) {
+      if (roleDef.allowedUnitSekups.includes('ALL')) {
+        defaultUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+      } else {
+        defaultUnits = [...roleDef.allowedUnitSekups];
+      }
+    } else if (['Super Admin', 'HR Admin', 'Project Manager', 'Manajer Operasional', 'Site Engineer'].includes(newRole)) {
+      defaultUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+    } else {
+      defaultUnits = ['Proses Cengkeh'];
     }
+
+    const isAll = defaultUnits.includes('ALL') || defaultUnits.length === ALL_UNIT_SEKUPS.length;
+    const cleanUnits = isAll ? ['ALL', ...ALL_UNIT_SEKUPS] : defaultUnits.filter(u => u !== 'ALL');
+    const scopeSummary = isAll
+      ? 'ALL'
+      : (cleanUnits.length <= 2 ? cleanUnits.join(' & ') : `${cleanUnits.length} Unit Sekup`);
 
     setFormData(prev => ({
       ...prev,
       role: newRole,
-      scope: presetScope,
+      scope: scopeSummary,
+      units: cleanUnits,
       allowedTabs: presetTabs
+    }));
+  };
+
+  // Toggle unit scope in checklist
+  const handleToggleScopeUnit = (unitSekup: string) => {
+    setFormData(prev => {
+      const current = prev.units || [];
+      const isAllSelected = current.includes('ALL') || ALL_UNIT_SEKUPS.every(u => current.includes(u));
+
+      let nextUnits: string[] = [];
+
+      if (unitSekup === 'ALL') {
+        if (isAllSelected) {
+          nextUnits = ['Proses Cengkeh'];
+        } else {
+          nextUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+        }
+      } else {
+        if (isAllSelected) {
+          nextUnits = ALL_UNIT_SEKUPS.filter(u => u !== unitSekup);
+        } else {
+          if (current.includes(unitSekup)) {
+            nextUnits = current.filter(u => u !== unitSekup && u !== 'ALL');
+            if (nextUnits.length === 0) {
+              nextUnits = [unitSekup]; // Jangan biarkan kosong
+            }
+          } else {
+            nextUnits = [...current.filter(u => u !== 'ALL'), unitSekup];
+            if (ALL_UNIT_SEKUPS.every(u => nextUnits.includes(u))) {
+              nextUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+            }
+          }
+        }
+      }
+
+      const isNowAll = nextUnits.includes('ALL') || ALL_UNIT_SEKUPS.every(u => nextUnits.includes(u));
+      const cleanUnits = isNowAll ? ['ALL', ...ALL_UNIT_SEKUPS] : nextUnits.filter(u => u !== 'ALL');
+      const scopeSummary = isNowAll
+        ? 'ALL'
+        : (cleanUnits.length <= 2 ? cleanUnits.join(' & ') : `${cleanUnits.length} Unit Sekup`);
+
+      return {
+        ...prev,
+        units: cleanUnits,
+        scope: scopeSummary
+      };
+    });
+  };
+
+  // Reset cakupan unit ke template bawaan peran
+  const handleResetScopeToRole = () => {
+    const roleDef = rolesList.find(r => r.role === formData.role);
+    let defaultUnits: string[] = ['ALL', ...ALL_UNIT_SEKUPS];
+    if (roleDef?.allowedUnitSekups && roleDef.allowedUnitSekups.length > 0) {
+      if (roleDef.allowedUnitSekups.includes('ALL')) {
+        defaultUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+      } else {
+        defaultUnits = [...roleDef.allowedUnitSekups];
+      }
+    } else if (['Super Admin', 'HR Admin', 'Project Manager', 'Manajer Operasional', 'Site Engineer'].includes(formData.role)) {
+      defaultUnits = ['ALL', ...ALL_UNIT_SEKUPS];
+    } else {
+      defaultUnits = ['Proses Cengkeh'];
+    }
+
+    const isAll = defaultUnits.includes('ALL') || defaultUnits.length === ALL_UNIT_SEKUPS.length;
+    const cleanUnits = isAll ? ['ALL', ...ALL_UNIT_SEKUPS] : defaultUnits.filter(u => u !== 'ALL');
+    const scopeSummary = isAll
+      ? 'ALL'
+      : (cleanUnits.length <= 2 ? cleanUnits.join(' & ') : `${cleanUnits.length} Unit Sekup`);
+
+    setFormData(prev => ({
+      ...prev,
+      units: cleanUnits,
+      scope: scopeSummary
     }));
   };
 
@@ -589,6 +721,17 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       return;
     }
 
+    const cleanUnits = (formData.units && formData.units.length > 0)
+      ? (formData.units.includes('ALL') ? ['ALL', ...ALL_UNIT_SEKUPS] : formData.units.filter(u => u !== 'ALL'))
+      : ['ALL', ...ALL_UNIT_SEKUPS];
+
+    const isAll = cleanUnits.includes('ALL') || ALL_UNIT_SEKUPS.every(u => cleanUnits.includes(u));
+    const scopeSummary = isAll 
+      ? 'ALL' 
+      : (cleanUnits.filter(u => u !== 'ALL').length <= 2 
+          ? cleanUnits.filter(u => u !== 'ALL').join(' & ') 
+          : `${cleanUnits.filter(u => u !== 'ALL').length} Unit Sekup`);
+
     let updatedList: InternalAccount[];
 
     if (editingIndex !== null) {
@@ -598,7 +741,9 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         ...formData,
         nama: formData.nama.trim(),
         email: cleanEmail,
-        password: formData.password.trim()
+        password: formData.password.trim(),
+        scope: scopeSummary,
+        units: cleanUnits
       };
       showNotification('success', `Akun ${formData.nama} berhasil diperbarui.`);
     } else {
@@ -609,7 +754,9 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
           ...formData,
           nama: formData.nama.trim(),
           email: cleanEmail,
-          password: formData.password.trim()
+          password: formData.password.trim(),
+          scope: scopeSummary,
+          units: cleanUnits
         }
       ];
       showNotification('success', `Akun baru ${formData.nama} berhasil ditambahkan.`);
@@ -623,9 +770,10 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     if (currentUser && currentUser.email?.toLowerCase() === cleanEmail) {
       const updatedAuthUser: AuthUser = {
         ...currentUser,
-        nama: formData.nama,
+        nama: formData.nama.trim(),
         role: formData.role,
-        scope: formData.scope,
+        scope: scopeSummary,
+        units: cleanUnits,
         allowedTabs: formData.allowedTabs
       };
       authService.updateCurrentUserSession(updatedAuthUser);
@@ -881,9 +1029,24 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className="font-semibold text-slate-700">
-                          {acc.scope === 'ALL' ? '🔑 Seluruh Unit (ALL)' : `👤 ${acc.scope}`}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-slate-800">
+                            {acc.scope === 'ALL' || acc.units?.includes('ALL') ? (
+                              <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] font-bold inline-flex items-center gap-1">
+                                🔑 Seluruh Unit (ALL PP1)
+                              </span>
+                            ) : (
+                              <span className="text-slate-800 font-medium">
+                                👤 {acc.scope}
+                              </span>
+                            )}
+                          </span>
+                          {acc.units && !acc.units.includes('ALL') && acc.units.length > 1 && (
+                            <span className="text-[10px] text-slate-400 truncate max-w-[220px] block" title={acc.units.join(', ')}>
+                              {acc.units.join(', ')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-center">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200" title={acc.allowedTabs.join(', ')}>
@@ -1365,7 +1528,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
               <div>
                 <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                  {editingIndex !== null ? 'Edit Akun &amp; Hak Akses' : 'Tambah Akun Tim Internal'}
+                  {editingIndex !== null ? 'Edit Akun & Hak Akses' : 'Tambah Akun Tim Internal'}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Tentukan profil akun, kata sandi, peran jabatan, dan checklist modul yang boleh dibuka.
@@ -1428,35 +1591,161 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
+              {/* Peran Jabatan (Role) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
                   <label className="font-bold text-slate-700">Peran Jabatan (Role) *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => handleRoleChange(e.target.value as UserAccessRole)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-bold"
-                  >
-                    {rolesList.map(r => (
-                      <option key={r.role} value={r.role}>
-                        {r.title} ({r.role})
-                      </option>
-                    ))}
-                  </select>
+                  <span className="text-[10px] text-slate-500">
+                    Memilih peran akan menyetel preset checklist scope &amp; modul otomatis
+                  </span>
+                </div>
+                <select
+                  value={formData.role}
+                  onChange={(e) => handleRoleChange(e.target.value as UserAccessRole)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-bold text-slate-800"
+                >
+                  {rolesList.map(r => (
+                    <option key={r.role} value={r.role}>
+                      {r.title} ({r.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Cakupan Unit Kerja (Scope) - Format Checklist Dinamis */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-800">
+                      Cakupan Unit Kerja (Scope) *
+                    </label>
+                    {(() => {
+                      const isAll = (formData.units?.includes('ALL') || ALL_UNIT_SEKUPS.every(u => formData.units?.includes(u)));
+                      const count = (formData.units || []).filter(u => u !== 'ALL').length;
+                      return (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          isAll
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : 'bg-indigo-100 text-indigo-900 border-indigo-300'
+                        }`}>
+                          {isAll ? '🔑 Seluruh Unit (ALL)' : `${count} Unit Terpilih`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleScopeUnit('ALL')}
+                      className="text-amber-700 hover:text-amber-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>🔑 Pilih Semua (ALL)</span>
+                    </button>
+                    <span className="text-slate-300">&bull;</span>
+                    <button
+                      type="button"
+                      onClick={handleResetScopeToRole}
+                      className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      title="Kembalikan checklist unit ke pengaturan bawaan peran ini"
+                    >
+                      Reset ke Template Peran
+                    </button>
+                    <span className="text-slate-300">&bull;</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, units: ['Proses Cengkeh'], scope: 'Proses Cengkeh' })}
+                      className="text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+                    >
+                      Hanya 1 Unit
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Cakupan Unit Kerja (Scope) *</label>
-                  <select
-                    value={formData.scope}
-                    onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 font-medium"
-                  >
-                    {SCOPE_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>
-                        {opt === 'ALL' ? '🔑 Seluruh Unit (ALL PP1)' : opt}
-                      </option>
-                    ))}
-                  </select>
+                <div className="p-2.5 rounded-2xl bg-slate-50/70 border border-slate-200 space-y-2">
+                  {/* Master Checkbox: Seluruh Unit (ALL PP1) */}
+                  {(() => {
+                    const isAll = (formData.units?.includes('ALL') || ALL_UNIT_SEKUPS.every(u => formData.units?.includes(u)));
+                    return (
+                      <label 
+                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                          isAll 
+                            ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold shadow-xs' 
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100/70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isAll}
+                            onChange={() => handleToggleScopeUnit('ALL')}
+                            className="rounded text-amber-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs font-bold block">
+                              🔑 Seluruh Unit Kerja (ALL PP1)
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-normal">
+                              Memberikan wewenang akses penuh ke seluruh 8 unit pengolahan dan persediaan
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100/80 text-amber-800 font-bold flex-shrink-0">
+                          SEMUA UNIT
+                        </span>
+                      </label>
+                    );
+                  })()}
+
+                  {/* 8 Unit Sekup Checkboxes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1 scrollbar-thin">
+                    {ALL_UNIT_SEKUPS.map(unitSekup => {
+                      const isAll = (formData.units?.includes('ALL') || ALL_UNIT_SEKUPS.every(u => formData.units?.includes(u)));
+                      const isChecked = isAll || (formData.units || []).includes(unitSekup);
+                      
+                      let tagColor = 'bg-slate-100 text-slate-700';
+                      if (unitSekup.includes('Cengkeh')) tagColor = 'bg-amber-100 text-amber-800';
+                      else if (unitSekup.includes('Tembakau')) tagColor = 'bg-emerald-100 text-emerald-800';
+                      else if (unitSekup.includes('Krosok')) tagColor = 'bg-sky-100 text-sky-800';
+                      else if (unitSekup.includes('Blend')) tagColor = 'bg-purple-100 text-purple-800';
+
+                      return (
+                        <label 
+                          key={unitSekup}
+                          className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-all ${
+                            isChecked 
+                              ? 'bg-indigo-50/80 border-indigo-300 text-indigo-950 font-bold' 
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100/70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleScopeUnit(unitSekup)}
+                              className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span className="text-xs truncate">{unitSekup}</span>
+                          </div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} flex-shrink-0`}>
+                            {unitSekup.split(' ')[1] || unitSekup}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dynamic Summary Label */}
+                  <div className="pt-1 px-1 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-200/70">
+                    <span className="truncate">
+                      <strong>Cakupan Aktif:</strong>{' '}
+                      {(formData.units?.includes('ALL') || ALL_UNIT_SEKUPS.every(u => formData.units?.includes(u)))
+                        ? 'Seluruh 8 Unit PP1 (Akses Penuh)'
+                        : ((formData.units || []).filter(u => u !== 'ALL').length > 0 
+                            ? (formData.units || []).filter(u => u !== 'ALL').join(', ') 
+                            : 'Belum ada unit dipilih')}
+                    </span>
+                  </div>
                 </div>
               </div>
 
