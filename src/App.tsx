@@ -681,6 +681,11 @@ export default function App() {
     }
   };
 
+  // Scroll to top cleanly whenever activeTab changes to keep mobile view locked
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   const handleLogout = () => {
     authService.logout();
     setCurrentUser(null);
@@ -736,7 +741,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden relative">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -755,7 +760,7 @@ export default function App() {
 
       {/* Main Workspace Area */}
       <div 
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-24 lg:pb-12 ${
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-28 lg:pb-12 min-w-0 w-full max-w-full overflow-x-hidden ${
           collapsed ? 'lg:ml-[68px] ml-0' : 'lg:ml-64 ml-0'
         }`}
       >
@@ -779,7 +784,7 @@ export default function App() {
         />
 
         {/* Role Simulator Bar for Developer, PM & Site Engineer */}
-        <div className="mt-16">
+        <div className="mt-16 w-full max-w-full overflow-x-hidden">
           <RoleSimulatorBar
             currentUser={currentUser}
             pekerjaList={pekerjaList}
@@ -806,7 +811,7 @@ export default function App() {
         </div>
 
         {/* Tab Panel Viewports */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
           
           {/* Akses Modul Dibatasi Fallback */}
           {currentUser && Array.isArray(currentUser.allowedTabs) && !currentUser.allowedTabs.includes(activeTab) && (

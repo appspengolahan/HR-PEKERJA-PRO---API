@@ -114,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header 
-      className={`fixed top-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 z-20 transition-all duration-300 flex items-center justify-between px-3 sm:px-4 lg:px-6 shadow-xs ${
+      className={`fixed top-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 z-20 transition-all duration-300 flex items-center justify-between px-3 sm:px-4 lg:px-6 shadow-xs max-w-full overflow-hidden ${
         collapsed ? 'lg:left-[68px] left-0' : 'lg:left-64 left-0'
       }`}
     >

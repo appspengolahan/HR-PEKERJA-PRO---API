@@ -53,8 +53,18 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 flex items-center justify-around px-2 lg:hidden shadow-2xl select-none"
+      className="fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 z-50 flex items-center justify-around px-1 lg:hidden shadow-[0_-4px_25px_rgba(0,0,0,0.35)] select-none"
       aria-label="Navigasi Bawah Seluler"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        transform: 'translate3d(0, 0, 0)',
+        WebkitTransform: 'translate3d(0, 0, 0)',
+        willChange: 'transform'
+      }}
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -62,7 +72,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         return (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            }}
             className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
               isActive 
                 ? 'text-blue-400 font-bold scale-105' 
