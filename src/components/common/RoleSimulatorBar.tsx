@@ -18,22 +18,28 @@ interface RoleSimulatorBarProps {
   currentUser: AuthUser | null;
   pekerjaList: PekerjaData[];
   onSwitchUser: (newUser: AuthUser) => void;
+  onOpenRoleSwitcherModal?: () => void;
 }
 
 export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
   currentUser,
   pekerjaList,
-  onSwitchUser
+  onSwitchUser,
+  onOpenRoleSwitcherModal
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Check if current user is Developer, PM, Site Engineer, or is currently simulating a role
+  // Check if current user is Developer, PM, Site Engineer, Manajer Operasional, or is currently simulating a role
   const isSupervisoryUser = 
     currentUser?.isSimulated ||
     currentUser?.role === 'Super Admin' ||
     currentUser?.role === 'Project Manager' ||
     currentUser?.role === 'Site Engineer' ||
-    currentUser?.email === 'appspengolahan@gmail.com';
+    currentUser?.role === 'Manajer Operasional' ||
+    currentUser?.role === 'HR Admin' ||
+    currentUser?.email === 'appspengolahan@gmail.com' ||
+    sessionStorage.getItem('bk_dev_sim_unlocked') === 'true' ||
+    sessionStorage.getItem('bk_supervisor_session') === 'true';
 
   if (!isSupervisoryUser) return null;
 
@@ -136,7 +142,13 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
         {/* Dropdown Menu Toggle */}
         <div className="relative">
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => {
+              if (onOpenRoleSwitcherModal) {
+                onOpenRoleSwitcherModal();
+              } else {
+                setIsOpen(!isOpen);
+              }
+            }}
             className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold border border-amber-400/30 transition-all flex items-center gap-1.5 text-xs shadow-xs cursor-pointer active:scale-95"
           >
             <span className="hidden xs:inline">Ganti Peran Tampilan</span>

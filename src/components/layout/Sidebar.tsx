@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   FileText,
   X,
-  Globe
+  Globe,
+  Repeat
 } from 'lucide-react';
 import { MainTabType } from '../../types';
 import { AuthUser } from '../../services/authService';
@@ -33,6 +34,7 @@ interface SidebarProps {
   onOpenGasCenter: () => void;
   onOpenSwitchBoard: () => void;
   onOpenPublicShareModal?: () => void;
+  onOpenRoleSwitcher?: () => void;
   currentUser: AuthUser | null;
   onLogout: () => void;
   mobileOpen?: boolean;
@@ -47,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGasCenter,
   onOpenSwitchBoard,
   onOpenPublicShareModal,
+  onOpenRoleSwitcher,
   currentUser,
   onLogout,
   mobileOpen = false,
@@ -127,6 +130,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Quick Role Switcher (Desktop Sidebar) */}
+          {onOpenRoleSwitcher && (
+            <button
+              type="button"
+              onClick={onOpenRoleSwitcher}
+              className="mt-2 w-full py-1.5 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
+              title="Buka Pusat Ganti Peran Jabatan Cepat"
+            >
+              <Repeat className="w-3.5 h-3.5 text-amber-400" />
+              <span>Ganti Peran Cepat</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -282,6 +298,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Quick Role Switcher Button (Mobile Drawer) */}
+              {onOpenRoleSwitcher && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCloseMobile?.();
+                    onOpenRoleSwitcher();
+                  }}
+                  className="mt-2.5 w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-600/20 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+                >
+                  <Repeat className="w-4 h-4 text-amber-400" />
+                  <span>Ganti Peran / Simulasi</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -347,6 +378,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Database className="w-4 h-4 text-emerald-400" />
                 <span>Headless GAS Hub</span>
+              </button>
+            )}
+
+            {onOpenRoleSwitcher && (
+              <button
+                onClick={() => {
+                  onCloseMobile?.();
+                  onOpenRoleSwitcher();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-amber-950/50 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 transition-colors cursor-pointer"
+              >
+                <Repeat className="w-4 h-4 text-amber-400" />
+                <span>Ganti Peran (Switch Role)</span>
               </button>
             )}
 

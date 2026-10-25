@@ -20,6 +20,7 @@ import { ScopeModal } from './components/modals/ScopeModal';
 import { GasCenterModal } from './components/modals/GasCenterModal';
 import { SwitchBoardModal } from './components/modals/SwitchBoardModal';
 import { PublicShareModal } from './components/modals/PublicShareModal';
+import { RoleSwitcherModal } from './components/modals/RoleSwitcherModal';
 import { PublicPortal } from './components/public/PublicPortal';
 
 import { gasClient } from './services/gasClient';
@@ -92,6 +93,7 @@ export default function App() {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
+  const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [suratIjinData, setSuratIjinData] = useState<SuratIjinData | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -686,6 +688,28 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activeTab]);
 
+  // Handler beralih peran cepat (tersedia dari Header, Sidebar, Simulator, dan Drawer)
+  const handleSwitchUserRole = (newUser: AuthUser) => {
+    setCurrentUser(newUser);
+    authService.updateCurrentUserSession(newUser);
+    const authScopes = getUserAuthorizedUnitSekups(newUser);
+    if (newUser.role === 'Pekerja Harian') {
+      setActiveTab('slip');
+    } else if (!newUser.allowedTabs.includes(activeTab)) {
+      setActiveTab(newUser.allowedTabs[0] || 'dashboard');
+    }
+    if (newUser.scope && newUser.scope !== 'ALL') {
+      setCurrentScope(newUser.scope);
+      localStorage.setItem('hrPekerjaScope', newUser.scope);
+    } else if (!authScopes.includes('ALL') && authScopes.length > 0) {
+      setCurrentScope(authScopes[0]);
+      localStorage.setItem('hrPekerjaScope', authScopes[0]);
+    } else {
+      setCurrentScope('ALL');
+      localStorage.setItem('hrPekerjaScope', 'ALL');
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     setCurrentUser(null);
@@ -752,6 +776,7 @@ export default function App() {
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
         onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
+        onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
         mobileOpen={isMobileMenuOpen}
@@ -777,36 +802,20 @@ export default function App() {
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
+          onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           switchAppUrl={switchAppUrl}
           currentUser={currentUser}
           onLogout={handleLogout}
         />
 
-        {/* Role Simulator Bar for Developer, PM & Site Engineer */}
+        {/* Role Simulator Bar for Developer, PM, Site Engineer, Manajer & Simulation Sessions */}
         <div className="mt-16 w-full max-w-full overflow-x-hidden">
           <RoleSimulatorBar
             currentUser={currentUser}
             pekerjaList={pekerjaList}
-            onSwitchUser={(newUser) => {
-              setCurrentUser(newUser);
-              const authScopes = getUserAuthorizedUnitSekups(newUser);
-              if (newUser.role === 'Pekerja Harian') {
-                setActiveTab('slip');
-              } else if (!newUser.allowedTabs.includes(activeTab)) {
-                setActiveTab(newUser.allowedTabs[0] || 'dashboard');
-              }
-              if (newUser.scope && newUser.scope !== 'ALL') {
-                setCurrentScope(newUser.scope);
-                localStorage.setItem('hrPekerjaScope', newUser.scope);
-              } else if (!authScopes.includes('ALL') && authScopes.length > 0) {
-                setCurrentScope(authScopes[0]);
-                localStorage.setItem('hrPekerjaScope', authScopes[0]);
-              } else {
-                setCurrentScope('ALL');
-                localStorage.setItem('hrPekerjaScope', 'ALL');
-              }
-            }}
+            onSwitchUser={handleSwitchUserRole}
+            onOpenRoleSwitcherModal={() => setIsRoleSwitcherOpen(true)}
           />
         </div>
 
@@ -991,6 +1000,15 @@ export default function App() {
         isOpen={isPublicShareModalOpen}
         onClose={() => setIsPublicShareModalOpen(false)}
         onOpenPreview={() => setIsPublicMode(true)}
+      />
+
+      {/* Quick Role Switcher Modal */}
+      <RoleSwitcherModal
+        isOpen={isRoleSwitcherOpen}
+        onClose={() => setIsRoleSwitcherOpen(false)}
+        currentUser={currentUser}
+        pekerjaList={pekerjaList}
+        onSwitchUser={handleSwitchUserRole}
       />
 
       {/* Mobile Bottom Navigation */}

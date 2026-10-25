@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   ChevronDown,
   Globe,
-  Menu
+  Menu,
+  Repeat
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
@@ -30,6 +31,7 @@ interface HeaderProps {
   onOpenScopeModal: () => void;
   onOpenHelpModal: () => void;
   onOpenPublicShareModal: () => void;
+  onOpenRoleSwitcher?: () => void;
   onOpenMobileMenu?: () => void;
   switchAppUrl: string;
   currentUser: AuthUser | null;
@@ -47,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScopeModal,
   onOpenHelpModal,
   onOpenPublicShareModal,
+  onOpenRoleSwitcher,
   onOpenMobileMenu,
   switchAppUrl,
   currentUser,
@@ -183,6 +186,18 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
+        {/* Quick Role Switcher Pill in Header */}
+        {onOpenRoleSwitcher && (
+          <button
+            onClick={onOpenRoleSwitcher}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-xs transition-all text-xs font-bold cursor-pointer active:scale-95"
+            title="Ganti peran jabatan cepat (Lead Dev, PM, Engineer, Manajer, Mandor, Pekerja)"
+          >
+            <Repeat className="w-3.5 h-3.5 text-amber-700" />
+            <span className="hidden sm:inline">Ganti Peran</span>
+          </button>
+        )}
+
         {/* Dynamic User Profile & Ecosystem Hub Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
@@ -245,6 +260,27 @@ export const Header: React.FC<HeaderProps> = ({
                   Navigasi &amp; Ekosistem
                 </span>
                 
+                {/* Ganti Peran Cepat (Semua Peran) */}
+                {onOpenRoleSwitcher && (
+                  <button
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      onOpenRoleSwitcher();
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-50/80 hover:bg-amber-100 border border-amber-300 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-amber-200 text-amber-800 flex items-center justify-center">
+                        <Repeat className="w-4 h-4" />
+                      </div>
+                      <span>Ganti Peran Jabatan (Cepat)</span>
+                    </div>
+                    <span className="text-[10px] text-amber-800 font-bold bg-amber-200/90 px-1.5 py-0.5 rounded">
+                      Switch
+                    </span>
+                  </button>
+                )}
+
                 {/* Ganti Tim (Internal Only) */}
                 {!isWorkerRole && (
                   <button

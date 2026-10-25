@@ -128,6 +128,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     try {
       const res = authService.loginInternal(internalEmail.trim(), internalPassword.trim());
       if (res.success && res.user) {
+        if (['Super Admin', 'Project Manager', 'Site Engineer', 'Manajer Operasional', 'HR Admin'].includes(res.user.role) || res.user.email === 'appspengolahan@gmail.com') {
+          sessionStorage.setItem('bk_supervisor_session', 'true');
+          sessionStorage.setItem('bk_supervisor_user', JSON.stringify(res.user));
+        }
         onLoginSuccess(res.user);
       } else {
         setInternalError(res.message || 'Login gagal.');
