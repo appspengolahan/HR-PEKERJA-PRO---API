@@ -381,7 +381,7 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
 
       {/* Slip Display Card */}
       {slipData && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-6 sm:p-8 max-w-xl mx-auto space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 sm:p-8 max-w-xl mx-auto space-y-4">
           
           <div className="flex justify-between items-center border-b border-slate-200 pb-3 print:hidden">
             <span className="text-[11px] font-mono text-slate-400">DIVISI PRODUKSI I</span>

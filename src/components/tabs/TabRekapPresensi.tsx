@@ -342,10 +342,15 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
 
       {/* Rekap Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <span className="text-xs font-bold text-slate-800">
-            Tabel Rincian Kehadiran per Bulan ({rekapRows.length} Pekerja)
-          </span>
+        <div className="p-3 sm:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-800">
+              Tabel Rincian Kehadiran per Bulan ({rekapRows.length} Pekerja)
+            </span>
+            <span className="sm:hidden px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              Geser ↔
+            </span>
+          </div>
           <span className="text-[11px] font-mono text-slate-400">
             Satuan: Menit Ijin
           </span>

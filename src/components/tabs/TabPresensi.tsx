@@ -350,11 +350,16 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       {/* Presensi Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <span className="text-xs font-bold text-slate-800">
-            Daftar Ijin / Ketidakhadiran Tercatat ({presensiList.length} Entri)
-          </span>
-          <span className="text-[11px] font-mono text-slate-400">
+        <div className="p-3 sm:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-800">
+              Daftar Ijin / Ketidakhadiran Tercatat ({presensiList.length} Entri)
+            </span>
+            <span className="sm:hidden px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              Geser Tabel ↔
+            </span>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400 hidden xs:inline">
             Tab Sheet: LOG_PRESENSI_IJIN
           </span>
         </div>

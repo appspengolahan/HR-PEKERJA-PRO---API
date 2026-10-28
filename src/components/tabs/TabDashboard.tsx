@@ -309,68 +309,67 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
       )}
 
       {/* 4 Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         
         <div 
           onClick={() => onNavigateTab('database')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
         >
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-            Total Pekerja (Tim Ini)
+          <div className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
+            Total Pekerja (Tim)
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
             {totalPekerja}
           </div>
-          <div className="text-[11px] text-blue-600 font-semibold mt-1">
+          <div className="text-[10px] sm:text-[11px] text-blue-600 font-semibold mt-1 truncate">
             {currentScope === 'ALL' ? 'Seluruh Unit PP1' : currentScope}
           </div>
         </div>
 
         <div 
           onClick={() => onNavigateTab('database')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
         >
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+          <div className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
             Karyawan TETAP
           </div>
-          <div className="text-3xl font-black text-blue-700 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-blue-700 tracking-tight font-mono">
             {tetapCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Tanpa batas waktu PKWT
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate">
+            Tetap / Tanpa Batas
           </div>
         </div>
 
         <div 
           onClick={() => onNavigateTab('database')}
-          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 cursor-pointer transition-all"
         >
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+          <div className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
             Pekerja PKWT
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
             {pkwtCount}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Kontrak berkala (1, 2, atau 3)
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
+            Kontrak berkala (1/2/3)
           </div>
         </div>
 
         <div 
           onClick={() => onNavigateTab('database')}
-          className="bg-white p-5 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-xs hover:border-amber-400 cursor-pointer transition-all"
+          className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-300 bg-amber-50/30 shadow-xs hover:border-amber-400 cursor-pointer transition-all"
         >
-          <div className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
+          <div className="text-[11px] sm:text-xs font-bold text-amber-800 uppercase tracking-wider mb-1 truncate">
             PKWT Segera Berakhir
           </div>
-          <div className="text-3xl font-black text-amber-700 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-amber-700 tracking-tight font-mono">
             {segeraBerakhirAlerts.length}
           </div>
-          <div className="text-[11px] text-amber-700 mt-1 font-semibold">
-            {expiredAlerts.length > 0 ? `+ ${expiredAlerts.length} sudah berakhir` : '&le; 26 hari jatuh tempo'}
+          <div className="text-[10px] sm:text-[11px] text-amber-700 mt-1 font-semibold truncate">
+            {expiredAlerts.length > 0 ? `+ ${expiredAlerts.length} berakhir` : '&le; 26 hari tempo'}
           </div>
         </div>
-
       </div>
 
       {/* Section Beban Upah Bulanan (Sinkron Langsung dari Google Sheets Asli) - Berdasarkan Hak Akses Peran */}
