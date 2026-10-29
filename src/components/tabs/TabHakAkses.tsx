@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   ShieldCheck, 
   Users, 
@@ -26,7 +26,11 @@ import {
   Check,
   X,
   Plus,
-  Coins
+  Coins,
+  Link,
+  Copy,
+  Download,
+  Upload
 } from 'lucide-react';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
@@ -802,6 +806,84 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Salin tautan login instan yang langsung mengisi email/username & PIN
+  const handleCopyLoginLink = (acc: InternalAccount) => {
+    try {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set('login', acc.email);
+      if (acc.password) {
+        url.searchParams.set('pin', acc.password);
+      }
+      navigator.clipboard.writeText(url.toString()).then(() => {
+        showNotification('success', `Tautan login cepat untuk "${acc.nama}" berhasil disalin! Silakan kirim via WhatsApp ke pekerja/mandor.`);
+      }).catch(() => {
+        showNotification('error', 'Gagal menyalin tautan ke papan klip.');
+      });
+    } catch {
+      showNotification('error', 'Terjadi kesalahan saat menyalin tautan.');
+    }
+  };
+
+  // Salin ringkasan kredensial akun untuk dikirim ke pekerja
+  const handleCopyCredentials = (acc: InternalAccount) => {
+    try {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set('login', acc.email);
+      const text = `*AKUN RESMI HR PEKERJA PP1*\nNama: ${acc.nama}\nEmail / Username: ${acc.email}\nKata Sandi / PIN: ${acc.password} (atau PIN 'mandor')\nPeran: ${acc.role}\nCakupan Unit: ${acc.scope}\n\nTautan Akses Cepat:\n${url.toString()}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showNotification('success', `Kredensial login "${acc.nama}" berhasil disalin.`);
+      }).catch(() => {
+        showNotification('error', 'Gagal menyalin kredensial.');
+      });
+    } catch {
+      showNotification('error', 'Terjadi kesalahan saat menyalin kredensial.');
+    }
+  };
+
+  // Ekspor daftar akun ke file JSON
+  const handleExportAccountsJSON = () => {
+    try {
+      const jsonStr = JSON.stringify(accounts, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_akun_hr_pekerja_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showNotification('success', 'Cadangan akun berhasil diekspor sebagai file JSON.');
+    } catch {
+      showNotification('error', 'Gagal mengekspor file cadangan akun.');
+    }
+  };
+
+  // Impor daftar akun dari file JSON
+  const handleImportAccountsJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAccounts(parsed);
+          authService.saveInternalAccounts(parsed);
+          showNotification('success', `${parsed.length} akun berhasil diimpor dan disimpan ke sistem!`);
+        } else {
+          showNotification('error', 'Format file JSON akun tidak valid.');
+        }
+      } catch {
+        showNotification('error', 'Gagal membaca atau mem-parsing file JSON.');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Reset to default
   const handleResetDefault = () => {
     if (confirm('Kembalikan seluruh daftar akun ke pengaturan default bawaan sistem? Akun yang baru Anda tambahkan akan direset.')) {
@@ -817,6 +899,15 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
+      {/* Hidden file input for importing accounts */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportAccountsJSON}
+        accept=".json"
+        className="hidden"
+      />
+
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-2xl shadow-md border border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -835,17 +926,36 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleAddNew}
-            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
-            + Tambah Akun Internal
+            + Tambah Akun
           </button>
+          
+          <button
+            onClick={handleExportAccountsJSON}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Ekspor seluruh akun ke file JSON"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Ekspor JSON
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Impor akun dari file JSON"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Impor JSON
+          </button>
+
           <button
             onClick={handleResetDefault}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
             title="Reset ke akun default bawaan"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -1056,16 +1166,30 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
+                            onClick={() => handleCopyLoginLink(acc)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                            title="Salin Tautan Login Cepat (Tinggal Kirim via WhatsApp ke Staf/Mandor)"
+                          >
+                            <Link className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleCopyCredentials(acc)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-700 transition-colors cursor-pointer"
+                            title="Salin Rincian Akun &amp; Kredensial (Teks)"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleEdit(idx)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 transition-colors"
-                            title="Edit Akun &amp; Modul"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer"
+                            title="Edit Akun, Password &amp; Modul"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           {!isPrimaryDev && (
                             <button
                               onClick={() => handleDelete(idx)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                               title="Hapus Akun"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1560,9 +1684,9 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Email / Username Login *</label>
                   <input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="Contoh: budi.mandor@batukarang.com"
+                    placeholder="Contoh: indahnurmala189@gmail.com atau username login"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-500 font-mono"

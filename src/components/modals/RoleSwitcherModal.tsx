@@ -201,11 +201,21 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   const mandorRoles = [
     {
       role: 'Mandor Proses Cengkeh',
+      title: '🌱 Mandor Proses Cengkeh (Plt. Ka)',
+      nama: 'Mandor Proses Cengkeh (Plt. Ka)',
+      subtitle: 'Mandor Cengkeh & Persediaan (Indah Nurmala)',
+      scope: 'Proses Cengkeh & Persediaan Cengkeh',
+      units: ['Proses Cengkeh', 'Persediaan Cengkeh'],
+      badgeColor: 'border-amber-300 bg-amber-50 text-amber-900',
+      iconColor: 'bg-amber-600 text-white'
+    },
+    {
+      role: 'Mandor Proses Cengkeh',
       title: '🌱 Mandor Proses Cengkeh',
       nama: 'Mandor Proses Cengkeh',
       subtitle: 'Mandor Lapangan Unit Proses Cengkeh',
       scope: 'Proses Cengkeh',
-      units: ['Cengkeh'],
+      units: ['Proses Cengkeh'],
       badgeColor: 'border-amber-300 bg-amber-50 text-amber-900',
       iconColor: 'bg-amber-600 text-white'
     },

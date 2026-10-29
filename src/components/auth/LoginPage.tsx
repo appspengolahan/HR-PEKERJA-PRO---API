@@ -66,7 +66,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setTimeout(() => setLogoClicks(0), 3000);
   };
 
-  // Keyboard shortcut listener (Ctrl+Shift+D or Cmd+Shift+D)
+  // Keyboard shortcut listener (Ctrl+Shift+D or Cmd+Shift+D) & URL Query parameter auto-fill/login
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
@@ -75,8 +75,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       }
     };
     window.addEventListener('keydown', handleKeyDown);
+
+    // Auto-detect login link query parameters (e.g. ?login=indahnurmala189@gmail.com&pin=mandor)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const qUser = params.get('login') || params.get('user') || params.get('email');
+      const qPin = params.get('pin') || params.get('pass') || params.get('sandi');
+      if (qUser) {
+        setInternalEmail(qUser);
+        setActiveTab('internal');
+        if (qPin) {
+          setInternalPassword(qPin);
+          const res = authService.loginInternal(qUser, qPin);
+          if (res.success && res.user) {
+            onLoginSuccess(res.user);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [onLoginSuccess]);
 
   const handleUnlockPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,8 +254,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <form onSubmit={handleInternalSubmit} className="space-y-4">
               
               <div className="space-y-1">
-                <span className="text-xs font-bold text-slate-300">Staff, HR &amp; Mandor Operasional</span>
-                <p className="text-[11px] text-slate-400">Masuk menggunakan email terdaftar di whitelist resmi perusahaan.</p>
+                <span className="text-xs font-bold text-slate-300">Pekerja, HR &amp; Mandor Operasional</span>
+                <p className="text-[11px] text-slate-400">Masuk menggunakan email atau username yang terdaftar di sistem hak akses.</p>
               </div>
 
               {internalError && (
@@ -246,16 +267,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
               <div className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">Email Terdaftar</label>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">Email / Username Login</label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="email"
+                      type="text"
                       required
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      placeholder="unitcengkeh.pp1@gmail.com atau nama@batukarang.com"
+                      placeholder="indahnurmala189@gmail.com atau username login"
                       value={internalEmail}
                       onChange={(e) => setInternalEmail(e.target.value)}
                       className="w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
@@ -491,10 +512,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => handleDevQuickLogin('indahnurmala189@gmail.com', 'mandor')}
+                  className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <span>🌱 Mandor Cengkeh (Indah)</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => handleDevQuickLogin('unitcengkeh.pp1@gmail.com', 'mandorCKH153')}
                   className="p-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[11px] font-bold text-left truncate flex items-center gap-1.5 active:scale-95 transition-all"
                 >
-                  <span>🚜 Mandor Cengkeh</span>
+                  <span>🚜 Mandor Cengkeh (Unit)</span>
                 </button>
 
                 <button

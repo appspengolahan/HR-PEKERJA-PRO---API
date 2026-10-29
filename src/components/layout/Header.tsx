@@ -194,7 +194,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Ganti peran jabatan cepat (Lead Dev, PM, Engineer, Manajer, Mandor, Pekerja)"
           >
             <Repeat className="w-3.5 h-3.5 text-amber-700" />
-            <span className="hidden sm:inline">Ganti Peran</span>
+            <span className="inline text-[11px] font-bold">Ganti Peran</span>
           </button>
         )}
 

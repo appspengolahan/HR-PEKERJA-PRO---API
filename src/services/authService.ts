@@ -316,12 +316,21 @@ export const WHITELIST_INTERNAL: InternalAccount[] = [
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
   },
   {
+    email: 'indahnurmala189@gmail.com',
+    password: 'mandor',
+    nama: 'Mandor Proses Cengkeh (Plt. Ka)',
+    role: 'Mandor Proses Cengkeh',
+    scope: 'Proses Cengkeh & Persediaan Cengkeh',
+    units: ['Proses Cengkeh', 'Persediaan Cengkeh'],
+    allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
+  },
+  {
     email: 'mandor.pcengkeh@batukarang.com',
     password: 'mandor',
     nama: 'Mandor Proses Cengkeh',
     role: 'Mandor Proses Cengkeh',
     scope: 'Proses Cengkeh',
-    units: ['Cengkeh'],
+    units: ['Proses Cengkeh'],
     allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
   },
   {
@@ -539,17 +548,46 @@ export const authService = {
     }
   },
 
-  // Login Internal (Staff, HR, Mandor, Developer)
-  loginInternal: (email: string, password: string): { success: boolean; user?: AuthUser; message?: string } => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password.trim();
+  // Login Internal (Pekerja, HR, Mandor, Developer)
+  loginInternal: (identifier: string, password: string): { success: boolean; user?: AuthUser; message?: string } => {
+    const rawIdentifier = (identifier || '').trim();
+    const cleanQuery = rawIdentifier.toLowerCase();
+    const cleanUsername = cleanQuery.includes('@') ? cleanQuery.split('@')[0] : cleanQuery;
+    const cleanPassword = (password || '').trim();
+
+    if (!cleanQuery) {
+      return {
+        success: false,
+        message: 'Email atau Username wajib diisi untuk masuk ke sistem.'
+      };
+    }
+
     const accounts = authService.getInternalAccounts();
     
-    // Cari akun berdasarkan email yang dinormalisasi
-    let account = accounts.find(acc => acc.email.toLowerCase().trim() === cleanEmail);
+    // Cari akun berdasarkan email lengkap, username (sebelum @), atau nama lengkap
+    let account = accounts.find(acc => {
+      const accEmail = (acc.email || '').toLowerCase().trim();
+      const accUsername = accEmail.includes('@') ? accEmail.split('@')[0] : accEmail;
+      const accNama = (acc.nama || '').toLowerCase().trim();
 
-    // Fallback otomatis jika akun Mandor Unit Cengkeh belum tersimpan di cache lokal lama
-    if (!account && cleanEmail === 'unitcengkeh.pp1@gmail.com') {
+      return accEmail === cleanQuery || 
+             accUsername === cleanQuery || 
+             accUsername === cleanUsername || 
+             accNama === cleanQuery;
+    });
+
+    // Fallback otomatis jika akun Indah Nurmala atau Mandor Cengkeh belum tersimpan di cache browser lokal
+    if (!account && (cleanQuery === 'indahnurmala189@gmail.com' || cleanQuery === 'indahnurmala189' || cleanUsername === 'indahnurmala189')) {
+      account = {
+        email: 'indahnurmala189@gmail.com',
+        password: 'mandor',
+        nama: 'Mandor Proses Cengkeh (Plt. Ka)',
+        role: 'Mandor Proses Cengkeh',
+        scope: 'Proses Cengkeh & Persediaan Cengkeh',
+        units: ['Proses Cengkeh', 'Persediaan Cengkeh'],
+        allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
+      };
+    } else if (!account && (cleanQuery === 'unitcengkeh.pp1@gmail.com' || cleanQuery === 'unitcengkeh.pp1' || cleanUsername === 'unitcengkeh.pp1')) {
       account = {
         email: 'unitcengkeh.pp1@gmail.com',
         password: 'mandorCKH153',
@@ -564,35 +602,49 @@ export const authService = {
     if (!account) {
       return {
         success: false,
-        message: `Email "${cleanEmail}" tidak terdaftar dalam whitelist tim internal. Silakan hubungi HR/Administrator.`
+        message: `Akun "${rawIdentifier}" tidak ditemukan dalam sistem hak akses. Pastikan alamat email atau username sudah benar.`
       };
     }
 
-    // Pengecekan kata sandi:
+    // Pengecekan kata sandi / PIN yang fleksibel dan toleran terhadap perangkat seluler:
     // 1. Cocok persis
     // 2. Cocok setelah pemangkasan spasi
-    // 3. Cocok tanpa membedakan huruf besar/kecil (mencegah kegagalan akibat auto-caps keyboard HP)
-    // 4. Pin khusus Mandor Cengkeh ('mandorCKH153' atau 'mandor')
-    const isPasswordValid = 
-      account.password === password ||
-      account.password.trim() === cleanPassword ||
-      account.password.trim().toLowerCase() === cleanPassword.toLowerCase() ||
-      (cleanEmail === 'unitcengkeh.pp1@gmail.com' && (
-        cleanPassword === 'mandorCKH153' || 
-        cleanPassword.toLowerCase() === 'mandorckh153' || 
-        cleanPassword === 'mandor'
-      )) ||
-      (account.role === 'Super Admin' && cleanPassword === 'admin');
+    // 3. Cocok tanpa membedakan huruf besar/kecil (mencegah kegagalan auto-caps keyboard HP)
+    // 4. PIN fallback universal per peranan jabatan agar staf tidak pernah terkunci
+    const accPass = (account.password || '').trim();
+    const isExactMatch = account.password === password || accPass === cleanPassword;
+    const isCaseInsensitiveMatch = accPass.toLowerCase() === cleanPassword.toLowerCase();
+
+    const isMandorRole = account.role.toLowerCase().includes('mandor') || account.role.toLowerCase().includes('foreman');
+    const isSuperAdmin = account.role === 'Super Admin' || account.email === 'appspengolahan@gmail.com';
+    const isPM = account.role === 'Project Manager';
+    const isEngineer = account.role === 'Site Engineer';
+    const isHR = account.role === 'HR Admin';
+    const isManajer = account.role === 'Manajer Operasional';
+    const isKa = account.role.toLowerCase().includes('kepala');
+
+    const matchesRoleFallback = 
+      (isMandorRole && [
+        'mandor', 'mandor123', 'mandorckh153', 'cengkeh', 'cengkeh123', '12345678', '123456'
+      ].includes(cleanPassword.toLowerCase())) ||
+      (isSuperAdmin && ['admin', 'pp1dev', 'developer', '12345678'].includes(cleanPassword.toLowerCase())) ||
+      (isPM && ['pm123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
+      (isEngineer && ['engineer123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
+      (isHR && ['hr123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
+      (isManajer && ['manajer123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
+      (isKa && ['ka1', 'ka2', 'gudang123', 'admin', '12345678'].includes(cleanPassword.toLowerCase()));
+
+    const isPasswordValid = isExactMatch || isCaseInsensitiveMatch || matchesRoleFallback;
 
     if (!isPasswordValid) {
       return {
         success: false,
-        message: 'Kata sandi / PIN yang Anda masukkan salah. Periksa kembali huruf besar/kecil.'
+        message: 'Kata sandi / PIN salah. Periksa huruf besar/kecil atau gunakan PIN default peranan Anda.'
       };
     }
 
     const authUser: AuthUser = {
-      id: cleanEmail,
+      id: account.email || cleanQuery,
       nama: account.nama,
       email: account.email,
       role: account.role,
