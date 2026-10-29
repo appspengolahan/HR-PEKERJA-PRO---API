@@ -108,7 +108,7 @@ export const KpiScoringMatrix: React.FC<KpiScoringMatrixProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <Award className="w-5 h-5 text-amber-500" />
             <h2 className="text-sm font-bold text-slate-900">
-              Matriks Scoring KPI Bulanan Staff PP1
+              Matriks Scoring KPI Bulanan Pekerja PP1
             </h2>
           </div>
           <p className="text-xs text-slate-500 max-w-xl">
@@ -165,7 +165,7 @@ export const KpiScoringMatrix: React.FC<KpiScoringMatrixProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4">Staff &amp; NIP</th>
+                <th className="py-3 px-4">Pekerja &amp; NIP</th>
                 <th className="py-3 px-4">Jabatan</th>
                 <th className="py-3 px-4 text-center">Disiplin (30%)</th>
                 <th className="py-3 px-4 text-center">Rendemen (40%)</th>
@@ -272,7 +272,7 @@ export const KpiScoringMatrix: React.FC<KpiScoringMatrixProps> = ({
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Pilih Staff *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Pilih Pekerja *</label>
                   <select
                     value={staffId}
                     onChange={(e) => setStaffId(e.target.value)}

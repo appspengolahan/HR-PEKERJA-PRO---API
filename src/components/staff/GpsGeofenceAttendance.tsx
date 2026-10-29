@@ -203,7 +203,7 @@ export const GpsGeofenceAttendance: React.FC<GpsGeofenceAttendanceProps> = ({
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-emerald-400" />
-                Presensi Mandiri Staff (GPS Geofence)
+                Presensi Mandiri Pekerja (GPS Geofence)
               </h3>
               <p className="text-xs text-slate-400">
                 Titik Sentral: PT Batu Karang PP1 (-7.2504, 112.7688) • Toleransi Max 150m
@@ -257,7 +257,7 @@ export const GpsGeofenceAttendance: React.FC<GpsGeofenceAttendanceProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <label className="block text-slate-400 font-semibold mb-1">
-                Pilih Akun Staff
+                Pilih Akun Pekerja
               </label>
               <select
                 value={selectedStaffId}
@@ -336,7 +336,7 @@ export const GpsGeofenceAttendance: React.FC<GpsGeofenceAttendanceProps> = ({
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-blue-600" />
             <span className="text-xs font-bold text-slate-800">
-              Log Riwayat Presensi Geofence Staff ({presensiStaff.length} Catatan)
+              Log Riwayat Presensi Geofence Pekerja ({presensiStaff.length} Catatan)
             </span>
           </div>
           <span className="text-[11px] font-mono text-slate-400">
@@ -349,7 +349,7 @@ export const GpsGeofenceAttendance: React.FC<GpsGeofenceAttendanceProps> = ({
             <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">Tanggal &amp; Waktu</th>
-                <th className="py-3 px-4">Personil Staff</th>
+                <th className="py-3 px-4">Personil Pekerja</th>
                 <th className="py-3 px-4">Shift</th>
                 <th className="py-3 px-4">Koordinat GPS</th>
                 <th className="py-3 px-4 text-right">Jarak ke Pabrik</th>

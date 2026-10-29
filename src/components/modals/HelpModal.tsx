@@ -45,7 +45,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               📌 Ringkasan Sistem HR Pekerja
             </h3>
             <p className="text-slate-600">
-              Sistem manajemen pekerja harian (buruh lepas/PKWT) untuk presensi, lembur, perhitungan upah harian/mingguan, mutasi rotasi, dan proses rekrutmen pelatihan. Berbeda dari HR Karyawan (staf bulanan), pekerja harian tidak dipotong BPJS formal/PPh21.
+              Sistem manajemen pekerja harian (buruh lepas/PKWT) untuk presensi, lembur, perhitungan upah harian/mingguan, mutasi rotasi, dan proses rekrutmen pelatihan. Berbeda dari HR Karyawan (pekerja bulanan), pekerja harian tidak dipotong BPJS formal/PPh21.
             </p>
           </section>
 

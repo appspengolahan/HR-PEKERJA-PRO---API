@@ -68,7 +68,7 @@ export const PrintReportsModal: React.FC<PrintReportsModalProps> = ({
           >
             <option value="payroll">1. Rekap Upah Borongan PHL (Payroll)</option>
             <option value="absensi">2. Rekapitulasi Presensi Lini Bulanan</option>
-            <option value="kpi">3. Laporan Evaluasi Matriks KPI Staff</option>
+            <option value="kpi">3. Laporan Evaluasi Matriks KPI Pekerja</option>
           </select>
 
           <button
@@ -114,7 +114,7 @@ export const PrintReportsModal: React.FC<PrintReportsModalProps> = ({
           <h2 className="text-base font-extrabold uppercase underline tracking-wider">
             {reportType === 'payroll' && 'LEMBAR REKAPITULASI UPAH BORONGAN PEKERJA HARIAN LEPAS (PHL)'}
             {reportType === 'absensi' && 'REKAPITULASI PRESENSI & KEHADIRAN OPERASIONAL LINI PP1'}
-            {reportType === 'kpi' && 'BERITA ACARA EVALUASI MATRIKS SCORING KPI STAFF PP1'}
+            {reportType === 'kpi' && 'BERITA ACARA EVALUASI MATRIKS SCORING KPI PEKERJA PP1'}
           </h2>
           <div className="text-xs text-slate-600 mt-1 font-mono">
             Nomor: 048/PP1-BK/IX/2026 • Periode: {periode}
@@ -213,7 +213,7 @@ export const PrintReportsModal: React.FC<PrintReportsModalProps> = ({
             <table className="w-full text-left text-xs border border-slate-300">
               <thead className="bg-slate-100 text-slate-800 font-bold uppercase text-[10px] border-b border-slate-300">
                 <tr>
-                  <th className="py-2 px-3 border-r border-slate-300">Staff &amp; NIP</th>
+                  <th className="py-2 px-3 border-r border-slate-300">Pekerja &amp; NIP</th>
                   <th className="py-2 px-3 border-r border-slate-300">Jabatan</th>
                   <th className="py-2 px-3 border-r border-slate-300 text-center">Disiplin</th>
                   <th className="py-2 px-3 border-r border-slate-300 text-center">Rendemen</th>

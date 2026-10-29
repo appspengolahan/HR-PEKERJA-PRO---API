@@ -89,7 +89,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   // Controls for Card 1 (Tren Tingkat Kehadiran Bulanan)
   const [chartMode, setChartMode] = useState<'kehadiran' | 'izin'>('kehadiran');
 
-  // Controls for Card 2 (Grafik Balok Peringkat Kehadiran Staf)
+  // Controls for Card 2 (Grafik Balok Peringkat Kehadiran Pekerja)
   const [rankingSearch, setRankingSearch] = useState('');
   const [rankingUnit, setRankingUnit] = useState('Semua');
   const [rankingSort, setRankingSort] = useState<'perhatian' | 'tertinggi' | 'nama'>('perhatian');
@@ -124,7 +124,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
       const formattedNip = String(rawId).startsWith('BK-')
         ? String(rawId)
         : `BK-PP1-${String(rawId).padStart(3, '0')}`;
-      const jabatan = p.jabatan || `${p.sekup || ''} ${p.unit || ''}`.trim() || 'Staf Operasional';
+      const jabatan = p.jabatan || `${p.sekup || ''} ${p.unit || ''}`.trim() || 'Pekerja Operasional';
 
       return {
         id: p.id,
@@ -338,7 +338,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
             <p className="text-xs text-slate-500">Analisis tren kehadiran dan ranking pekerja per periode</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <button
               onClick={() => exportRekapPresensiToCSV(rekapRows)}
               className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200"
@@ -471,7 +471,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl self-start sm:self-auto print:hidden">
               <button
                 type="button"
                 onClick={() => setChartMode('kehadiran')}
@@ -652,44 +652,44 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-xs text-slate-700 leading-relaxed">
               <span className="font-bold text-slate-900">Analisis Tren Kehadiran Garis: </span>
-              Tingkat kehadiran staf stabil rata-rata{' '}
+              Tingkat kehadiran pekerja stabil rata-rata{' '}
               <span className="font-bold text-slate-900">
                 {avgOverall.toFixed(2).replace('.', ',')}%
               </span>{' '}
               ({avgOverall >= 95 ? 'di atas batas toleransi 95%' : 'perlu perhatian karena di bawah standar 95%'}).
               Puncak disiplin tertinggi terjadi pada bulan{' '}
               <span className="font-bold text-slate-900">{bestMonthName}</span>, sementara fluktuasi
-              izin dipengaruhi oleh agenda kerja dan pengajuan izin cuti/ijin staf.
+              izin dipengaruhi oleh agenda kerja dan pengajuan izin cuti/ijin pekerja.
             </p>
           </div>
         </div>
 
-        {/* Card 2: Grafik Balok Peringkat Kehadiran Staf (Evaluasi Periode Jan – Des) */}
-        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        {/* Card 2: Grafik Balok Peringkat Kehadiran Pekerja (Evaluasi Periode Jan – Des) */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5 print:p-0 print:border-none print:shadow-none print:space-y-2">
           
           {/* Header, Search, Unit Filter, and Sort Order Controls */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Award className="w-5 h-5 text-amber-600" />
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Award className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
               </div>
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  Grafik Balok Peringkat Kehadiran Staf (Evaluasi Periode Jan – Des {tahun})
+                  Grafik Balok Peringkat Kehadiran Pekerja (Evaluasi Periode Jan – Des {tahun})
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Urutan Evaluasi Pembinaan: Karyawan paling perlu perhatian (warna merah) berada di atas, menuju tingkat kehadiran sempurna (hijau) di bawah ({rankingRows.length} Staf)
+                  Urutan Evaluasi Pembinaan: Karyawan paling perlu perhatian (warna merah) berada di atas, menuju tingkat kehadiran sempurna (hijau) di bawah ({rankingRows.length} Pekerja)
                 </p>
               </div>
             </div>
 
-            {/* Filter and Search Bar Controls */}
-            <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+            {/* Filter and Search Bar Controls (Hidden when printed to save page space) */}
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto print:hidden">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Cari staf / NIP..."
+                  placeholder="Cari pekerja / NIP..."
                   value={rankingSearch}
                   onChange={(e) => setRankingSearch(e.target.value)}
                   className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 w-36 sm:w-44 focus:outline-blue-500"
@@ -720,8 +720,8 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
           </div>
 
           {/* Category Color Legend and Total Count */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-            <div className="flex flex-wrap items-center gap-4 text-[11px] font-semibold">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs print:pt-1 print:border-slate-200">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-[11px] font-semibold">
               <span className="flex items-center gap-1.5 text-red-600">
                 <span className="w-2 h-2 rounded-full bg-red-500"></span>
                 &lt; 95.0% (Perlu Pembinaan / Perhatian)
@@ -735,16 +735,16 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                 &ge; 98.0% (Sangat Baik / Sempurna)
               </span>
             </div>
-            <span className="text-[11px] font-medium text-slate-400">
-              Total {rankingRows.length} Staf Ditampilkan
+            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500">
+              Total {rankingRows.length} Pekerja Ditampilkan
             </span>
           </div>
 
-          {/* List of Evaluation Progress Cards (Scrollable container matching reference) */}
-          <div className="max-h-[520px] overflow-y-auto space-y-2.5 pr-1.5">
+          {/* List of Evaluation Progress Cards - Compact on screen & Ultra-compact for print */}
+          <div className="max-h-[500px] overflow-y-auto space-y-1.5 pr-1.5 print:max-h-none print:overflow-visible print:space-y-1 print:pr-0">
             {rankingRows.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
-                Tidak ada data staf yang cocok dengan kriteria pencarian atau filter.
+                Tidak ada data pekerja yang cocok dengan kriteria pencarian atau filter.
               </div>
             ) : (
               rankingRows.map((r, idx) => {
@@ -781,21 +781,22 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                 return (
                   <div
                     key={`${r.id}-${idx}`}
-                    className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4"
+                    className="bg-white py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 print:py-1 print:px-2 print:my-0.5 print:border-b print:border-slate-200 print:shadow-none print:rounded-none print:flex-row print:items-center print:gap-2 break-inside-avoid"
+                    style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
                   >
                     {/* Left: Rank Badge + Worker Identity */}
-                    <div className="flex items-center gap-2.5 sm:min-w-[210px] sm:max-w-[240px]">
+                    <div className="flex items-center gap-2 sm:gap-2.5 sm:min-w-[190px] sm:max-w-[230px] print:min-w-[170px] print:max-w-[200px] print:gap-1.5">
                       <div
-                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${rankBg} text-white font-bold text-[11px] sm:text-xs flex items-center justify-center shrink-0 shadow-xs`}
+                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg ${rankBg} text-white font-bold text-[10px] sm:text-[11px] flex items-center justify-center shrink-0 shadow-xs print:w-5 print:h-5 print:text-[9px] print:rounded`}
                       >
                         #{idx + 1}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-xs sm:text-sm text-slate-900 truncate" title={r.nama}>
+                        <div className="font-bold text-xs sm:text-[13px] text-slate-900 truncate print:text-[10px] print:leading-tight" title={r.nama}>
                           {r.nama}
                         </div>
                         <div
-                          className="text-[10px] sm:text-[11px] text-slate-500 truncate"
+                          className="text-[10px] sm:text-[11px] text-slate-500 truncate print:text-[8px] print:leading-tight"
                           title={`${r.nip} • ${r.jabatan}`}
                         >
                           {r.nip} • {r.jabatan}
@@ -804,8 +805,8 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                     </div>
 
                     {/* Middle: Horizontal Progress Bar */}
-                    <div className="flex-1 sm:mx-2">
-                      <div className="w-full bg-slate-100 h-2.5 sm:h-3 rounded-full overflow-hidden p-0.5">
+                    <div className="flex-1 sm:mx-2 print:mx-1.5">
+                      <div className="w-full bg-slate-100 h-2 sm:h-2.5 rounded-full overflow-hidden p-0.5 print:h-1.5 print:p-0">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${barGradient}`}
                           style={{ width: `${Math.min(100, Math.max(5, r.pctKehadiran))}%` }}
@@ -814,18 +815,18 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                     </div>
 
                     {/* Right: Percentage, Lost Hours, and Status Tag Badge */}
-                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t border-slate-50 sm:border-0">
-                      <div className="text-left sm:text-right">
-                        <div className="font-mono font-bold text-xs sm:text-sm text-slate-900">
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-0.5 sm:pt-0 border-t border-slate-50 sm:border-0 print:border-0 print:pt-0 print:gap-2">
+                      <div className="text-left sm:text-right print:text-right">
+                        <div className="font-mono font-bold text-xs sm:text-[13px] text-slate-900 print:text-[10px]">
                           {r.pctKehadiran.toFixed(2).replace('.', ',')}%
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[9.5px] sm:text-[10px] text-slate-400 print:text-[8px]">
                           Ijin: {lostHours}j ({r.totalIjin}m)
                         </div>
                       </div>
 
                       <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap ${badgeClass}`}
+                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9.5px] sm:text-[10px] font-bold border whitespace-nowrap print:px-1.5 print:py-0 print:text-[8px] ${badgeClass}`}
                       >
                         {badgeText}
                       </span>

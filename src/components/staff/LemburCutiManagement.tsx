@@ -203,7 +203,7 @@ export const LemburCutiManagement: React.FC<LemburCutiManagementProps> = ({
               <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Tanggal &amp; Waktu</th>
-                  <th className="py-3 px-4">Personil Staff</th>
+                  <th className="py-3 px-4">Personil Pekerja</th>
                   <th className="py-3 px-4">Keperluan &amp; Uraian Mesin</th>
                   <th className="py-3 px-4 text-center">Durasi Jam</th>
                   <th className="py-3 px-4 text-center">Status</th>
@@ -302,7 +302,7 @@ export const LemburCutiManagement: React.FC<LemburCutiManagementProps> = ({
               <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Periode Tanggal Cuti</th>
-                  <th className="py-3 px-4">Nama &amp; NIP Staff</th>
+                  <th className="py-3 px-4">Nama &amp; NIP Pekerja</th>
                   <th className="py-3 px-4">Tipe Cuti</th>
                   <th className="py-3 px-4 text-center">Durasi (Hari)</th>
                   <th className="py-3 px-4">Keterangan</th>
@@ -380,7 +380,7 @@ export const LemburCutiManagement: React.FC<LemburCutiManagementProps> = ({
             <form onSubmit={handleCreateLembur} className="p-5 space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Nama Personil Staff *
+                  Nama Personil Pekerja *
                 </label>
                 <select
                   value={lemburStaffId}
@@ -499,7 +499,7 @@ export const LemburCutiManagement: React.FC<LemburCutiManagementProps> = ({
             <form onSubmit={handleCreateCuti} className="p-5 space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Nama Personil Staff *
+                  Nama Personil Pekerja *
                 </label>
                 <select
                   value={cutiStaffId}

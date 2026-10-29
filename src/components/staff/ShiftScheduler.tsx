@@ -90,7 +90,7 @@ export const ShiftScheduler: React.FC<ShiftSchedulerProps> = ({
 
   const handleExecuteSwap = () => {
     if (!swap1 || !swap2 || swap1 === swap2) {
-      alert('Pilih 2 personil staff yang berbeda untuk pertukaran shift.');
+      alert('Pilih 2 personil pekerja yang berbeda untuk pertukaran shift.');
       return;
     }
     onSwapShift(swap1, swap2);
@@ -234,7 +234,7 @@ export const ShiftScheduler: React.FC<ShiftSchedulerProps> = ({
             <form onSubmit={handleAssignSubmit} className="p-5 space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Pilih Personil Staff
+                  Pilih Personil Pekerja
                 </label>
                 <select
                   value={selectedStaffId}
@@ -278,7 +278,7 @@ export const ShiftScheduler: React.FC<ShiftSchedulerProps> = ({
                     <option value="Regu A">Regu A</option>
                     <option value="Regu B">Regu B</option>
                     <option value="Regu C">Regu C</option>
-                    <option value="Staf Khusus">Staf Khusus</option>
+                    <option value="Staf Khusus">Pekerja Khusus</option>
                   </select>
                 </div>
 

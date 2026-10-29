@@ -743,9 +743,9 @@ export const SWITCHBOARD_APPS: SwitchBoardApp[] = [
   {
     nomor: 8,
     id: 'mod-8',
-    nama: '8. HR Pekerja & Staff PP1',
+    nama: '8. HR Pekerja & Pekerja PP1',
     kategori: 'Administrasi',
-    deskripsi: 'Sistem komprehensif PHL (upah borongan, QR badge) & Staff (GPS geofence, shift, KPI).',
+    deskripsi: 'Sistem komprehensif PHL (upah borongan, QR badge) & Pekerja (GPS geofence, shift, KPI).',
     url: '#hr-pekerja',
     isExternal: false,
     isCurrentApp: true,

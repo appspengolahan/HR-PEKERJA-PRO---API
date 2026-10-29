@@ -80,7 +80,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             PT Batu Karang — Divisi Produksi 1 (PP1)
           </h2>
           <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-            Sistem terintegrasi HR Pekerja Harian Lepas (PHL) 4 lini komoditas dan HR Staff Struktural dengan validasi Geofence 150 meter dari sentral pabrik.
+            Sistem terintegrasi HR Pekerja Harian Lepas (PHL) 4 lini komoditas dan HR Pekerja Struktural dengan validasi Geofence 150 meter dari sentral pabrik.
           </p>
         </div>
 
@@ -128,13 +128,13 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 2: Staff PP1 & Geofence */}
+        {/* Card 2: Pekerja PP1 & Geofence */}
         <div 
           onClick={() => onNavigate('staff-master')}
           className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Staff Struktural</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pekerja Struktural</span>
             <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <ShieldCheck className="w-5 h-5" />
             </div>

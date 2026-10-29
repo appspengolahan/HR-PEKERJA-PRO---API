@@ -272,7 +272,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
               <span className="hidden sm:inline">Cetak</span>
             </button>
 
-            {/* Login Staf Internal */}
+            {/* Login Pekerja Internal */}
             {onSwitchToLogin && (
               <button
                 onClick={onSwitchToLogin}
@@ -280,7 +280,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                 title="Buka gerbang login khusus tim internal"
               >
                 <Lock className="w-3.5 h-3.5" />
-                <span>Login Staf</span>
+                <span>Login Pekerja</span>
               </button>
             )}
 

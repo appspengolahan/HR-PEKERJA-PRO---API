@@ -57,7 +57,7 @@ const ALL_AVAILABLE_TABS: { id: MainTabType; label: string; desc: string; icon: 
   { id: 'jadwalmutasi', label: 'Jadwal Mutasi Terencana', desc: 'Jadwal perpindahan unit & rotasi terjadwal', icon: ArrowRightLeft },
   { id: 'profil', label: 'Profil Kontrak & Riwayat', desc: 'Kartu kendali PKWT pekerja dan detail kepegawaian', icon: User },
   { id: 'calon', label: 'Calon Pekerja & Pelatihan', desc: 'Evaluasi masa pelatihan dan perpanjangan calon', icon: UserCheck },
-  { id: 'hakakses', label: 'Pengaturan Hak Akses (RBAC)', desc: 'Manajemen akun staff, peran, dan modul (Admin)', icon: ShieldCheck }
+  { id: 'hakakses', label: 'Pengaturan Hak Akses (RBAC)', desc: 'Manajemen akun pekerja, peran, dan modul (Admin)', icon: ShieldCheck }
 ];
 
 const SCOPE_OPTIONS = [
@@ -881,7 +881,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
             {accounts.length} Akun
           </div>
           <span className="text-[10px] text-slate-400 mt-1 block">
-            Staf, HR, Mandor &amp; Admin
+            Pekerja, HR, Mandor &amp; Admin
           </span>
         </div>
 

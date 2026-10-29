@@ -157,7 +157,7 @@ export const StaffMasterList: React.FC<StaffMasterListProps> = ({
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm ml-auto md:ml-0"
           >
             <Plus className="w-4 h-4" />
-            Tambah Staff PP1
+            Tambah Pekerja PP1
           </button>
         </div>
 
@@ -169,7 +169,7 @@ export const StaffMasterList: React.FC<StaffMasterListProps> = ({
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-indigo-600" />
             <span className="text-xs font-bold text-slate-800">
-              Data Karyawan Struktural Tetap &amp; Kontrak ({filtered.length} Staff)
+              Data Karyawan Struktural Tetap &amp; Kontrak ({filtered.length} Pekerja)
             </span>
           </div>
           <span className="text-[11px] font-mono text-slate-400">
@@ -249,7 +249,7 @@ export const StaffMasterList: React.FC<StaffMasterListProps> = ({
                     <button
                       onClick={() => handleOpenEdit(s)}
                       className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                      title="Edit Data Staff"
+                      title="Edit Data Pekerja"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
@@ -270,7 +270,7 @@ export const StaffMasterList: React.FC<StaffMasterListProps> = ({
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">
-                  {editingStaff ? 'Edit Data Staff' : 'Daftarkan Staff PP1 Baru'}
+                  {editingStaff ? 'Edit Data Pekerja' : 'Daftarkan Pekerja PP1 Baru'}
                 </h3>
                 <p className="text-[11px] text-slate-400">
                   Format NIP otomatis BK-PP1-xxx
@@ -404,7 +404,7 @@ export const StaffMasterList: React.FC<StaffMasterListProps> = ({
                   type="submit"
                   className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm"
                 >
-                  Simpan Data Staff
+                  Simpan Data Pekerja
                 </button>
               </div>
 
