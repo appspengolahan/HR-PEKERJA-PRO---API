@@ -1007,24 +1007,33 @@ function initUserLoginSheet_() {
   };
 }
 
+function getLoginHeaderRow_(sh) {
+  const last = Math.min(sh.getLastRow(), 10);
+  for (let r = 1; r <= last; r++) {
+    const val = String(sh.getRange(r, 2).getValue() || '').toLowerCase();
+    if (val.indexOf('email') !== -1 || val.indexOf('username') !== -1) {
+      return r;
+    }
+  }
+  return 4; // default header row sesuai yang dibuat user
+}
+
 function getUserLogins_() {
   const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
-  if (!sh) {
-    initUserLoginSheet_();
-    const shNew = getSheet_(SHEET.CONFIG_USER_LOGIN);
-    if (!shNew) return [];
-  }
+  if (!sh) return [];
 
-  const targetSh = getSheet_(SHEET.CONFIG_USER_LOGIN);
-  const lastRow = targetSh.getLastRow();
-  if (lastRow < 4) return [];
+  const lastRow = sh.getLastRow();
+  const headerRow = getLoginHeaderRow_(sh);
+  const dataStart = headerRow + 1;
+  if (lastRow < dataStart) return [];
 
-  const data = targetSh.getRange(4, 1, lastRow - 3, 10).getValues();
+  const data = sh.getRange(dataStart, 1, lastRow - headerRow, 10).getValues();
   const res = [];
 
   data.forEach((r, idx) => {
     const email = String(r[1] || '').trim();
     if (!email) return;
+    if (email.toLowerCase().indexOf('email') !== -1 || email.toLowerCase().indexOf('username') !== -1) return;
 
     const password = String(r[2] || '').trim();
     const nama = String(r[3] || '').trim();
@@ -1042,7 +1051,7 @@ function getUserLogins_() {
     const allowedTabs = rawTabs ? rawTabs.split(',').map(t => t.trim()).filter(Boolean) : ['dashboard', 'presensi', 'lembur', 'rekap'];
 
     res.push({
-      rowNum: 4 + idx,
+      rowNum: dataStart + idx,
       no: r[0],
       email: email,
       password: password,
@@ -1059,7 +1068,6 @@ function getUserLogins_() {
 }
 
 function saveUserLogin_(data, currentUser) {
-  initUserLoginSheet_();
   const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
   if (!sh) throw new Error('Sheet ' + SHEET.CONFIG_USER_LOGIN + ' tidak dapat diakses.');
 
@@ -1067,13 +1075,15 @@ function saveUserLogin_(data, currentUser) {
   if (!emailClean) throw new Error('Email atau username login wajib diisi.');
 
   const lastRow = sh.getLastRow();
+  const headerRow = getLoginHeaderRow_(sh);
+  const dataStart = headerRow + 1;
   let existingRowNum = -1;
 
-  if (lastRow >= 4) {
-    const emails = sh.getRange(4, 2, lastRow - 3, 1).getValues().flat();
+  if (lastRow >= dataStart) {
+    const emails = sh.getRange(dataStart, 2, lastRow - headerRow, 1).getValues().flat();
     for (let i = 0; i < emails.length; i++) {
       if (String(emails[i] || '').trim().toLowerCase() === emailClean) {
-        existingRowNum = 4 + i;
+        existingRowNum = dataStart + i;
         break;
       }
     }
@@ -1099,8 +1109,8 @@ function saveUserLogin_(data, currentUser) {
       message: 'Akun ' + data.email + ' berhasil diperbarui di spreadsheet baris #' + existingRowNum 
     };
   } else {
-    const nextRow = Math.max(4, lastRow + 1);
-    const newNo = nextRow - 3;
+    const nextRow = Math.max(dataStart, lastRow + 1);
+    const newNo = nextRow - headerRow;
     const rowData = [
       newNo,
       data.email.trim(),
@@ -1123,7 +1133,6 @@ function saveUserLogin_(data, currentUser) {
 }
 
 function syncAllUserLogins_(accountsList, currentUser) {
-  initUserLoginSheet_();
   const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
   if (!sh) throw new Error('Sheet ' + SHEET.CONFIG_USER_LOGIN + ' tidak dapat diakses.');
 
@@ -1132,8 +1141,10 @@ function syncAllUserLogins_(accountsList, currentUser) {
   }
 
   const lastRow = sh.getLastRow();
-  if (lastRow >= 4) {
-    sh.getRange(4, 1, lastRow - 3, 10).clearContent();
+  const headerRow = getLoginHeaderRow_(sh);
+  const dataStart = headerRow + 1;
+  if (lastRow >= dataStart) {
+    sh.getRange(dataStart, 1, lastRow - headerRow, 10).clearContent();
   }
 
   const now = new Date();
@@ -1155,7 +1166,7 @@ function syncAllUserLogins_(accountsList, currentUser) {
     ];
   });
 
-  sh.getRange(4, 1, rows.length, 10).setValues(rows);
+  sh.getRange(dataStart, 1, rows.length, 10).setValues(rows);
   return { 
     status: 'success', 
     message: 'Berhasil menyinkronkan ' + rows.length + ' akun internal ke sheet ' + SHEET.CONFIG_USER_LOGIN + '.' 
@@ -1184,5 +1195,164 @@ function deleteUserLogin_(email, currentUser) {
 `;
 
 export const USER_LOGIN_SHEET_NAME = 'CONFIG_USER_LOGIN';
+
+export const GAS_LOGIN_MODULAR_SNIPPET = `/**
+ * =========================================================================
+ * MODUL TAMBAHAN KHUSUS AKUN LOGIN (SHEET: CONFIG_USER_LOGIN)
+ * 100% TERISOLASI — TIDAK AKAN MENGUBAH / MENYENTUH SHEET LAIN
+ * =========================================================================
+ * 
+ * CARA PAKAI:
+ * 1. Di dalam fungsi doPost(e) Anda, tambahkan baris berikut:
+ *    if (action === 'saveUserLogin') return jsonResponse_(saveUserLogin_(payload.data, currentUser));
+ *    if (action === 'deleteUserLogin') return jsonResponse_(deleteUserLogin_((payload.data && payload.data.email) || payload.email, currentUser));
+ *    if (action === 'syncAllUserLogins') return jsonResponse_(syncAllUserLogins_(payload.data, currentUser));
+ *    if (action === 'initUserLoginSheet') return jsonResponse_(initUserLoginSheet_());
+ * 
+ * 2. Di dalam fungsi doGet(e) Anda, tambahkan baris berikut:
+ *    if (action === 'getUserLogins') return jsonResponse_({ status: 'success', data: getUserLogins_() });
+ *    if (action === 'initUserLoginSheet') return jsonResponse_(initUserLoginSheet_());
+ * 
+ * 3. Tempel fungsi-fungsi di bawah ini pada baris paling akhir file Code.gs Anda.
+ */
+
+function getLoginHeaderRow_(sh) {
+  var last = Math.min(sh.getLastRow(), 10);
+  for (var r = 1; r <= last; r++) {
+    var val = String(sh.getRange(r, 2).getValue() || '').toLowerCase();
+    if (val.indexOf('email') !== -1 || val.indexOf('username') !== -1) {
+      return r;
+    }
+  }
+  return 4;
+}
+
+function initUserLoginSheet_() {
+  var ss = SpreadsheetApp.openById('11NpDyRTepu4upwXwN1zoWAuymtYdvd3VARfcKklQf0Y');
+  var sh = ss.getSheetByName('CONFIG_USER_LOGIN');
+  if (!sh) {
+    sh = ss.insertSheet('CONFIG_USER_LOGIN');
+    sh.getRange('A1:J1').merge()
+      .setValue('PT BATU KARANG — DIVISI PRODUKSI I (PP1) | MASTER AKUN PENGGUNA & HAK AKSES')
+      .setBackground('#0f172a').setFontColor('#38bdf8').setFontWeight('bold').setFontSize(12).setHorizontalAlignment('center');
+    sh.getRange('A2:J2').merge()
+      .setValue('Catatan: Sumber data resmi akun login tim internal. Terkoneksi otomatis dengan Web Apps. Jangan ubah struktur kolom.')
+      .setBackground('#1e293b').setFontColor('#94a3b8').setFontSize(9).setHorizontalAlignment('center');
+    var headers = ['No', 'Email / Username', 'Kata Sandi / PIN', 'Nama Pengguna', 'Peran (Role)', 'Cakupan Unit (Scope)', 'Daftar Unit (Koma)', 'Modul Diizinkan (Koma)', 'Status Akun', 'Terakhir Diperbarui'];
+    sh.getRange(3, 1, 1, headers.length).setValues([headers])
+      .setBackground('#1e3a8a').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+    sh.setFrozenRows(3);
+  }
+  return { status: 'success', message: 'Sheet CONFIG_USER_LOGIN siap digunakan.' };
+}
+
+function getUserLogins_() {
+  var ss = SpreadsheetApp.openById('11NpDyRTepu4upwXwN1zoWAuymtYdvd3VARfcKklQf0Y');
+  var sh = ss.getSheetByName('CONFIG_USER_LOGIN');
+  if (!sh) return [];
+  var lastRow = sh.getLastRow();
+  var headerRow = getLoginHeaderRow_(sh);
+  var dataStart = headerRow + 1;
+  if (lastRow < dataStart) return [];
+  var data = sh.getRange(dataStart, 1, lastRow - headerRow, 10).getValues();
+  var res = [];
+  data.forEach(function(r, idx) {
+    var email = String(r[1] || '').trim();
+    if (!email) return;
+    if (email.toLowerCase().indexOf('email') !== -1 || email.toLowerCase().indexOf('username') !== -1) return;
+    var status = String(r[8] || 'Aktif').trim();
+    if (status.toLowerCase() === 'nonaktif') return;
+    res.push({
+      rowNum: dataStart + idx,
+      no: r[0],
+      email: email,
+      password: String(r[2] || '').trim(),
+      nama: String(r[3] || email).trim(),
+      role: String(r[4] || 'Foreman / Mandor').trim(),
+      scope: String(r[5] || 'ALL').trim(),
+      units: String(r[6] || '').split(',').map(function(s){return s.trim();}).filter(Boolean),
+      allowedTabs: String(r[7] || '').split(',').map(function(s){return s.trim();}).filter(Boolean),
+      status: status
+    });
+  });
+  return res;
+}
+
+function syncAllUserLogins_(accountsList, currentUser) {
+  var ss = SpreadsheetApp.openById('11NpDyRTepu4upwXwN1zoWAuymtYdvd3VARfcKklQf0Y');
+  var sh = ss.getSheetByName('CONFIG_USER_LOGIN');
+  if (!sh) throw new Error('Sheet CONFIG_USER_LOGIN tidak ditemukan.');
+  var lastRow = sh.getLastRow();
+  var headerRow = getLoginHeaderRow_(sh);
+  var dataStart = headerRow + 1;
+  if (lastRow >= dataStart) {
+    sh.getRange(dataStart, 1, lastRow - headerRow, 10).clearContent();
+  }
+  var now = new Date();
+  var rows = accountsList.map(function(acc, idx) {
+    var unitsStr = Array.isArray(acc.units) ? acc.units.join(', ') : (acc.units || acc.scope || 'ALL');
+    var tabsStr = Array.isArray(acc.allowedTabs) ? acc.allowedTabs.join(', ') : 'dashboard, presensi';
+    return [
+      idx + 1,
+      String(acc.email || '').trim(),
+      String(acc.password || 'mandor').trim(),
+      String(acc.nama || '').trim(),
+      acc.role || 'Foreman / Mandor',
+      acc.scope || 'ALL',
+      unitsStr,
+      tabsStr,
+      'Aktif',
+      now
+    ];
+  });
+  if (rows.length > 0) {
+    sh.getRange(dataStart, 1, rows.length, 10).setValues(rows);
+  }
+  return { status: 'success', message: 'Berhasil menyinkronkan ' + rows.length + ' akun ke sheet CONFIG_USER_LOGIN.' };
+}
+
+function saveUserLogin_(data, currentUser) {
+  var ss = SpreadsheetApp.openById('11NpDyRTepu4upwXwN1zoWAuymtYdvd3VARfcKklQf0Y');
+  var sh = ss.getSheetByName('CONFIG_USER_LOGIN');
+  if (!sh) throw new Error('Sheet CONFIG_USER_LOGIN tidak ditemukan.');
+  var emailClean = String(data.email || '').trim().toLowerCase();
+  var lastRow = sh.getLastRow();
+  var headerRow = getLoginHeaderRow_(sh);
+  var dataStart = headerRow + 1;
+  var existingRowNum = -1;
+  if (lastRow >= dataStart) {
+    var emails = sh.getRange(dataStart, 2, lastRow - headerRow, 1).getValues().flat();
+    for (var i = 0; i < emails.length; i++) {
+      if (String(emails[i] || '').trim().toLowerCase() === emailClean) {
+        existingRowNum = dataStart + i;
+        break;
+      }
+    }
+  }
+  var unitsStr = Array.isArray(data.units) ? data.units.join(', ') : (data.units || data.scope || 'ALL');
+  var tabsStr = Array.isArray(data.allowedTabs) ? data.allowedTabs.join(', ') : (data.allowedTabs || 'dashboard, presensi');
+  var now = new Date();
+  if (existingRowNum !== -1) {
+    sh.getRange(existingRowNum, 2).setValue(data.email.trim());
+    if (data.password) sh.getRange(existingRowNum, 3).setValue(String(data.password).trim());
+    sh.getRange(existingRowNum, 4).setValue(data.nama.trim());
+    sh.getRange(existingRowNum, 5).setValue(data.role);
+    sh.getRange(existingRowNum, 6).setValue(data.scope);
+    sh.getRange(existingRowNum, 7).setValue(unitsStr);
+    sh.getRange(existingRowNum, 8).setValue(tabsStr);
+    sh.getRange(existingRowNum, 9).setValue('Aktif');
+    sh.getRange(existingRowNum, 10).setValue(now);
+  } else {
+    var nextRow = Math.max(dataStart, lastRow + 1);
+    var newNo = nextRow - headerRow;
+    sh.getRange(nextRow, 1, 1, 10).setValues([[
+      newNo, data.email.trim(), String(data.password || 'mandor').trim(), data.nama.trim(),
+      data.role || 'Foreman / Mandor', data.scope || 'ALL', unitsStr, tabsStr, 'Aktif', now
+    ]]);
+  }
+  return { status: 'success', message: 'Akun ' + data.email + ' berhasil disimpan.' };
+}
+`;
+
 
 

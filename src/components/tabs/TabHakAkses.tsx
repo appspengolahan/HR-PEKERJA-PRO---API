@@ -37,7 +37,11 @@ import {
   FileSpreadsheet,
   Code2,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  ExternalLink,
+  Shield,
+  CheckSquare,
+  FileCode
 } from 'lucide-react';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
@@ -52,7 +56,12 @@ import {
   ALL_UNIT_SEKUPS
 } from '../../services/authService';
 import { gasClient } from '../../services/gasClient';
-import { GAS_CODE_TEMPLATE, USER_LOGIN_SHEET_NAME, TARGET_SPREADSHEET_ID } from '../../services/gasService';
+import { 
+  GAS_CODE_TEMPLATE, 
+  GAS_LOGIN_MODULAR_SNIPPET, 
+  USER_LOGIN_SHEET_NAME, 
+  TARGET_SPREADSHEET_ID 
+} from '../../services/gasService';
 
 interface TabHakAksesProps {
   currentUser: AuthUser | null;
@@ -231,11 +240,69 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   const [isInitializingSheet, setIsInitializingSheet] = useState(false);
   const [isFetchingCloud, setIsFetchingCloud] = useState(false);
   const [isShowGasGuideModal, setIsShowGasGuideModal] = useState(false);
+  const [isGasDeploymentOutdated, setIsGasDeploymentOutdated] = useState(false);
+  const [gasGuideTab, setGasGuideTab] = useState<'manual' | 'snippet' | 'full'>('manual');
   const [gasCodeCopied, setGasCodeCopied] = useState(false);
+  const [gasSnippetCopied, setGasSnippetCopied] = useState(false);
+  const [headersCopied, setHeadersCopied] = useState(false);
+  const [accountsDataCopied, setAccountsDataCopied] = useState(false);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 5000);
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  // Salin 10 Kolom Header Sheet CONFIG_USER_LOGIN untuk pembuatan manual tanpa skrip
+  const handleCopyHeadersForManualSheet = () => {
+    const headers = [
+      'No',
+      'Email / Username',
+      'Kata Sandi / PIN',
+      'Nama Pengguna',
+      'Peran (Role)',
+      'Cakupan Unit (Scope)',
+      'Daftar Unit (Koma)',
+      'Modul Diizinkan (Koma)',
+      'Status Akun',
+      'Terakhir Diperbarui'
+    ].join('\t');
+
+    navigator.clipboard.writeText(headers).then(() => {
+      setHeadersCopied(true);
+      setTimeout(() => setHeadersCopied(false), 2500);
+      showNotification('success', '10 Kolom Header berhasil disalin! Silakan tempel (Ctrl+V) di sel A3 (atau A1) tab CONFIG_USER_LOGIN.');
+    }).catch(() => {
+      showNotification('error', 'Gagal menyalin header ke clipboard.');
+    });
+  };
+
+  // Salin seluruh 20 akun internal ke format tabel (TSV) agar bisa langsung di-paste ke Google Sheets
+  const handleCopyAllAccountsTSV = () => {
+    const now = new Date().toLocaleDateString('id-ID');
+    const rows = accounts.map((acc, idx) => {
+      const unitsStr = Array.isArray(acc.units) ? acc.units.join(', ') : (acc.units || acc.scope || 'ALL');
+      const tabsStr = Array.isArray(acc.allowedTabs) ? acc.allowedTabs.join(', ') : 'dashboard, presensi';
+      return [
+        idx + 1,
+        acc.email.trim(),
+        acc.password || 'mandor',
+        acc.nama.trim(),
+        acc.role,
+        acc.scope,
+        unitsStr,
+        tabsStr,
+        'Aktif',
+        now
+      ].join('\t');
+    }).join('\n');
+
+    navigator.clipboard.writeText(rows).then(() => {
+      setAccountsDataCopied(true);
+      setTimeout(() => setAccountsDataCopied(false), 2500);
+      showNotification('success', `Seluruh data ${accounts.length} akun staf berhasil disalin! Silakan tempel (Ctrl+V) di sel A4 tab CONFIG_USER_LOGIN.`);
+    }).catch(() => {
+      showNotification('error', 'Gagal menyalin data akun ke clipboard.');
+    });
   };
 
   // 1. Sinkronisasi seluruh daftar akun ke Google Sheet CONFIG_USER_LOGIN
@@ -244,9 +311,17 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     try {
       const res = await gasClient.syncAllUserLogins(accounts, currentUser?.nama || 'Admin');
       if (res.status === 'success') {
+        setIsGasDeploymentOutdated(false);
         showNotification('success', `✅ Sukses! Seluruh ${accounts.length} akun internal berhasil disimpan & disinkronkan ke sheet "${USER_LOGIN_SHEET_NAME}" di Google Spreadsheet.`);
       } else {
-        showNotification('error', `Gagal menyinkronkan akun: ${res.message || 'Periksa koneksi Google Apps Script'}`);
+        const msg = res.message || '';
+        if (msg.includes('tidak dikenali') || msg.includes('doPost') || msg.includes('syncAllUserLogins')) {
+          setIsGasDeploymentOutdated(true);
+          setIsShowGasGuideModal(true);
+          showNotification('error', `⚠️ Apps Script di Spreadsheet Anda masih versi lama (perintah "${msg}"). Tab lama Anda 100% aman! Anda dapat membuat tab manual dalam 30 detik atau memperbarui deployment skrip.`);
+        } else {
+          showNotification('error', `Gagal menyinkronkan akun: ${msg || 'Periksa koneksi Google Apps Script'}`);
+        }
       }
     } catch (e) {
       showNotification('error', `Kesalahan saat menyinkronkan: ${String(e)}`);
@@ -261,9 +336,17 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     try {
       const res = await gasClient.initUserLoginSheet(currentUser?.nama || 'Admin');
       if (res.status === 'success') {
+        setIsGasDeploymentOutdated(false);
         showNotification('success', `✅ Berhasil! Sheet "${USER_LOGIN_SHEET_NAME}" telah dibuat dan disiapkan di Google Spreadsheet ID ${TARGET_SPREADSHEET_ID}.`);
       } else {
-        showNotification('error', `Gagal menyiapkan sheet: ${res.message || 'Periksa Apps Script'}`);
+        const msg = res.message || '';
+        if (msg.includes('tidak dikenali') || msg.includes('doPost') || msg.includes('initUserLoginSheet')) {
+          setIsGasDeploymentOutdated(true);
+          setIsShowGasGuideModal(true);
+          showNotification('error', `⚠️ Google Apps Script di Spreadsheet Anda belum di-deploy ulang (perintah "${msg}"). Tab lama Anda 100% aman! Silakan buat tab secara manual (30 detik) atau perbarui deployment Apps Script.`);
+        } else {
+          showNotification('error', `Gagal menyiapkan sheet: ${msg || 'Periksa Apps Script'}`);
+        }
       }
     } catch (e) {
       showNotification('error', `Kesalahan: ${String(e)}`);
@@ -278,9 +361,17 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     try {
       const cloudAccounts = await authService.syncFromCloud();
       setAccounts(cloudAccounts);
-      showNotification('success', `✅ Berhasil memperbarui! Mengambil ${cloudAccounts.length} akun terbaru dari Google Sheet "${USER_LOGIN_SHEET_NAME}".`);
+      setIsGasDeploymentOutdated(false);
+      showNotification('success', `✅ Berhasil! Mengambil ${cloudAccounts.length} akun terbaru dari Google Sheet "${USER_LOGIN_SHEET_NAME}".`);
     } catch (e) {
-      showNotification('error', `Gagal memuat akun dari cloud: ${String(e)}`);
+      const msg = String(e);
+      if (msg.includes('tidak dikenali') || msg.includes('getUserLogins')) {
+        setIsGasDeploymentOutdated(true);
+        setIsShowGasGuideModal(true);
+        showNotification('error', `⚠️ Google Apps Script belum memuat perintah "getUserLogins". Akun lokal tetap aktif dan aman digunakan.`);
+      } else {
+        showNotification('error', `Gagal memuat akun dari cloud: ${msg}`);
+      }
     } finally {
       setIsFetchingCloud(false);
     }
@@ -1066,71 +1157,108 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       )}
 
       {/* Cloud Integration Hub Bar for CONFIG_USER_LOGIN */}
-      <div className="bg-gradient-to-r from-blue-900/90 via-slate-900 to-indigo-950 p-4 sm:p-5 rounded-2xl border border-blue-700/50 shadow-md text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 flex-shrink-0">
-            <FileSpreadsheet className="w-5 h-5" />
-          </div>
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-                Sheet Cloud Akun: <code className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-cyan-300 font-mono text-[11px]">{USER_LOGIN_SHEET_NAME}</code>
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
-                Multi-Perangkat Online
-              </span>
+      <div className="bg-gradient-to-r from-blue-900/90 via-slate-900 to-indigo-950 p-4 sm:p-5 rounded-2xl border border-blue-700/50 shadow-md text-white flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 flex-shrink-0">
+              <FileSpreadsheet className="w-5 h-5" />
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Data login staf disimpan di Google Spreadsheet sehingga bisa login dari Handphone, Tablet &amp; PC mana saja secara terintegrasi.
-            </p>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+                  Sheet Cloud Akun: <code className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-cyan-300 font-mono text-[11px]">{USER_LOGIN_SHEET_NAME}</code>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
+                  Multi-Perangkat Online
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-cyan-300 text-[10px] font-semibold flex items-center gap-1">
+                  <Shield className="w-3 h-3 text-cyan-400" />
+                  100% Terisolasi (Aman)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Data login staf disimpan di Google Spreadsheet (tab baru <code className="text-cyan-300 font-bold">{USER_LOGIN_SHEET_NAME}</code>) tanpa menyentuh sheet yang sudah ada.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleSyncAllToCloud}
+              disabled={isSyncingAll}
+              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Kirim seluruh akun saat ini ke Google Sheet CONFIG_USER_LOGIN"
+            >
+              <CloudUpload className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-bounce' : ''}`} />
+              <span>{isSyncingAll ? 'Menyinkronkan...' : 'Sinkronkan ke Sheet'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleFetchFromCloud}
+              disabled={isFetchingCloud}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              title="Ambil pembaruan akun terbaru dari Google Sheet CONFIG_USER_LOGIN"
+            >
+              <CloudDownload className={`w-3.5 h-3.5 ${isFetchingCloud ? 'animate-spin' : ''}`} />
+              <span>{isFetchingCloud ? 'Mengambil...' : 'Tarik dari Sheet'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleInitLoginSheet}
+              disabled={isInitializingSheet}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              title="Siapkan sheet CONFIG_USER_LOGIN baru di spreadsheet target"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isInitializingSheet ? 'Menyiapkan...' : 'Siapkan Sheet'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setGasGuideTab('manual');
+                setIsShowGasGuideModal(true);
+              }}
+              className="px-3 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold border border-emerald-600/50 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Buka panduan cepat pembuatan sheet manual & jaminan keamanan"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Panduan Aman Sheet</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-          <button
-            type="button"
-            onClick={handleSyncAllToCloud}
-            disabled={isSyncingAll}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
-            title="Kirim seluruh akun lokal saat ini ke Google Sheet CONFIG_USER_LOGIN"
-          >
-            <CloudUpload className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-bounce' : ''}`} />
-            <span>{isSyncingAll ? 'Menyinkronkan...' : 'Sinkronkan ke Sheet'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleFetchFromCloud}
-            disabled={isFetchingCloud}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-            title="Ambil pembaruan akun terbaru dari Google Sheet CONFIG_USER_LOGIN"
-          >
-            <CloudDownload className={`w-3.5 h-3.5 ${isFetchingCloud ? 'animate-spin' : ''}`} />
-            <span>{isFetchingCloud ? 'Mengambil...' : 'Tarik dari Sheet'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleInitLoginSheet}
-            disabled={isInitializingSheet}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-            title="Buat sheet CONFIG_USER_LOGIN baru di spreadsheet target jika belum ada"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isInitializingSheet ? 'Menyiapkan...' : 'Siapkan Sheet'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsShowGasGuideModal(true)}
-            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
-            title="Buka panduan skrip Code.gs dan struktur sheet"
-          >
-            <Code2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Skrip GAS</span>
-          </button>
-        </div>
+        {/* Warning banner jika deployment Apps Script di Google Sheets masih versi lama */}
+        {isGasDeploymentOutdated && (
+          <div className="mt-1 p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in">
+            <div className="flex items-start sm:items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5 sm:mt-0" />
+              <div className="space-y-0.5">
+                <span className="font-bold text-amber-300 block">
+                  Deployment Google Apps Script Anda Belum Memuat Fungsi Baru
+                </span>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  Struktur database lama Anda (<code className="text-amber-100 font-mono">MASTER_PEKERJA</code>, <code className="text-amber-100 font-mono">LOG_PRESENSI_IJIN</code>, dll) <strong>100% aman dan tidak tersentuh</strong>. Anda dapat membuat tab <code className="text-white font-mono bg-amber-950 px-1 py-0.5 rounded">CONFIG_USER_LOGIN</code> secara manual dalam 30 detik tanpa skrip!
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setGasGuideTab('manual');
+                setIsShowGasGuideModal(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex-shrink-0 transition-colors flex items-center gap-1 self-start sm:self-auto"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Buka Solusi Manual (30 Detik)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 4 Stat Overview Cards */}
@@ -2688,127 +2816,297 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
       {/* MODAL PANDUAN INTEGRASI GOOGLE SHEET & CODE.GS */}
       {isShowGasGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
             
+            {/* Modal Header */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
-                  <FileSpreadsheet className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold flex items-center gap-2">
-                    Panduan Sheet Khusus Login &amp; Skrip Apps Script
+                  <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                    Panduan Aman: Menyiapkan Sheet Akun Login
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-mono">
-                    Google Spreadsheet ID: {TARGET_SPREADSHEET_ID}
-                  </p>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span>Sheet: <strong className="text-cyan-300 font-mono">{USER_LOGIN_SHEET_NAME}</strong></span>
+                    <span>&bull;</span>
+                    <a 
+                      href={`https://docs.google.com/spreadsheets/d/${TARGET_SPREADSHEET_ID}/edit`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-indigo-400 hover:text-indigo-300 underline flex items-center gap-1 font-mono"
+                    >
+                      Buka Spreadsheet <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
               <button 
                 onClick={() => setIsShowGasGuideModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
+                className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-sm font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+            {/* Modal Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               
-              <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 space-y-1.5">
-                <span className="font-bold text-blue-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-blue-700" />
-                  Mengapa Butuh Sheet Khusus Login?
-                </span>
-                <p className="text-blue-950 text-[11px] leading-relaxed">
-                  Sebelumnya akun yang didaftarkan oleh Administrator hanya tersimpan pada browser laptop/PC Admin. Dengan sheet <strong>{USER_LOGIN_SHEET_NAME}</strong>, setiap akun otomatis tersimpan di Cloud Google Sheets sehingga staf dapat langsung login dari <strong>Handphone (Android/iOS), Tablet, dan Laptop manapun tanpa kendala</strong>.
+              {/* Jaminan Keamanan Mutlak (Anti-Rusak) */}
+              <div className="p-4 bg-emerald-50 rounded-2xl border-2 border-emerald-300/80 shadow-xs space-y-1.5">
+                <div className="flex items-center gap-2 text-emerald-900 font-black text-sm">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <span>Jaminan Keamanan 100% Terisolasi (Anti-Rusak)</span>
+                </div>
+                <p className="text-emerald-950 text-xs leading-relaxed">
+                  Tab <strong>{USER_LOGIN_SHEET_NAME}</strong> adalah lembar kerja mandiri baru. 
+                  Seluruh data dan struktur lembar kerja yang sudah berjalan (<strong>MASTER_PEKERJA</strong>, <strong>LOG_PRESENSI_IJIN</strong>, <strong>REKAP_PRESENSI</strong>, <strong>LOG_LEMBUR</strong>, <strong>LOG_UPAH</strong>, <strong>SLIP_UPAH</strong>, dll) 
+                  <span className="bg-emerald-200/80 px-1 py-0.5 rounded font-bold text-emerald-900 mx-1">100% AMAN, TIDAK DIUBAH, TIDAK DIHAPUS, DAN SAMA SEKALI TIDAK TERSENTUH</span>.
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <span className="font-bold text-slate-800 text-xs">
-                  Cara Kerja &amp; Struktur Kolom Sheet `{USER_LOGIN_SHEET_NAME}`:
-                </span>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom A: No</span>
-                    <span className="text-slate-500">Nomor urut akun staf</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom B: Email / Username</span>
-                    <span className="text-slate-500">Kunci login staf (misal: indahnurmala189@gmail.com)</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom C: Kata Sandi / PIN</span>
-                    <span className="text-slate-500">Kata sandi akun (misal: mandor)</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom D: Nama Pengguna</span>
-                    <span className="text-slate-500">Nama lengkap staf</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom E: Peran (Role)</span>
-                    <span className="text-slate-500">Jabatan peranan dalam sistem</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom F &amp; G: Scope &amp; Unit</span>
-                    <span className="text-slate-500">Cakupan unit kerja pekerja</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom H: Modul Diizinkan</span>
-                    <span className="text-slate-500">Daftar tab modul yang boleh dibuka</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <span className="font-bold block text-slate-900 mb-0.5">Kolom I &amp; J: Status &amp; Waktu</span>
-                    <span className="text-slate-500">Status "Aktif" &amp; timestamp sinkronisasi</span>
-                  </div>
+              {/* Status Login Langsung Aktif */}
+              <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-blue-950 text-[11px] leading-relaxed">
+                  <strong>Kabar Baik:</strong> Seluruh 20 akun staf (termasuk <code className="bg-blue-100 text-blue-900 px-1 rounded font-bold">indahnurmala189@gmail.com</code> dengan PIN <code className="bg-blue-100 text-blue-900 px-1 rounded font-bold">mandor</code>) <strong>sudah aktif dan langsung bisa login</strong> di HP Android/iPhone, Tablet, maupun PC tanpa harus menunggu sheet disiapkan.
                 </div>
               </div>
 
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
-                <span className="font-bold text-emerald-900 block text-xs">
-                  🚀 Langkah Aktivasi Cepat:
-                </span>
-                <ol className="list-decimal pl-4 space-y-1 text-[11px] text-emerald-950">
-                  <li>Klik tombol <strong>"Siapkan Sheet"</strong> di atas. Sistem akan mengirim sinyal otomatis ke Apps Script untuk membuat sheet `{USER_LOGIN_SHEET_NAME}`.</li>
-                  <li>Jika Anda memperbarui skrip Apps Script, salin skrip di bawah lalu tempelkan ke <strong>Extensions &gt; Apps Script (Code.gs)</strong> di Google Spreadsheet.</li>
-                  <li>Klik <strong>Deploy &gt; Manage Deployments &gt; Edit &gt; New Version &gt; Deploy</strong> di Google Apps Script.</li>
-                  <li>Setelah itu, klik tombol <strong>"Sinkronkan ke Sheet"</strong> di atas untuk mem-push seluruh akun saat ini ke Google Spreadsheet.</li>
-                </ol>
+              {/* Tab Selector Panduan */}
+              <div className="flex border-b border-slate-200 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setGasGuideTab('manual')}
+                  className={`pb-2 px-3 font-bold text-xs border-b-2 transition-all flex items-center gap-1.5 ${
+                    gasGuideTab === 'manual'
+                      ? 'border-indigo-600 text-indigo-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Pilihan 1: Buat Manual di Spreadsheet (Paling Mudah &amp; Aman)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGasGuideTab('snippet')}
+                  className={`pb-2 px-3 font-bold text-xs border-b-2 transition-all flex items-center gap-1.5 ${
+                    gasGuideTab === 'snippet'
+                      ? 'border-indigo-600 text-indigo-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Pilihan 2: Tempel Potongan Skrip Saja</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGasGuideTab('full')}
+                  className={`pb-2 px-3 font-bold text-xs border-b-2 transition-all flex items-center gap-1.5 ${
+                    gasGuideTab === 'full'
+                      ? 'border-indigo-600 text-indigo-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Code2 className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Pilihan 3: Skrip Lengkap Code.gs</span>
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800 text-xs">
-                    Kode Lengkap Google Apps Script (Code.gs):
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
-                      setGasCodeCopied(true);
-                      setTimeout(() => setGasCodeCopied(false), 2000);
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                  >
-                    {gasCodeCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{gasCodeCopied ? 'Tersalin!' : 'Salin Kode'}</span>
-                  </button>
+              {/* KONTEN TAB 1: CARA MANUAL (100% AMAN TANPA SKRIP) */}
+              {gasGuideTab === 'manual' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950 text-[11px] leading-relaxed">
+                    <strong>Pilihan Terbaik:</strong> Jika Anda tidak ingin mengubah atau membuka editor Apps Script, Anda cukup membuat tab baru secara manual langsung di Google Sheets dalam 30 detik!
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                        1
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-900 block text-xs">Buka Google Spreadsheet Target</span>
+                        <p className="text-slate-600 text-[11px]">
+                          Buka Google Spreadsheet HR Pekerja PP1 di peramban (browser) Anda.
+                        </p>
+                        <a
+                          href={`https://docs.google.com/spreadsheets/d/${TARGET_SPREADSHEET_ID}/edit`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs mt-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Klik Di Sini untuk Buka Spreadsheet</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                        2
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-900 block text-xs">Tambah Sheet Baru &amp; Beri Nama "CONFIG_USER_LOGIN"</span>
+                        <p className="text-slate-600 text-[11px]">
+                          Di pojok kiri bawah Google Sheets, klik ikon tanda tambah (<strong>+ Tambah Sheet</strong>). Klik kanan atau klik dua kali nama tab baru tersebut, lalu ubah namanya persis menjadi:
+                        </p>
+                        <div className="inline-block px-2.5 py-1 rounded bg-slate-900 text-cyan-300 font-mono font-bold text-xs">
+                          CONFIG_USER_LOGIN
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                        3
+                      </div>
+                      <div className="space-y-2 flex-1">
+                        <span className="font-bold text-slate-900 block text-xs">Tempel 10 Kolom Header ke Sel A3 (atau A1)</span>
+                        <p className="text-slate-600 text-[11px]">
+                          Klik tombol salin di bawah ini, lalu klik sel <strong>A3</strong> (atau <strong>A1</strong>) di sheet <code className="font-mono text-indigo-700 font-bold">CONFIG_USER_LOGIN</code> dan tekan <kbd className="px-1.5 py-0.5 bg-slate-200 rounded text-slate-800 font-mono text-[10px]">Ctrl+V</kbd>.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleCopyHeadersForManualSheet}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                        >
+                          {headersCopied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                          <span>{headersCopied ? '10 Kolom Header Tersalin!' : '📋 Salin 10 Kolom Header'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                        4
+                      </div>
+                      <div className="space-y-2 flex-1">
+                        <span className="font-bold text-slate-900 block text-xs">(Opsional) Tempel 20 Data Akun Staf ke Sel A4</span>
+                        <p className="text-slate-600 text-[11px]">
+                          Klik tombol salin di bawah ini, lalu klik sel <strong>A4</strong> dan tekan <kbd className="px-1.5 py-0.5 bg-slate-200 rounded text-slate-800 font-mono text-[10px]">Ctrl+V</kbd>. Semua 20 akun akan langsung terisi rapi!
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleCopyAllAccountsTSV}
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                        >
+                          {accountsDataCopied ? <Check className="w-4 h-4 text-emerald-200" /> : <Copy className="w-4 h-4" />}
+                          <span>{accountsDataCopied ? 'Data 20 Akun Tersalin!' : '📋 Salin Seluruh 20 Data Akun Staf (Siap Tempel)'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Struktur Kolom Preview */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <span className="font-bold text-slate-700 text-xs block">Preview Struktur 10 Kolom Tab CONFIG_USER_LOGIN:</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[10px] font-mono">
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">A: No</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">B: Email / Username</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">C: Kata Sandi / PIN</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">D: Nama Pengguna</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">E: Peran (Role)</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">F: Cakupan (Scope)</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">G: Daftar Unit</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">H: Modul Diizinkan</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">I: Status Akun</div>
+                      <div className="p-1.5 rounded bg-white border border-slate-200 font-bold text-slate-800">J: Terakhir Diperbarui</div>
+                    </div>
+                  </div>
                 </div>
-                <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[10px] max-h-48 overflow-y-auto leading-relaxed">
-                  {GAS_CODE_TEMPLATE}
-                </pre>
-              </div>
+              )}
+
+              {/* KONTEN TAB 2: POTONGAN SKRIP TAMBAHAN (TANPA MENIMPA CODE.GS) */}
+              {gasGuideTab === 'snippet' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-950 text-[11px] leading-relaxed">
+                    <strong>Pilihan Aman (Tanpa Ganti Seluruh File):</strong> Jika Anda tidak ingin menimpa file <code className="font-mono">Code.gs</code> yang sudah ada, cukup tempelkan potongan fungsi ini di bagian paling bawah file <code className="font-mono">Code.gs</code> Anda.
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-xs">
+                        Potongan Fungsi Tambahan (Hanya untuk Fitur Akun Login):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(GAS_LOGIN_MODULAR_SNIPPET);
+                          setGasSnippetCopied(true);
+                          setTimeout(() => setGasSnippetCopied(false), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        {gasSnippetCopied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{gasSnippetCopied ? 'Tersalin!' : 'Salin Potongan Kode'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[10px] max-h-56 overflow-y-auto leading-relaxed">
+                      {GAS_LOGIN_MODULAR_SNIPPET}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* KONTEN TAB 3: SKRIP CODE.GS LENGKAP */}
+              {gasGuideTab === 'full' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="p-3 bg-slate-100 rounded-xl border border-slate-200 text-slate-800 text-[11px] leading-relaxed">
+                    <strong>Pilihan Full Upgrade:</strong> Anda dapat mengganti seluruh isi file <code className="font-mono">Code.gs</code> dengan kode lengkap ini. Seluruh fitur presensi, lembur, master pekerja, mutasi, dan akun login sudah digabungkan secara utuh.
+                  </div>
+
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950 text-[11px] space-y-1">
+                    <span className="font-bold block">⚠️ Langkah Sangat Penting di Google Apps Script:</span>
+                    <p>
+                      Setelah menyimpan <code className="font-mono font-bold">Code.gs</code>, Anda <strong>WAJIB</strong> mengklik: 
+                      <br />
+                      <strong>Deploy &gt; Manage Deployments (Kelola Penerapan) &gt; Klik ikon Pensil (Edit) &gt; Pilih Version: New Version (Versi Baru) &gt; Klik Deploy</strong>.
+                      <br />
+                      <em>Jika tidak memilih Versi Baru, Google Apps Script akan terus menjalankan versi lama!</em>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 text-xs">
+                        Seluruh Kode Google Apps Script (Code.gs):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
+                          setGasCodeCopied(true);
+                          setTimeout(() => setGasCodeCopied(false), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        {gasCodeCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{gasCodeCopied ? 'Tersalin!' : 'Salin Kode Lengkap'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[10px] max-h-56 overflow-y-auto leading-relaxed">
+                      {GAS_CODE_TEMPLATE}
+                    </pre>
+                  </div>
+                </div>
+              )}
 
             </div>
 
-            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 hidden sm:inline">
+                Sistem HR Pekerja PP1 &bull; PT Batu Karang
+              </span>
               <button
                 type="button"
                 onClick={() => setIsShowGasGuideModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
               >
-                Tutup Panduan
+                Selesai &amp; Tutup Panduan
               </button>
             </div>
 
