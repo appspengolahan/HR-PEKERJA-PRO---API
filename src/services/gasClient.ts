@@ -117,6 +117,41 @@ export const gasClient = {
     }
   },
 
+  // Ambil daftar akun pengguna dari sheet CONFIG_USER_LOGIN
+  getUserLogins: async (): Promise<GasApiResponse<any[]>> => {
+    const url = gasClient.getEndpointUrl();
+    try {
+      const res = await fetchWithTimeout(
+        `${url}?action=getUserLogins`,
+        { method: 'GET', headers: { 'Accept': 'application/json' } },
+        12000
+      );
+      return await res.json();
+    } catch (err) {
+      return { status: 'error', message: String(err) };
+    }
+  },
+
+  // Simpan / update akun pengguna ke sheet CONFIG_USER_LOGIN
+  saveUserLogin: async (account: any, currentUser = 'Admin'): Promise<GasApiResponse> => {
+    return gasClient.postMutation('saveUserLogin', account, currentUser);
+  },
+
+  // Sinkronisasi seluruh daftar akun ke sheet CONFIG_USER_LOGIN
+  syncAllUserLogins: async (accounts: any[], currentUser = 'Admin'): Promise<GasApiResponse> => {
+    return gasClient.postMutation('syncAllUserLogins', accounts, currentUser);
+  },
+
+  // Hapus akun dari sheet CONFIG_USER_LOGIN
+  deleteUserLogin: async (email: string, currentUser = 'Admin'): Promise<GasApiResponse> => {
+    return gasClient.postMutation('deleteUserLogin', { email }, currentUser);
+  },
+
+  // Inisialisasi sheet CONFIG_USER_LOGIN di spreadsheet
+  initUserLoginSheet: async (currentUser = 'Admin'): Promise<GasApiResponse> => {
+    return gasClient.postMutation('initUserLoginSheet', {}, currentUser);
+  },
+
   // Post Mutation
   postMutation: async (action: string, data: unknown, currentUser = 'Web App User'): Promise<GasApiResponse> => {
     const url = gasClient.getEndpointUrl();

@@ -1,4 +1,5 @@
 import { MainTabType, PekerjaData } from '../types';
+import { gasClient } from './gasClient';
 
 export type UserAccessRole = string;
 
@@ -656,6 +657,59 @@ export const authService = {
     sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
     return { success: true, user: authUser };
+  },
+
+  // Sinkronisasi data akun dari Google Sheets (CONFIG_USER_LOGIN) ke penyimpanan lokal
+  syncFromCloud: async (): Promise<InternalAccount[]> => {
+    try {
+      const res = await gasClient.getUserLogins();
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        const cloudAccounts: InternalAccount[] = res.data.map(item => ({
+          email: String(item.email || '').trim().toLowerCase(),
+          password: String(item.password || '').trim(),
+          nama: String(item.nama || item.email || '').trim(),
+          role: item.role || 'Foreman / Mandor',
+          scope: item.scope || 'ALL',
+          units: Array.isArray(item.units) ? item.units : [item.scope || 'ALL'],
+          allowedTabs: Array.isArray(item.allowedTabs) ? item.allowedTabs : ['dashboard', 'presensi', 'lembur', 'rekap']
+        }));
+
+        const merged: InternalAccount[] = [...cloudAccounts];
+        WHITELIST_INTERNAL.forEach(defAcc => {
+          const idx = merged.findIndex(a => a.email.toLowerCase().trim() === defAcc.email.toLowerCase().trim());
+          if (idx === -1) {
+            merged.push(defAcc);
+          }
+        });
+
+        authService.saveInternalAccounts(merged);
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Sync accounts from cloud failed/offline:', e);
+    }
+    return authService.getInternalAccounts();
+  },
+
+  // Login Internal Asinkron (Cek lokal terlebih dahulu, jika gagal otomatis fetch dari Cloud Google Sheets)
+  loginInternalAsync: async (identifier: string, password: string): Promise<{ success: boolean; user?: AuthUser; message?: string }> => {
+    const localRes = authService.loginInternal(identifier, password);
+    if (localRes.success) {
+      return localRes;
+    }
+
+    try {
+      await authService.syncFromCloud();
+      const retryRes = authService.loginInternal(identifier, password);
+      if (retryRes.success) {
+        return retryRes;
+      }
+      return retryRes;
+    } catch {
+      // ignore
+    }
+
+    return localRes;
   },
 
   // Login Pekerja Harian (Verifikasi Database Spreadsheet)

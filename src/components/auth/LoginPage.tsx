@@ -13,7 +13,8 @@ import {
   Users,
   Eye,
   EyeOff,
-  Globe
+  Globe,
+  RefreshCw
 } from 'lucide-react';
 import { AuthUser, authService, WHITELIST_INTERNAL } from '../../services/authService';
 import { PekerjaData } from '../../types';
@@ -36,6 +37,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [internalPassword, setInternalPassword] = useState('');
   const [showInternalPassword, setShowInternalPassword] = useState(false);
   const [internalError, setInternalError] = useState('');
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
 
   // Pekerja Form State
   const [pekerjaNama, setPekerjaNama] = useState('');
@@ -66,8 +69,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setTimeout(() => setLogoClicks(0), 3000);
   };
 
-  // Keyboard shortcut listener (Ctrl+Shift+D or Cmd+Shift+D) & URL Query parameter auto-fill/login
+  // Keyboard shortcut listener, cloud sync on mount, & URL Query parameter auto-fill/login
   useEffect(() => {
+    // Sinkronkan akun dari sheet Google Sheets di latar belakang saat halaman login dibuka
+    authService.syncFromCloud().catch(() => {});
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
         e.preventDefault();
@@ -86,10 +92,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setActiveTab('internal');
         if (qPin) {
           setInternalPassword(qPin);
-          const res = authService.loginInternal(qUser, qPin);
-          if (res.success && res.user) {
-            onLoginSuccess(res.user);
-          }
+          authService.loginInternalAsync(qUser, qPin).then(res => {
+            if (res.success && res.user) {
+              onLoginSuccess(res.user);
+            }
+          });
         }
       }
     } catch {
@@ -98,6 +105,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onLoginSuccess]);
+
+  const handleManualSyncCloud = async () => {
+    setIsSyncingCloud(true);
+    setSyncNotice('');
+    try {
+      const accounts = await authService.syncFromCloud();
+      setSyncNotice(`✅ Sukses! ${accounts.length} akun berhasil disinkronkan dari Google Sheets.`);
+      setTimeout(() => setSyncNotice(''), 5000);
+    } catch {
+      setSyncNotice('⚠️ Menggunakan basis data akun lokal (offline).');
+      setTimeout(() => setSyncNotice(''), 4000);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   const handleUnlockPin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,13 +163,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  const handleInternalSubmit = (e: React.FormEvent) => {
+  const handleInternalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setInternalError('');
+    setSyncNotice('');
     setIsLoading(true);
 
     try {
-      const res = authService.loginInternal(internalEmail.trim(), internalPassword.trim());
+      const res = await authService.loginInternalAsync(internalEmail.trim(), internalPassword.trim());
       if (res.success && res.user) {
         if (['Super Admin', 'Project Manager', 'Site Engineer', 'Manajer Operasional', 'HR Admin'].includes(res.user.role) || res.user.email === 'appspengolahan@gmail.com') {
           sessionStorage.setItem('bk_supervisor_session', 'true');
@@ -155,7 +178,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         }
         onLoginSuccess(res.user);
       } else {
-        setInternalError(res.message || 'Login gagal.');
+        setInternalError(res.message || 'Login ditolak. Pastikan email/username dan PIN sudah benar.');
       }
     } finally {
       setIsLoading(false);
@@ -259,9 +282,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </div>
 
               {internalError && (
-                <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-xs text-red-300 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <span>{internalError}</span>
+                <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-xl text-xs text-red-300 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{internalError}</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-red-900/60 flex items-center justify-between">
+                    <span className="text-[10px] text-red-300/80">Baru diberi akses oleh Admin?</span>
+                    <button
+                      type="button"
+                      onClick={handleManualSyncCloud}
+                      disabled={isSyncingCloud}
+                      className="px-2 py-1 bg-red-900/80 hover:bg-red-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingCloud ? 'Menyinkronkan...' : 'Muat Ulang Akun dari Cloud'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {syncNotice && (
+                <div className="p-2.5 bg-emerald-950/60 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <span>{syncNotice}</span>
                 </div>
               )}
 

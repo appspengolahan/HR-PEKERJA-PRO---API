@@ -30,7 +30,14 @@ import {
   Link,
   Copy,
   Download,
-  Upload
+  Upload,
+  Cloud,
+  CloudUpload,
+  CloudDownload,
+  FileSpreadsheet,
+  Code2,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
@@ -44,6 +51,8 @@ import {
   DEFAULT_ROLE_MATRIX,
   ALL_UNIT_SEKUPS
 } from '../../services/authService';
+import { gasClient } from '../../services/gasClient';
+import { GAS_CODE_TEMPLATE, USER_LOGIN_SHEET_NAME, TARGET_SPREADSHEET_ID } from '../../services/gasService';
 
 interface TabHakAksesProps {
   currentUser: AuthUser | null;
@@ -217,9 +226,64 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     selectedTabs: ['dashboard', 'presensi'] as MainTabType[]
   });
 
+  // Cloud Sheet CONFIG_USER_LOGIN Sync States
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isInitializingSheet, setIsInitializingSheet] = useState(false);
+  const [isFetchingCloud, setIsFetchingCloud] = useState(false);
+  const [isShowGasGuideModal, setIsShowGasGuideModal] = useState(false);
+  const [gasCodeCopied, setGasCodeCopied] = useState(false);
+
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // 1. Sinkronisasi seluruh daftar akun ke Google Sheet CONFIG_USER_LOGIN
+  const handleSyncAllToCloud = async () => {
+    setIsSyncingAll(true);
+    try {
+      const res = await gasClient.syncAllUserLogins(accounts, currentUser?.nama || 'Admin');
+      if (res.status === 'success') {
+        showNotification('success', `✅ Sukses! Seluruh ${accounts.length} akun internal berhasil disimpan & disinkronkan ke sheet "${USER_LOGIN_SHEET_NAME}" di Google Spreadsheet.`);
+      } else {
+        showNotification('error', `Gagal menyinkronkan akun: ${res.message || 'Periksa koneksi Google Apps Script'}`);
+      }
+    } catch (e) {
+      showNotification('error', `Kesalahan saat menyinkronkan: ${String(e)}`);
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  // 2. Siapkan / Buat Sheet CONFIG_USER_LOGIN di Google Spreadsheet
+  const handleInitLoginSheet = async () => {
+    setIsInitializingSheet(true);
+    try {
+      const res = await gasClient.initUserLoginSheet(currentUser?.nama || 'Admin');
+      if (res.status === 'success') {
+        showNotification('success', `✅ Berhasil! Sheet "${USER_LOGIN_SHEET_NAME}" telah dibuat dan disiapkan di Google Spreadsheet ID ${TARGET_SPREADSHEET_ID}.`);
+      } else {
+        showNotification('error', `Gagal menyiapkan sheet: ${res.message || 'Periksa Apps Script'}`);
+      }
+    } catch (e) {
+      showNotification('error', `Kesalahan: ${String(e)}`);
+    } finally {
+      setIsInitializingSheet(false);
+    }
+  };
+
+  // 3. Tarik data akun terbaru dari Google Sheet
+  const handleFetchFromCloud = async () => {
+    setIsFetchingCloud(true);
+    try {
+      const cloudAccounts = await authService.syncFromCloud();
+      setAccounts(cloudAccounts);
+      showNotification('success', `✅ Berhasil memperbarui! Mengambil ${cloudAccounts.length} akun terbaru dari Google Sheet "${USER_LOGIN_SHEET_NAME}".`);
+    } catch (e) {
+      showNotification('error', `Gagal memuat akun dari cloud: ${String(e)}`);
+    } finally {
+      setIsFetchingCloud(false);
+    }
   };
 
   const handleToggleRoleTab = (role: UserAccessRole, tabId: MainTabType) => {
@@ -770,6 +834,16 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     authService.saveInternalAccounts(updatedList);
     setIsModalOpen(false);
 
+    // Otomatis sinkronkan akun ke Google Sheet CONFIG_USER_LOGIN di latar belakang
+    const targetAccount = editingIndex !== null ? updatedList[editingIndex] : updatedList[updatedList.length - 1];
+    gasClient.saveUserLogin(targetAccount, currentUser?.nama || 'Admin').then(res => {
+      if (res.status === 'success') {
+        showNotification('success', `Akun ${targetAccount.nama} tersimpan & disinkronkan ke Google Sheet "${USER_LOGIN_SHEET_NAME}"!`);
+      }
+    }).catch(err => {
+      console.warn('Sync to GAS background warning:', err);
+    });
+
     // If current logged in user was modified, sync their active session immediately
     if (currentUser && currentUser.email?.toLowerCase() === cleanEmail) {
       const updatedAuthUser: AuthUser = {
@@ -802,6 +876,16 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       const updated = accounts.filter((_, idx) => idx !== index);
       setAccounts(updated);
       authService.saveInternalAccounts(updated);
+
+      // Hapus juga dari Google Sheet CONFIG_USER_LOGIN
+      gasClient.deleteUserLogin(acc.email, currentUser?.nama || 'Admin').then(res => {
+        if (res.status === 'success') {
+          console.log(`Akun ${acc.email} terhapus dari cloud.`);
+        }
+      }).catch(err => {
+        console.warn('Delete user from GAS warning:', err);
+      });
+
       showNotification('success', `Akun ${acc.nama} telah berhasil dihapus.`);
     }
   };
@@ -980,6 +1064,74 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
           </button>
         </div>
       )}
+
+      {/* Cloud Integration Hub Bar for CONFIG_USER_LOGIN */}
+      <div className="bg-gradient-to-r from-blue-900/90 via-slate-900 to-indigo-950 p-4 sm:p-5 rounded-2xl border border-blue-700/50 shadow-md text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 flex-shrink-0">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+                Sheet Cloud Akun: <code className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-cyan-300 font-mono text-[11px]">{USER_LOGIN_SHEET_NAME}</code>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold">
+                Multi-Perangkat Online
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Data login staf disimpan di Google Spreadsheet sehingga bisa login dari Handphone, Tablet &amp; PC mana saja secara terintegrasi.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleSyncAllToCloud}
+            disabled={isSyncingAll}
+            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Kirim seluruh akun lokal saat ini ke Google Sheet CONFIG_USER_LOGIN"
+          >
+            <CloudUpload className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-bounce' : ''}`} />
+            <span>{isSyncingAll ? 'Menyinkronkan...' : 'Sinkronkan ke Sheet'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleFetchFromCloud}
+            disabled={isFetchingCloud}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            title="Ambil pembaruan akun terbaru dari Google Sheet CONFIG_USER_LOGIN"
+          >
+            <CloudDownload className={`w-3.5 h-3.5 ${isFetchingCloud ? 'animate-spin' : ''}`} />
+            <span>{isFetchingCloud ? 'Mengambil...' : 'Tarik dari Sheet'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleInitLoginSheet}
+            disabled={isInitializingSheet}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            title="Buat sheet CONFIG_USER_LOGIN baru di spreadsheet target jika belum ada"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>{isInitializingSheet ? 'Menyiapkan...' : 'Siapkan Sheet'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsShowGasGuideModal(true)}
+            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+            title="Buka panduan skrip Code.gs dan struktur sheet"
+          >
+            <Code2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Skrip GAS</span>
+          </button>
+        </div>
+      </div>
 
       {/* 4 Stat Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -2530,6 +2682,136 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PANDUAN INTEGRASI GOOGLE SHEET & CODE.GS */}
+      {isShowGasGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-800">
+            
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">
+                    Panduan Sheet Khusus Login &amp; Skrip Apps Script
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Google Spreadsheet ID: {TARGET_SPREADSHEET_ID}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsShowGasGuideModal(false)}
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              
+              <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 space-y-1.5">
+                <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-blue-700" />
+                  Mengapa Butuh Sheet Khusus Login?
+                </span>
+                <p className="text-blue-950 text-[11px] leading-relaxed">
+                  Sebelumnya akun yang didaftarkan oleh Administrator hanya tersimpan pada browser laptop/PC Admin. Dengan sheet <strong>{USER_LOGIN_SHEET_NAME}</strong>, setiap akun otomatis tersimpan di Cloud Google Sheets sehingga staf dapat langsung login dari <strong>Handphone (Android/iOS), Tablet, dan Laptop manapun tanpa kendala</strong>.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-bold text-slate-800 text-xs">
+                  Cara Kerja &amp; Struktur Kolom Sheet `{USER_LOGIN_SHEET_NAME}`:
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom A: No</span>
+                    <span className="text-slate-500">Nomor urut akun staf</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom B: Email / Username</span>
+                    <span className="text-slate-500">Kunci login staf (misal: indahnurmala189@gmail.com)</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom C: Kata Sandi / PIN</span>
+                    <span className="text-slate-500">Kata sandi akun (misal: mandor)</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom D: Nama Pengguna</span>
+                    <span className="text-slate-500">Nama lengkap staf</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom E: Peran (Role)</span>
+                    <span className="text-slate-500">Jabatan peranan dalam sistem</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom F &amp; G: Scope &amp; Unit</span>
+                    <span className="text-slate-500">Cakupan unit kerja pekerja</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom H: Modul Diizinkan</span>
+                    <span className="text-slate-500">Daftar tab modul yang boleh dibuka</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <span className="font-bold block text-slate-900 mb-0.5">Kolom I &amp; J: Status &amp; Waktu</span>
+                    <span className="text-slate-500">Status "Aktif" &amp; timestamp sinkronisasi</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
+                <span className="font-bold text-emerald-900 block text-xs">
+                  🚀 Langkah Aktivasi Cepat:
+                </span>
+                <ol className="list-decimal pl-4 space-y-1 text-[11px] text-emerald-950">
+                  <li>Klik tombol <strong>"Siapkan Sheet"</strong> di atas. Sistem akan mengirim sinyal otomatis ke Apps Script untuk membuat sheet `{USER_LOGIN_SHEET_NAME}`.</li>
+                  <li>Jika Anda memperbarui skrip Apps Script, salin skrip di bawah lalu tempelkan ke <strong>Extensions &gt; Apps Script (Code.gs)</strong> di Google Spreadsheet.</li>
+                  <li>Klik <strong>Deploy &gt; Manage Deployments &gt; Edit &gt; New Version &gt; Deploy</strong> di Google Apps Script.</li>
+                  <li>Setelah itu, klik tombol <strong>"Sinkronkan ke Sheet"</strong> di atas untuk mem-push seluruh akun saat ini ke Google Spreadsheet.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-xs">
+                    Kode Lengkap Google Apps Script (Code.gs):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
+                      setGasCodeCopied(true);
+                      setTimeout(() => setGasCodeCopied(false), 2000);
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    {gasCodeCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{gasCodeCopied ? 'Tersalin!' : 'Salin Kode'}</span>
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[10px] max-h-48 overflow-y-auto leading-relaxed">
+                  {GAS_CODE_TEMPLATE}
+                </pre>
+              </div>
+
+            </div>
+
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsShowGasGuideModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Tutup Panduan
+              </button>
+            </div>
+
           </div>
         </div>
       )}

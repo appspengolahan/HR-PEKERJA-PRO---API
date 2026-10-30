@@ -200,6 +200,11 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
       sheetName: 'CALON_PEKERJA',
       deskripsi: 'Pelacakan masa pelatihan seleksi calon pekerja baru (Baris 6 s/d 105)',
       kolom: ['Nama (C)', 'Unit (D)', 'Sekup (E)', 'Tgl Mulai (F)', 'Tgl Akhir (G)', 'Durasi (H)', 'Sisa Hari (I)', 'Status (J)', 'Jml Perpanjangan (K)', 'Catatan (L)']
+    },
+    {
+      sheetName: 'CONFIG_USER_LOGIN',
+      deskripsi: 'Database akun pengguna & hak akses tim internal untuk login lintas perangkat (Baris 4 s/d 200)',
+      kolom: ['No (A)', 'Email / Username (B)', 'Kata Sandi (C)', 'Nama (D)', 'Peran (E)', 'Scope (F)', 'Daftar Unit (G)', 'Modul Diizinkan (H)', 'Status (I)', 'Diperbarui (J)']
     }
   ];
 

@@ -29,6 +29,7 @@ const TARGET_SPREADSHEET_ID = '11NpDyRTepu4upwXwN1zoWAuymtYdvd3VARfcKklQf0Y';
 const SHEET = {
   MASTER: 'MASTER_PEKERJA',
   CONFIG_APP: 'CONFIG_APP',
+  CONFIG_USER_LOGIN: 'CONFIG_USER_LOGIN',
   PRESENSI: 'LOG_PRESENSI_IJIN',
   REKAP: 'REKAP_PRESENSI',
   LEMBUR: 'LOG_LEMBUR',
@@ -56,7 +57,8 @@ const ROWS = {
   CALON_START: 6, CALON_LAST: 105,
   LOGPELATIHAN_START: 6, LOGPELATIHAN_LAST: 305,
   LINK_ARSIP_START: 6, LINK_ARSIP_LAST: 305,
-  MUTASI_START: 6, MUTASI_LAST: 505
+  MUTASI_START: 6, MUTASI_LAST: 505,
+  USER_LOGIN_START: 4, USER_LOGIN_LAST: 200
 };
 
 // Singleton cache agar tidak membuka spreadsheet berulang-ulang
@@ -114,9 +116,18 @@ function doGet(e) {
           jadwalMutasi: getJadwalMutasi_(),
           calonPekerja: getCalonPekerjaList_(scope),
           presensi: getPresensiList_('', '', '', scope),
-          lembur: getRekapLembur_('', '', 'Semua', 'Semua', scope)
+          lembur: getRekapLembur_('', '', 'Semua', 'Semua', scope),
+          userLogins: getUserLogins_()
         }
       });
+    }
+
+    if (action === 'getUserLogins') {
+      return jsonResponse_({ status: 'success', data: getUserLogins_() });
+    }
+
+    if (action === 'initUserLoginSheet') {
+      return jsonResponse_(initUserLoginSheet_());
     }
 
     if (action === 'getPresensi') {
@@ -157,6 +168,19 @@ function doPost(e) {
     const currentUser = payload.currentUser || 'Web App User';
     const rowNum = (payload.data && payload.data.rowNum) || payload.rowNum;
 
+    if (action === 'saveUserLogin') {
+      return jsonResponse_(saveUserLogin_(payload.data, currentUser));
+    }
+    if (action === 'deleteUserLogin') {
+      const email = (payload.data && payload.data.email) || payload.email;
+      return jsonResponse_(deleteUserLogin_(email, currentUser));
+    }
+    if (action === 'syncAllUserLogins') {
+      return jsonResponse_(syncAllUserLogins_(payload.data, currentUser));
+    }
+    if (action === 'initUserLoginSheet') {
+      return jsonResponse_(initUserLoginSheet_());
+    }
     if (action === 'addPresensiIjin') {
       return jsonResponse_(addPresensiIjin_(payload.data, currentUser));
     }
@@ -900,4 +924,265 @@ function updateStatusCalon_(data, currentUser) {
 
   return { status: 'success', message: 'Status calon pekerja baris #' + r + ' berhasil diperbarui di spreadsheet.' };
 }
+
+// =========================================================================
+// MODUL HAK AKSES & AKUN LOGIN PENGGUNA (CONFIG_USER_LOGIN)
+// =========================================================================
+
+function initUserLoginSheet_() {
+  const ss = getSpreadsheet_();
+  let sh = ss.getSheetByName(SHEET.CONFIG_USER_LOGIN);
+  
+  if (!sh) {
+    sh = ss.insertSheet(SHEET.CONFIG_USER_LOGIN);
+    
+    // Header title & branding
+    sh.getRange('A1:J1').merge()
+      .setValue('PT BATU KARANG — DIVISI PRODUKSI I (PP1) | MASTER AKUN PENGGUNA & HAK AKSES')
+      .setBackground('#0f172a')
+      .setFontColor('#38bdf8')
+      .setFontWeight('bold')
+      .setFontSize(12)
+      .setHorizontalAlignment('center');
+      
+    sh.getRange('A2:J2').merge()
+      .setValue('Catatan: Sumber data resmi akun login tim internal. Terkoneksi otomatis dengan Web Apps. Jangan ubah struktur kolom.')
+      .setBackground('#1e293b')
+      .setFontColor('#94a3b8')
+      .setFontSize(9)
+      .setHorizontalAlignment('center');
+
+    // Kolom Header Baris 3
+    const headers = [
+      'No', 
+      'Email / Username', 
+      'Kata Sandi / PIN', 
+      'Nama Pengguna', 
+      'Peran (Role)', 
+      'Cakupan Unit (Scope)', 
+      'Daftar Unit (Koma)', 
+      'Modul Diizinkan (Koma)', 
+      'Status Akun', 
+      'Terakhir Diperbarui'
+    ];
+    sh.getRange(3, 1, 1, headers.length).setValues([headers])
+      .setBackground('#1e3a8a')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+
+    sh.setFrozenRows(3);
+
+    // Initial Default Seed Data
+    const defaultAccounts = [
+      [1, 'appspengolahan@gmail.com', 'admin', 'Lalu Mahendra (Lead Developer)', 'Super Admin', 'ALL', 'Cengkeh, Blend, Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon, hakakses', 'Aktif', new Date()],
+      [2, 'indahnurmala189@gmail.com', 'mandor', 'Mandor Proses Cengkeh (Plt. Ka)', 'Mandor Proses Cengkeh', 'Proses Cengkeh & Persediaan Cengkeh', 'Proses Cengkeh, Persediaan Cengkeh', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [3, 'unitcengkeh.pp1@gmail.com', 'mandorCKH153', 'Mandor Unit Cengkeh', 'Foreman / Mandor', 'Proses Cengkeh', 'Cengkeh', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [4, 'pm@batukarang.com', 'pm123', 'Project Manager (Monitoring Lapangan)', 'Project Manager', 'ALL', 'Cengkeh, Blend, Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon, hakakses', 'Aktif', new Date()],
+      [5, 'engineer@batukarang.com', 'engineer123', 'Site Engineer PP1', 'Site Engineer', 'ALL', 'Cengkeh, Blend, Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, database, jadwalmutasi, profil, hakakses', 'Aktif', new Date()],
+      [6, 'hr@batukarang.com', 'hr123', 'Admin HR Divisi PP1', 'HR Admin', 'ALL', 'Cengkeh, Blend, Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon, hakakses', 'Aktif', new Date()],
+      [7, 'manajer@batukarang.com', 'manajer123', 'Manajer Operasional PP1', 'Manajer Operasional', 'ALL', 'Cengkeh, Blend, Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon', 'Aktif', new Date()],
+      [8, 'ka.pengolahan2@batukarang.com', 'ka2', 'Kepala Pengolahan 2', 'Kepala Pengolahan 2', 'Cengkeh & Blend', 'Cengkeh, Blend', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon', 'Aktif', new Date()],
+      [9, 'ka.pengolahan1@batukarang.com', 'ka1', 'Kepala Pengolahan 1', 'Kepala Pengolahan 1', 'Tembakau & Krosok', 'Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, slip, database, jadwalmutasi, profil, calon', 'Aktif', new Date()],
+      [10, 'gudang.tembakau@batukarang.com', 'gudang123', 'Kepala Gudang Tembakau & Krosok', 'Kepala Gudang Tembakau & Krosok', 'Persediaan Tembakau & Krosok', 'Tembakau, Krosok', 'dashboard, presensi, lembur, rekap, database, profil', 'Aktif', new Date()],
+      [11, 'mandor.pcengkeh@batukarang.com', 'mandor', 'Mandor Proses Cengkeh', 'Mandor Proses Cengkeh', 'Proses Cengkeh', 'Proses Cengkeh', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [12, 'mandor.gcengkeh@batukarang.com', 'mandor', 'Mandor Persediaan Cengkeh', 'Mandor Persediaan Cengkeh', 'Persediaan Cengkeh', 'Persediaan Cengkeh', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [13, 'mandor.ptembakau@batukarang.com', 'mandor', 'Mandor Proses Tembakau', 'Mandor Proses Tembakau', 'Proses Tembakau', 'Proses Tembakau', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [14, 'mandor.pkrosok@batukarang.com', 'mandor', 'Mandor Proses Krosok', 'Mandor Proses Krosok', 'Proses Krosok', 'Proses Krosok', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [15, 'mandor.pblend@batukarang.com', 'mandor', 'Mandor Proses Blend', 'Mandor Proses Blend', 'Proses Blend', 'Proses Blend', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()],
+      [16, 'mandor.gblend@batukarang.com', 'mandor', 'Mandor Persediaan Blend', 'Mandor Persediaan Blend', 'Persediaan Blend', 'Persediaan Blend', 'dashboard, presensi, lembur, rekap', 'Aktif', new Date()]
+    ];
+
+    sh.getRange(4, 1, defaultAccounts.length, 10).setValues(defaultAccounts);
+    
+    // Auto fit column widths
+    for (let c = 1; c <= 10; c++) {
+      sh.autoResizeColumn(c);
+    }
+  }
+
+  return { 
+    status: 'success', 
+    message: 'Sheet ' + SHEET.CONFIG_USER_LOGIN + ' berhasil diinisialisasi dengan struktur akun resmi.' 
+  };
+}
+
+function getUserLogins_() {
+  const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
+  if (!sh) {
+    initUserLoginSheet_();
+    const shNew = getSheet_(SHEET.CONFIG_USER_LOGIN);
+    if (!shNew) return [];
+  }
+
+  const targetSh = getSheet_(SHEET.CONFIG_USER_LOGIN);
+  const lastRow = targetSh.getLastRow();
+  if (lastRow < 4) return [];
+
+  const data = targetSh.getRange(4, 1, lastRow - 3, 10).getValues();
+  const res = [];
+
+  data.forEach((r, idx) => {
+    const email = String(r[1] || '').trim();
+    if (!email) return;
+
+    const password = String(r[2] || '').trim();
+    const nama = String(r[3] || '').trim();
+    const role = String(r[4] || 'Foreman / Mandor').trim();
+    const scope = String(r[5] || 'ALL').trim();
+    const rawUnits = String(r[6] || '').trim();
+    const rawTabs = String(r[7] || '').trim();
+    const status = String(r[8] || 'Aktif').trim();
+
+    if (status.toLowerCase() === 'nonaktif' || status.toLowerCase() === 'ditolak') {
+      return;
+    }
+
+    const units = rawUnits ? rawUnits.split(',').map(u => u.trim()).filter(Boolean) : [scope];
+    const allowedTabs = rawTabs ? rawTabs.split(',').map(t => t.trim()).filter(Boolean) : ['dashboard', 'presensi', 'lembur', 'rekap'];
+
+    res.push({
+      rowNum: 4 + idx,
+      no: r[0],
+      email: email,
+      password: password,
+      nama: nama || email,
+      role: role,
+      scope: scope,
+      units: units,
+      allowedTabs: allowedTabs,
+      status: status
+    });
+  });
+
+  return res;
+}
+
+function saveUserLogin_(data, currentUser) {
+  initUserLoginSheet_();
+  const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
+  if (!sh) throw new Error('Sheet ' + SHEET.CONFIG_USER_LOGIN + ' tidak dapat diakses.');
+
+  const emailClean = String(data.email || '').trim().toLowerCase();
+  if (!emailClean) throw new Error('Email atau username login wajib diisi.');
+
+  const lastRow = sh.getLastRow();
+  let existingRowNum = -1;
+
+  if (lastRow >= 4) {
+    const emails = sh.getRange(4, 2, lastRow - 3, 1).getValues().flat();
+    for (let i = 0; i < emails.length; i++) {
+      if (String(emails[i] || '').trim().toLowerCase() === emailClean) {
+        existingRowNum = 4 + i;
+        break;
+      }
+    }
+  }
+
+  const unitsStr = Array.isArray(data.units) ? data.units.join(', ') : (data.units || data.scope || 'ALL');
+  const tabsStr = Array.isArray(data.allowedTabs) ? data.allowedTabs.join(', ') : (data.allowedTabs || 'dashboard, presensi');
+  const now = new Date();
+
+  if (existingRowNum !== -1) {
+    sh.getRange(existingRowNum, 2).setValue(data.email.trim());
+    if (data.password) sh.getRange(existingRowNum, 3).setValue(String(data.password).trim());
+    sh.getRange(existingRowNum, 4).setValue(data.nama.trim());
+    sh.getRange(existingRowNum, 5).setValue(data.role);
+    sh.getRange(existingRowNum, 6).setValue(data.scope);
+    sh.getRange(existingRowNum, 7).setValue(unitsStr);
+    sh.getRange(existingRowNum, 8).setValue(tabsStr);
+    sh.getRange(existingRowNum, 9).setValue('Aktif');
+    sh.getRange(existingRowNum, 10).setValue(now);
+
+    return { 
+      status: 'success', 
+      message: 'Akun ' + data.email + ' berhasil diperbarui di spreadsheet baris #' + existingRowNum 
+    };
+  } else {
+    const nextRow = Math.max(4, lastRow + 1);
+    const newNo = nextRow - 3;
+    const rowData = [
+      newNo,
+      data.email.trim(),
+      String(data.password || 'mandor').trim(),
+      data.nama.trim(),
+      data.role || 'Foreman / Mandor',
+      data.scope || 'ALL',
+      unitsStr,
+      tabsStr,
+      'Aktif',
+      now
+    ];
+
+    sh.getRange(nextRow, 1, 1, 10).setValues([rowData]);
+    return { 
+      status: 'success', 
+      message: 'Akun baru ' + data.email + ' berhasil ditambahkan ke spreadsheet.' 
+    };
+  }
+}
+
+function syncAllUserLogins_(accountsList, currentUser) {
+  initUserLoginSheet_();
+  const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
+  if (!sh) throw new Error('Sheet ' + SHEET.CONFIG_USER_LOGIN + ' tidak dapat diakses.');
+
+  if (!Array.isArray(accountsList) || accountsList.length === 0) {
+    return { status: 'error', message: 'Daftar akun kosong.' };
+  }
+
+  const lastRow = sh.getLastRow();
+  if (lastRow >= 4) {
+    sh.getRange(4, 1, lastRow - 3, 10).clearContent();
+  }
+
+  const now = new Date();
+  const rows = accountsList.map((acc, idx) => {
+    const unitsStr = Array.isArray(acc.units) ? acc.units.join(', ') : (acc.units || acc.scope || 'ALL');
+    const tabsStr = Array.isArray(acc.allowedTabs) ? acc.allowedTabs.join(', ') : (acc.allowedTabs || 'dashboard, presensi');
+
+    return [
+      idx + 1,
+      String(acc.email || '').trim(),
+      String(acc.password || '').trim(),
+      String(acc.nama || '').trim(),
+      acc.role || 'Foreman / Mandor',
+      acc.scope || 'ALL',
+      unitsStr,
+      tabsStr,
+      'Aktif',
+      now
+    ];
+  });
+
+  sh.getRange(4, 1, rows.length, 10).setValues(rows);
+  return { 
+    status: 'success', 
+    message: 'Berhasil menyinkronkan ' + rows.length + ' akun internal ke sheet ' + SHEET.CONFIG_USER_LOGIN + '.' 
+  };
+}
+
+function deleteUserLogin_(email, currentUser) {
+  const sh = getSheet_(SHEET.CONFIG_USER_LOGIN);
+  if (!sh) throw new Error('Sheet ' + SHEET.CONFIG_USER_LOGIN + ' tidak ditemukan.');
+
+  const emailClean = String(email || '').trim().toLowerCase();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 4) return { status: 'error', message: 'Tidak ada akun untuk dihapus.' };
+
+  const emails = sh.getRange(4, 2, lastRow - 3, 1).getValues().flat();
+  for (let i = 0; i < emails.length; i++) {
+    if (String(emails[i] || '').trim().toLowerCase() === emailClean) {
+      const targetRow = 4 + i;
+      sh.deleteRow(targetRow);
+      return { status: 'success', message: 'Akun ' + email + ' berhasil dihapus dari spreadsheet.' };
+    }
+  }
+
+  return { status: 'error', message: 'Akun ' + email + ' tidak ditemukan di sheet ' + SHEET.CONFIG_USER_LOGIN + '.' };
+}
 `;
+
+export const USER_LOGIN_SHEET_NAME = 'CONFIG_USER_LOGIN';
+
+
