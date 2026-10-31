@@ -15,6 +15,7 @@ import { PekerjaData, PresensiIjinRecord } from '../../types';
 import { exportRekapPresensiToCSV } from '../../utils/exportUtils';
 import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { getNormalizedPermitMinutes } from '../../utils/workHoursUtils';
 
 interface TabRekapPresensiProps {
   pekerjaList: PekerjaData[];
@@ -80,7 +81,15 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
       if (tahun && yr && yr !== tahun) return;
 
       if (m >= 0 && m < 12) {
-        map[cleanName][m] += Number(item.durasiMenit) || 0;
+        // Normalisasi durasi ijin bersih (potong jam istirahat resmi & sesuaikan hari Sabtu)
+        const effectiveMinutes = getNormalizedPermitMinutes(
+          item.tanggalIso || item.tanggal,
+          item.jamAwal,
+          item.jamAkhir,
+          item.durasiMenit,
+          item.jenisIjin
+        );
+        map[cleanName][m] += effectiveMinutes;
       }
     });
     return map;

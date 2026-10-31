@@ -13,6 +13,11 @@ import {
 } from 'lucide-react';
 import { PresensiIjinRecord, PekerjaData, SuratIjinData } from '../../types';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { 
+  calculateEffectivePermitMinutes, 
+  getWorkScheduleForDate, 
+  formatMinutesToTime 
+} from '../../utils/workHoursUtils';
 
 interface TabPresensiProps {
   presensiList: PresensiIjinRecord[];
@@ -103,15 +108,56 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     onFilterChange(selectedBulan, selectedTahun, selectedNama);
   };
 
+  // Live preview calculation for Add Modal
+  const liveAddPermitResult = useMemo(() => {
+    return calculateEffectivePermitMinutes(addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin);
+  }, [addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin]);
+
+  // Live preview calculation for Edit Modal
+  const liveEditPermitResult = useMemo(() => {
+    if (!editingRecord) return null;
+    return calculateEffectivePermitMinutes(
+      editingRecord.tanggalIso || editingRecord.tanggal,
+      editingRecord.jamAwal,
+      editingRecord.jamAkhir,
+      false,
+      editingRecord.jenisIjin
+    );
+  }, [editingRecord]);
+
+  const handleToggleSehariPenuh = (checked: boolean) => {
+    setAddSehariPenuh(checked);
+    if (checked) {
+      const sched = getWorkScheduleForDate(addTglAwal);
+      if (sched.isWorkDay) {
+        setAddJamAwal(sched.workStart);
+        setAddJamAkhir(sched.workEnd);
+      }
+    }
+  };
+
+  const handleTglAwalChange = (val: string) => {
+    setAddTglAwal(val);
+    if (addSehariPenuh) {
+      const sched = getWorkScheduleForDate(val);
+      if (sched.isWorkDay) {
+        setAddJamAwal(sched.workStart);
+        setAddJamAkhir(sched.workEnd);
+      }
+    }
+  };
+
   const handleOpenAdd = () => {
     if (filteredPekerja.length > 0) {
       setAddNama(filteredPekerja[0].nama);
     }
-    setAddTglAwal(new Date().toISOString().slice(0, 10));
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sched = getWorkScheduleForDate(todayStr);
+    setAddTglAwal(todayStr);
     setAddTglAkhir('');
     setAddSehariPenuh(false);
-    setAddJamAwal('08:00');
-    setAddJamAkhir('16:00');
+    setAddJamAwal(sched.workStart);
+    setAddJamAkhir(sched.workEnd);
     setAddKeperluan('');
     setAddLampiran('Tidak');
     setAddCatatan('');
@@ -152,16 +198,9 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         let jamAkhir = addJamAkhir;
 
         if (addSehariPenuh) {
-          if (day === 6) { // Saturday 08:00 - 13:00
-            jamAwal = '08:00';
-            jamAkhir = '13:00';
-          } else if (day === 5) { // Friday 08:00 - 16:30
-            jamAwal = '08:00';
-            jamAkhir = '16:30';
-          } else { // Mon - Thu 08:00 - 16:00
-            jamAwal = '08:00';
-            jamAkhir = '16:00';
-          }
+          const daySched = getWorkScheduleForDate(dateIso);
+          jamAwal = daySched.workStart;
+          jamAkhir = daySched.workEnd;
         }
 
         tanggalList.push({ tanggal: dateIso, jamAwal, jamAkhir });
@@ -229,6 +268,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     const isoStr = today.toISOString().slice(0, 10);
     const worker = selectedNama ? filteredPekerja.find(p => p.nama === selectedNama) : filteredPekerja[0];
     
+    const todaySched = getWorkScheduleForDate(isoStr);
     onOpenSuratIjin({
       rowNum: 0,
       tanggal: dStr,
@@ -236,9 +276,9 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       nama: worker?.nama || selectedNama || 'Pekerja Harian',
       unit: worker?.unit || 'Produksi',
       sekup: worker?.sekup || '',
-      jamAwal: '07:00',
-      jamAkhir: '14:00',
-      durasiMenit: 420,
+      jamAwal: todaySched.workStart,
+      jamAkhir: todaySched.workEnd,
+      durasiMenit: todaySched.effectiveWorkMinutes,
       jenisIjin: 'Ijin Tidak Masuk Kerja',
       keperluan: '',
       lampiran: 'Tidak',
@@ -501,7 +541,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                     type="date"
                     required
                     value={addTglAwal}
-                    onChange={(e) => setAddTglAwal(e.target.value)}
+                    onChange={(e) => handleTglAwalChange(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
                   />
                 </div>
@@ -515,6 +555,21 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                     onChange={(e) => setAddTglAkhir(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
                   />
+                </div>
+              </div>
+
+              {/* Schedule Info Box */}
+              <div className="p-2.5 bg-blue-50/70 border border-blue-200/60 rounded-xl text-[11px] text-blue-900 leading-relaxed">
+                <div className="font-bold flex items-center gap-1.5 text-blue-800 mb-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Jadwal Resmi Divisi: {liveAddPermitResult.schedule.dayName}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600">
+                  <span>Jam Resmi: <strong className="text-slate-800">{liveAddPermitResult.schedule.workStart} - {liveAddPermitResult.schedule.workEnd}</strong></span>
+                  {liveAddPermitResult.schedule.breakStart && (
+                    <span>Istirahat: <strong className="text-slate-800">{liveAddPermitResult.schedule.breakStart} - {liveAddPermitResult.schedule.breakEnd}</strong> ({liveAddPermitResult.schedule.breakEndMin - liveAddPermitResult.schedule.breakStartMin} mnt)</span>
+                  )}
+                  <span>Efektif Penuh: <strong className="text-blue-700">{liveAddPermitResult.schedule.effectiveWorkMinutes} menit</strong></span>
                 </div>
               </div>
 
@@ -537,32 +592,53 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                   <input
                     type="checkbox"
                     checked={addSehariPenuh}
-                    onChange={(e) => setAddSehariPenuh(e.target.checked)}
+                    onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Sehari Penuh (Jam otomatis terisi sesuai hari, Sabtu jam lebih pendek)</span>
+                  <span>Sehari Penuh (Otomatis {liveAddPermitResult.schedule.effectiveWorkMinutes} menit: {liveAddPermitResult.schedule.workStart} s/d {liveAddPermitResult.schedule.workEnd})</span>
                 </label>
               </div>
 
               {!addSehariPenuh && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Jam Awal</label>
-                    <input
-                      type="time"
-                      value={addJamAwal}
-                      onChange={(e) => setAddJamAwal(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                    />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Jam Awal</label>
+                      <input
+                        type="time"
+                        value={addJamAwal}
+                        onChange={(e) => setAddJamAwal(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Jam Akhir</label>
+                      <input
+                        type="time"
+                        value={addJamAkhir}
+                        onChange={(e) => setAddJamAkhir(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Jam Akhir</label>
-                    <input
-                      type="time"
-                      value={addJamAkhir}
-                      onChange={(e) => setAddJamAkhir(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                    />
+
+                  {/* Live Calculation Preview Card */}
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
+                    <div>
+                      <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                        <span>Durasi Ijin Efektif:</span>
+                        <strong className="text-emerald-700 font-black text-sm">{liveAddPermitResult.durasiMenit} menit</strong>
+                        <span className="text-slate-500 font-normal">({Math.floor(liveAddPermitResult.durasiMenit / 60)}j {liveAddPermitResult.durasiMenit % 60}m)</span>
+                      </div>
+                      {liveAddPermitResult.potonganIstirahatMenit > 0 && (
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          ✓ Otomatis memotong jam istirahat resmi <strong>{liveAddPermitResult.potonganIstirahatMenit} menit</strong> ({liveAddPermitResult.schedule.breakStart}-{liveAddPermitResult.schedule.breakEnd})
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
+                      Faktor: {liveAddPermitResult.faktorPotongan}
+                    </span>
                   </div>
                 </div>
               )}
@@ -687,6 +763,26 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                   />
                 </div>
               </div>
+
+              {liveEditPermitResult && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
+                  <div>
+                    <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                      <span>Durasi Efektif ({liveEditPermitResult.schedule.dayName}):</span>
+                      <strong className="text-emerald-700 font-black text-sm">{liveEditPermitResult.durasiMenit} menit</strong>
+                      <span className="text-slate-500 font-normal">({Math.floor(liveEditPermitResult.durasiMenit / 60)}j {liveEditPermitResult.durasiMenit % 60}m)</span>
+                    </div>
+                    {liveEditPermitResult.potonganIstirahatMenit > 0 && (
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        ✓ Dipotong istirahat resmi <strong>{liveEditPermitResult.potonganIstirahatMenit} menit</strong> ({liveEditPermitResult.schedule.breakStart}-{liveEditPermitResult.schedule.breakEnd})
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
+                    Faktor: {liveEditPermitResult.faktorPotongan}
+                  </span>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Keperluan</label>

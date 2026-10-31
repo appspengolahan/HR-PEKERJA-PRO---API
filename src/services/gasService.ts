@@ -623,6 +623,76 @@ function pasangPemicuOtomatisHarian_() {
 // MUTASI DATA DUA ARAH (TWO-WAY SPREADSHEET CRUD ENGINE)
 // =========================================================================
 
+function hitungMenitIjinEfektif_(tglObj, jamAwal, jamAkhir, jenisIjin) {
+  if (!tglObj) return { durasiMenit: 0, faktorPotongan: 0 };
+  var day = tglObj.getDay(); // 0: Sun, 1-4: Mon-Thu, 5: Fri, 6: Sat
+  if (day === 0) return { durasiMenit: 0, faktorPotongan: 0 };
+
+  var isFullDay = jenisIjin && (
+    jenisIjin.indexOf('Sakit') === 0 || 
+    jenisIjin.indexOf('Ijin (S Tangan)') === 0 || 
+    jenisIjin === 'Alpha' || 
+    jenisIjin === 'Ijin Normatif'
+  );
+
+  var isNormatif = jenisIjin && (
+    jenisIjin.indexOf('Sakit (S Dokter)') === 0 || 
+    jenisIjin === 'Ijin Normatif'
+  );
+
+  var fullMinutes = (day === 6) ? 300 : 420;
+
+  if (isFullDay) {
+    return {
+      durasiMenit: fullMinutes,
+      faktorPotongan: isNormatif ? 0 : 1
+    };
+  }
+
+  if (!jamAwal || !jamAkhir) return { durasiMenit: 0, faktorPotongan: 0 };
+  var p1 = String(jamAwal).split(':').map(Number);
+  var p2 = String(jamAkhir).split(':').map(Number);
+  if (p1.length < 2 || p2.length < 2) return { durasiMenit: 0, faktorPotongan: 0 };
+
+  var uStart = p1[0] * 60 + p1[1];
+  var uEnd = p2[0] * 60 + p2[1];
+  if (uEnd <= uStart) return { durasiMenit: 0, faktorPotongan: 0 };
+
+  var wStart = 480; // 08:00
+  var wEnd = 960;   // 16:00
+  var bStart = 690; // 11:30
+  var bEnd = 750;   // 12:30
+
+  if (day === 6) { // Sabtu: 08:00 - 13:00 tanpa istirahat
+    wEnd = 780;
+    bStart = 0;
+    bEnd = 0;
+  } else if (day === 5) { // Jumat: 08:00 - 16:30, istirahat 11:00 - 12:30
+    wEnd = 990;
+    bStart = 660;
+    bEnd = 750;
+  }
+
+  var effStart = Math.max(uStart, wStart);
+  var effEnd = Math.min(uEnd, wEnd);
+  if (effEnd <= effStart) return { durasiMenit: 0, faktorPotongan: 0 };
+
+  var bruto = effEnd - effStart;
+  var breakDed = 0;
+  if (bStart > 0 && bEnd > bStart) {
+    var oStart = Math.max(effStart, bStart);
+    var oEnd = Math.min(effEnd, bEnd);
+    if (oEnd > oStart) {
+      breakDed = oEnd - oStart;
+    }
+  }
+
+  var netMinutes = Math.max(0, bruto - breakDed);
+  var faktor = isNormatif ? 0 : (Math.round((netMinutes / fullMinutes) * 100) / 100);
+
+  return { durasiMenit: netMinutes, faktorPotongan: faktor };
+}
+
 function addPresensiIjin_(data, currentUser) {
   const sh = getSheet_(SHEET.PRESENSI);
   if (!sh) throw new Error('Sheet ' + SHEET.PRESENSI + ' tidak ditemukan.');
@@ -650,29 +720,12 @@ function addPresensiIjin_(data, currentUser) {
   const rowsToAdd = [];
   tanggalList.forEach(t => {
     const tglObj = toDateValue_(t.tanggal);
-    let durasiMenit = 0;
-    if (t.jamAwal && t.jamAkhir) {
-      const p1 = String(t.jamAwal).split(':').map(Number);
-      const p2 = String(t.jamAkhir).split(':').map(Number);
-      if (p1.length === 2 && p2.length === 2) {
-        durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
-      }
-    }
-    if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha' || data.jenisIjin === 'Ijin Normatif')) {
-      durasiMenit = 420; // 1 hari kerja normal
-    }
+    const calc = hitungMenitIjinEfektif_(tglObj, t.jamAwal, t.jamAkhir, data.jenisIjin);
+    const durasiMenit = calc.durasiMenit;
+    const faktorPotongan = calc.faktorPotongan;
 
     const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
     const tahun = tglObj ? tglObj.getFullYear() : '';
-    
-    let faktorPotongan = 0;
-    if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Dokter)') || data.jenisIjin === 'Ijin Normatif')) {
-      faktorPotongan = 0;
-    } else if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Tangan)') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha')) {
-      faktorPotongan = 1;
-    } else {
-      faktorPotongan = Math.round((durasiMenit / 420) * 100) / 100;
-    }
 
     // Col C..P (14 cols)
     rowsToAdd.push([
@@ -707,27 +760,13 @@ function updatePresensiIjin_(data, currentUser) {
   const rowNum = Number(data.rowNum);
   if (!rowNum || rowNum < ROWS.PRESENSI_START) throw new Error('Nomor baris tidak valid.');
 
-  let durasiMenit = 0;
-  if (data.jamAwal && data.jamAkhir) {
-    const p1 = String(data.jamAwal).split(':').map(Number);
-    const p2 = String(data.jamAkhir).split(':').map(Number);
-    if (p1.length === 2 && p2.length === 2) {
-      durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
-    }
-  }
-
   const tglObj = toDateValue_(data.tanggal);
+  const calc = hitungMenitIjinEfektif_(tglObj, data.jamAwal, data.jamAkhir, data.jenisIjin);
+  const durasiMenit = calc.durasiMenit;
+  const faktorPotongan = calc.faktorPotongan;
+
   const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
   const tahun = tglObj ? tglObj.getFullYear() : '';
-
-  let faktorPotongan = 0;
-  if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Dokter)') || data.jenisIjin === 'Ijin Normatif')) {
-    faktorPotongan = 0;
-  } else if (data.jenisIjin && (data.jenisIjin.startsWith('Sakit (S Tangan)') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha')) {
-    faktorPotongan = 1;
-  } else {
-    faktorPotongan = Math.round((durasiMenit / 420) * 100) / 100;
-  }
 
   sh.getRange(rowNum, 7).setValue(data.jamAwal || '-');
   sh.getRange(rowNum, 8).setValue(data.jamAkhir || '-');

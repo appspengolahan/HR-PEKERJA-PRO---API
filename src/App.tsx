@@ -39,6 +39,7 @@ import {
   GasConfig 
 } from './types';
 import { INITIAL_PRESENSI_FALLBACK } from './data/initialPresensi';
+import { calculateEffectivePermitMinutes, getWorkScheduleForDate } from './utils/workHoursUtils';
 
 // Fallback initial workers if completely offline before first sync
 const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
@@ -260,34 +261,24 @@ export default function App() {
     catatan: string;
     tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
   }) => {
-    // Optimistic local add
+    // Optimistic local add using official schedule and break deduction
     const worker = pekerjaList.find(p => p.nama === data.nama);
     const newRecords: PresensiIjinRecord[] = data.tanggalList.map((t, idx) => {
-      let durasiMenit = 0;
-      if (t.jamAwal && t.jamAkhir) {
-        const p1 = t.jamAwal.split(':').map(Number);
-        const p2 = t.jamAkhir.split(':').map(Number);
-        if (p1.length === 2 && p2.length === 2) {
-          durasiMenit = Math.max(0, (p2[0] * 60 + p2[1]) - (p1[0] * 60 + p1[1]));
-        }
-      }
-      if (data.jenisIjin.startsWith('Sakit') || data.jenisIjin.startsWith('Ijin (S Tangan)') || data.jenisIjin === 'Alpha' || data.jenisIjin === 'Ijin Normatif') {
-        durasiMenit = 420;
-      }
+      const eff = calculateEffectivePermitMinutes(t.tanggal, t.jamAwal, t.jamAkhir, false, data.jenisIjin);
       return {
         rowNum: Date.now() + idx,
         tanggal: t.tanggal,
         nama: data.nama,
         unit: worker?.unit || '-',
         sekup: worker?.sekup || '-',
-        jamAwal: t.jamAwal || '-',
-        jamAkhir: t.jamAkhir || '-',
-        durasiMenit,
+        jamAwal: eff.jamAwal || t.jamAwal || '-',
+        jamAkhir: eff.jamAkhir || t.jamAkhir || '-',
+        durasiMenit: eff.durasiMenit,
         jenisIjin: data.jenisIjin,
         keperluan: data.keperluan,
         lampiran: data.lampiran,
         catatan: data.catatan,
-        faktorPotongan: 0
+        faktorPotongan: eff.faktorPotongan
       };
     });
 
@@ -317,8 +308,14 @@ export default function App() {
     lampiran: string;
     catatan: string;
   }) => {
+    const eff = calculateEffectivePermitMinutes(data.tanggal, data.jamAwal, data.jamAkhir, false, data.jenisIjin);
     setPresensiList(prev => {
-      const next = prev.map(r => r.rowNum === data.rowNum ? { ...r, ...data } : r);
+      const next = prev.map(r => r.rowNum === data.rowNum ? { 
+        ...r, 
+        ...data, 
+        durasiMenit: eff.durasiMenit, 
+        faktorPotongan: eff.faktorPotongan 
+      } : r);
       localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
       return next;
     });
