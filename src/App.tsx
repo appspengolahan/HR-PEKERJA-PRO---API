@@ -159,8 +159,9 @@ export default function App() {
   const syncLiveData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      // 1. Single consolidated request
-      const res = await gasClient.getAllData(currentScope);
+      // 1. Selalu minta 'ALL' agar master pekerjaList (63 orang) dan data utama lengkap di memori,
+      // kemudian hak akses (RBAC) per peran dan sekup aktif difilter secara presisi di setiap tab modul.
+      const res = await gasClient.getAllData('ALL');
       if (res.status === 'success' && res.data) {
         const d = res.data as {
           pekerja?: PekerjaData[];
@@ -207,7 +208,7 @@ export default function App() {
 
         // Fetch complete annual presensi history to guarantee full 12-month rekap accuracy
         try {
-          const presensiHistory = await gasClient.getPresensi('', '2026', '', currentScope);
+          const presensiHistory = await gasClient.getPresensi('', '2026', '', 'ALL');
           if (presensiHistory.status === 'success' && Array.isArray(presensiHistory.data) && presensiHistory.data.length > 0) {
             setPresensiList(presensiHistory.data);
             localStorage.setItem('hr_presensi_cache', JSON.stringify(presensiHistory.data));
@@ -221,7 +222,7 @@ export default function App() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [currentScope]);
+  }, []);
 
   // Initial load
   useEffect(() => {

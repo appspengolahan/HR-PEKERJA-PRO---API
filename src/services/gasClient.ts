@@ -62,7 +62,11 @@ export const gasClient = {
   getAllData: async (scope = 'ALL'): Promise<GasApiResponse> => {
     const url = gasClient.getEndpointUrl();
     try {
-      const res = await fetchWithTimeout(`${url}?action=getAllData&scope=${encodeURIComponent(scope)}`, {
+      // Backend GAS Standalone melakukan perbandingan kaku (unitSekup !== scope),
+      // sehingga scope gabungan (misal 'Proses Cengkeh & Persediaan Cengkeh') menyebabkan return kosong.
+      // Kirim 'ALL' agar seluruh 63 pekerja diterima dan difilter RBAC di sisi web app.
+      const safeScope = (scope && !scope.includes('&') && !scope.includes(',')) ? scope : 'ALL';
+      const res = await fetchWithTimeout(`${url}?action=getAllData&scope=${encodeURIComponent(safeScope)}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       }, 15000);
@@ -76,8 +80,9 @@ export const gasClient = {
   getPresensi: async (bulan: string | number, tahun: string | number, nama = '', scope = 'ALL'): Promise<GasApiResponse> => {
     const url = gasClient.getEndpointUrl();
     try {
+      const safeScope = (scope && !scope.includes('&') && !scope.includes(',')) ? scope : 'ALL';
       const res = await fetchWithTimeout(
-        `${url}?action=getPresensi&bulan=${bulan}&tahun=${tahun}&nama=${encodeURIComponent(nama)}&scope=${encodeURIComponent(scope)}`,
+        `${url}?action=getPresensi&bulan=${bulan}&tahun=${tahun}&nama=${encodeURIComponent(nama)}&scope=${encodeURIComponent(safeScope)}`,
         { method: 'GET', headers: { 'Accept': 'application/json' } },
         12000
       );
@@ -106,8 +111,9 @@ export const gasClient = {
   getRekapLembur: async (tglAwal: string, tglAkhir: string, unit: string, sekup: string, scope = 'ALL'): Promise<GasApiResponse> => {
     const url = gasClient.getEndpointUrl();
     try {
+      const safeScope = (scope && !scope.includes('&') && !scope.includes(',')) ? scope : 'ALL';
       const res = await fetchWithTimeout(
-        `${url}?action=getRekapLembur&tglAwal=${tglAwal}&tglAkhir=${tglAkhir}&unit=${encodeURIComponent(unit)}&sekup=${encodeURIComponent(sekup)}&scope=${encodeURIComponent(scope)}`,
+        `${url}?action=getRekapLembur&tglAwal=${tglAwal}&tglAkhir=${tglAkhir}&unit=${encodeURIComponent(unit)}&sekup=${encodeURIComponent(sekup)}&scope=${encodeURIComponent(safeScope)}`,
         { method: 'GET', headers: { 'Accept': 'application/json' } },
         12000
       );

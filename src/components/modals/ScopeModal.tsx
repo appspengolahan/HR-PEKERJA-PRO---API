@@ -42,6 +42,12 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
     onClose();
   };
 
+  const hasCombinedScope = Boolean(
+    currentUser?.scope && 
+    currentUser.scope !== 'ALL' && 
+    (currentUser.scope.includes('&') || currentUser.scope.includes(','))
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-slate-800">
@@ -96,8 +102,29 @@ export const ScopeModal: React.FC<ScopeModalProps> = ({
               </button>
             )}
 
+            {!canAccessAll && hasCombinedScope && currentUser?.scope && (
+              <button
+                type="button"
+                onClick={() => setSelected(currentUser.scope)}
+                className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
+                  selected === currentUser.scope
+                    ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold shadow-xs'
+                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Shield className="w-4 h-4 text-emerald-600" />
+                  <div>
+                    <div className="font-bold">🏢 {currentUser.scope} (Semua Unit Saya)</div>
+                    <div className="text-[10px] text-slate-500">Melihat seluruh pekerja dalam mandat peran Anda</div>
+                  </div>
+                </div>
+                {selected === currentUser.scope && <Check className="w-4 h-4 text-blue-600" />}
+              </button>
+            )}
+
             <div className="pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-              <span>Unit &amp; Sekup yang Diizinkan:</span>
+              <span>{hasCombinedScope ? 'Pilih Sub-Unit Spesifik:' : 'Unit & Sekup yang Diizinkan:'}</span>
               {!canAccessAll && (
                 <span className="text-amber-600 font-bold flex items-center gap-1">
                   <Lock className="w-3 h-3" /> Terkunci Hak Akses
