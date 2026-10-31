@@ -36,23 +36,25 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
     if (!isBlankForm && data) {
       setIsBlankForm(true);
       setFormData({
-        nama: '....................................................',
-        jabatan: '....................................................',
+        nama: '',
+        jabatan: '',
         divisi: 'Produksi I',
-        unit: '........................',
+        unit: '',
         checkbox: '',
         isBulanan: false,
-        hari: '........................',
-        tanggal: '........................',
-        keperluan: '........................................................................................................',
-        jamMasuk: '.......',
-        jamKeluar: '.......',
-        jamMasukKembali: '.......',
+        hari: '',
+        hariAkhir: '',
+        tanggal: '',
+        tanggalAkhir: '',
+        keperluan: '',
+        jamMasuk: '-',
+        jamKeluar: '-',
+        jamMasukKembali: '-',
         jamBagian: 0,
         menitBagian: 0,
-        tglCetak: '.... ...............',
-        thnCetak: '..',
-        namaTtd: '....................................'
+        tglCetak: '',
+        thnCetak: '',
+        namaTtd: ''
       });
     } else if (data) {
       setIsBlankForm(false);
@@ -68,6 +70,18 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
   };
 
   const currentCheckbox = formData.checkbox;
+
+  const formatCetakDate = () => {
+    if (formData.tglCetak && formData.tglCetak.trim() !== '') {
+      if (formData.tglCetak.includes('20')) {
+        return formData.tglCetak;
+      }
+      return `${formData.tglCetak} 20${formData.thnCetak || '26'}`;
+    }
+    const now = new Date();
+    const bulans = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return `${now.getDate()} ${bulans[now.getMonth() + 1]} ${now.getFullYear()}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -101,7 +115,7 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
             max-height: 16cm !important;
             box-sizing: border-box !important;
             margin: 0 !important;
-            padding: 0.6cm 0.8cm 0.4cm 0.8cm !important;
+            padding: 0.8cm 1.2cm 0.6cm 1.2cm !important;
             background: white !important;
             color: black !important;
             border: none !important;
@@ -109,6 +123,7 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
             overflow: hidden !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
           }
           .print-hidden-element {
             display: none !important;
@@ -127,14 +142,14 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm text-slate-900">
-                  Formulir Cetak Fisik: Surat Permohonan Ijin
+                  Formulir Cetak Fisik: Surat Permohonan Ijin Resmi
                 </span>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
-                  Standar Kertas 20,5 × 16 cm (GAS Lama)
+                  Standar Perusahaan 20,5 × 16 cm
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Format resmi fisik PT Batu Karang Divisi Produksi I (PP1) untuk printer dot matrix / continuous form.
+                Format resmi fisik PT Batu Karang Divisi Produksi I (PP1) sesuai standar dokumen perusahaan.
               </p>
             </div>
           </div>
@@ -197,29 +212,30 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
           {/* THE OFFICIAL 20.5cm x 16cm PAPER */}
           <div 
             id="suratIjinPaperRoot"
-            className="bg-white text-black shadow-2xl p-6 text-[11px] leading-[1.3] border border-slate-300 font-sans select-text relative"
+            className="bg-white text-black shadow-2xl p-7 text-[11px] leading-[1.35] border border-slate-300 select-text relative"
             style={{
               width: '20.5cm',
               height: '16cm',
               maxHeight: '16cm',
               boxSizing: 'border-box',
               margin: '0 auto',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif'
             }}
           >
             {/* 1. Header Title & Worker Category */}
-            <div className="text-center font-bold text-[15px] tracking-wider uppercase mb-1 font-sans text-black">
+            <div className="text-center font-bold text-[15px] tracking-wide uppercase mb-1 font-sans text-black">
               SURAT PERMOHONAN IJIN
             </div>
 
-            <div className="text-center text-[11px] font-bold mb-3 flex items-center justify-center gap-8">
+            <div className="text-center text-[11px] font-bold mb-3.5 flex items-center justify-center gap-7 text-black">
               <label 
                 className={`flex items-center gap-1.5 cursor-pointer select-none ${
                   formData.isBulanan ? 'font-bold' : 'font-normal'
                 }`}
                 onClick={() => setFormData({ ...formData, isBulanan: !formData.isBulanan })}
               >
-                <span className="text-[13px] inline-block w-4 text-center">
+                <span className="text-[13px] inline-block w-4 text-center font-bold">
                   {formData.isBulanan ? '☑' : '☐'}
                 </span>
                 <span>Bulanan</span>
@@ -239,11 +255,11 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
             </div>
 
             {/* 2. Pemohon Info */}
-            <div className="mb-1 text-[11px]">Yang bertanda tangan di bawah ini :</div>
+            <div className="mb-1 text-[11px] text-black">Yang bertanda tangan di bawah ini;</div>
 
-            <div className="space-y-1 mb-2 pl-2 text-[11px]">
+            <div className="space-y-1 mb-2.5 text-[11px] text-black">
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Nama</span>
+                <span className="w-40 font-bold flex-shrink-0">Nama</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
                   <input
@@ -253,14 +269,14 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
                     className="border-b border-black outline-none px-1 py-0 text-[11px] font-bold flex-1 bg-amber-50"
                   />
                 ) : (
-                  <span className="font-bold border-b border-dotted border-black flex-1 min-h-[16px] text-black">
-                    {formData.nama}
+                  <span className="font-bold border-b border-dotted border-black inline-block min-w-[280px] text-black">
+                    {formData.nama || '....................................................'}
                   </span>
                 )}
               </div>
 
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Jabatan / Pekerjaan</span>
+                <span className="w-40 font-bold flex-shrink-0">Jabatan / Pekerjaan</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
                   <input
@@ -270,14 +286,14 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
                     className="border-b border-black outline-none px-1 py-0 text-[11px] flex-1 bg-amber-50"
                   />
                 ) : (
-                  <span className="border-b border-dotted border-black flex-1 min-h-[16px] text-black">
-                    {formData.jabatan || 'Pekerja Harian'}
+                  <span className="border-b border-dotted border-black inline-block min-w-[280px] text-black">
+                    {formData.jabatan || 'Harian'}
                   </span>
                 )}
               </div>
 
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Divisi / Unit</span>
+                <span className="w-40 font-bold flex-shrink-0">Divisi / Unit</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
                   <input
@@ -295,246 +311,284 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
                     className="border-b border-black outline-none px-1 py-0 text-[11px] flex-1 bg-amber-50"
                   />
                 ) : (
-                  <span className="border-b border-dotted border-black flex-1 min-h-[16px] text-black">
-                    {formData.divisi} / {formData.unit}
+                  <span className="border-b border-dotted border-black inline-block min-w-[280px] text-black">
+                    {formData.divisi} / {formData.unit || '........................'}
                   </span>
                 )}
               </div>
             </div>
 
-            {/* 3. Official Checkbox Box (Format GAS Lama) */}
-            <div className="border border-black p-2 my-2 bg-white text-[10.5px] leading-tight">
-              <div className="font-bold mb-1">Dengan ini mengajukan * :</div>
+            {/* 3. Official Checkbox Options (Direct list layout matching company format) */}
+            <div className="mb-2.5 text-[11px] leading-[1.4] text-black">
+              <div className="font-bold mb-1.5">Dengan ini mengajukan*</div>
               
-              <div className="grid grid-cols-3 gap-x-3 gap-y-1">
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'normatif' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'normatif' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Normatif</span>
-                </label>
+              <div className="space-y-1">
+                {/* Row 1: Normatif, Tidak Masuk, Terlambat */}
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'normatif' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'normatif' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Normatif,</span>
+                  </label>
 
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'tidakMasuk' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'tidakMasuk' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Tidak Masuk Kerja</span>
-                </label>
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'tidakMasuk' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'tidakMasuk' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Tidak Masuk Kerja,</span>
+                  </label>
 
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'terlambat' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'terlambat' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Datang Terlambat</span>
-                </label>
-              </div>
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'terlambat' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'terlambat' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Datang Terlambat,</span>
+                  </label>
+                </div>
 
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'keluarSementara' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'keluarSementara' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Meninggalkan Tempat Kerja Sementara Waktu</span>
-                </label>
+                {/* Row 2: Keluar Sementara, Pulang Cepat */}
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'keluarSementara' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'keluarSementara' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Meninggalkan Tempat Kerja Sementara Waktu,</span>
+                  </label>
 
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'pulangCepat' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'pulangCepat' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Pulang Lebih Cepat</span>
-                </label>
-              </div>
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'pulangCepat' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'pulangCepat' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Pulang Lebih Cepat,</span>
+                  </label>
+                </div>
 
-              <div className="mt-1">
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'eksternal' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'eksternal' ? '☑' : '☐'}
-                  </span>
-                  <span>Ijin Melaksanakan Tugas Kerja Yang Bersifat Ekstern Perusahaan **</span>
-                </label>
-              </div>
+                {/* Row 3: Tugas Eksternal */}
+                <div>
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'eksternal' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'eksternal' ? '☑' : '☐'}
+                    </span>
+                    <span>Ijin Melaksanakan Tugas Kerja Yang Bersifat Ekstern Perusahaan**</span>
+                  </label>
+                </div>
 
-              <div className="mt-0.5">
-                <label 
-                  className="flex items-center gap-1.5 cursor-pointer select-none"
-                  onClick={() => setFormData({ ...formData, checkbox: 'formKehadiran' })}
-                >
-                  <span className="text-[12px] w-3.5 inline-block text-center font-bold">
-                    {currentCheckbox === 'formKehadiran' ? '☑' : '☐'}
-                  </span>
-                  <span>Form Kehadiran ***</span>
-                </label>
+                {/* Row 4: Form Kehadiran */}
+                <div>
+                  <label 
+                    className="flex items-center gap-1 cursor-pointer select-none"
+                    onClick={() => setFormData({ ...formData, checkbox: 'formKehadiran' })}
+                  >
+                    <span className="text-[12px] inline-block font-bold">
+                      {currentCheckbox === 'formKehadiran' ? '☑' : '☐'}
+                    </span>
+                    <span>Form Kehadiran***</span>
+                  </label>
+                </div>
               </div>
             </div>
 
             {/* 4. Rincian Pelaksanaan Ijin */}
-            <div className="mb-1 text-[11px]">Pada :</div>
+            <div className="mb-1 text-[11px] text-black">pada :</div>
 
-            <div className="space-y-1 pl-2 mb-2 text-[11px]">
+            <div className="space-y-1 mb-2 text-[11px] text-black">
+              {/* Hari */}
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Hari</span>
+                <span className="w-40 font-bold flex-shrink-0">Hari</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    value={formData.hari}
-                    onChange={(e) => setFormData({ ...formData, hari: e.target.value })}
-                    className="border-b border-black outline-none px-1 py-0 text-[11px] font-semibold flex-1 bg-amber-50"
-                  />
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="text"
+                      value={formData.hari}
+                      onChange={(e) => setFormData({ ...formData, hari: e.target.value })}
+                      className="border-b border-black outline-none px-1 py-0 text-[11px] font-bold w-28 bg-amber-50"
+                    />
+                    <span>s/d</span>
+                    <input
+                      type="text"
+                      value={formData.hariAkhir || formData.hari}
+                      onChange={(e) => setFormData({ ...formData, hariAkhir: e.target.value })}
+                      className="border-b border-black outline-none px-1 py-0 text-[11px] font-bold w-28 bg-amber-50"
+                    />
+                  </div>
                 ) : (
-                  <span className="font-semibold text-black">
-                    {formData.hari}
-                    {formData.hariAkhir && formData.hariAkhir !== formData.hari && (
-                      <span className="ml-1 font-normal">s/d {formData.hariAkhir}</span>
-                    )}
-                  </span>
+                  <div className="flex items-baseline flex-1">
+                    <span className="font-bold border-b border-dotted border-black inline-block min-w-[90px] text-black">
+                      {formData.hari || '..................'}
+                    </span>
+                    <span className="mx-2">s/d</span>
+                    <span className="font-bold border-b border-dotted border-black inline-block min-w-[90px] text-black">
+                      {formData.hariAkhir || formData.hari || '..................'}
+                    </span>
+                  </div>
                 )}
               </div>
 
+              {/* Tanggal */}
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Tanggal</span>
+                <span className="w-40 font-bold flex-shrink-0">Tanggal</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
-                  <input
-                    type="text"
-                    value={formData.tanggal}
-                    onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
-                    className="border-b border-black outline-none px-1 py-0 text-[11px] font-semibold flex-1 bg-amber-50"
-                  />
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="text"
+                      value={formData.tanggal}
+                      onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
+                      className="border-b border-black outline-none px-1 py-0 text-[11px] font-bold w-28 bg-amber-50"
+                    />
+                    <span>s/d</span>
+                    <input
+                      type="text"
+                      value={formData.tanggalAkhir || formData.tanggal}
+                      onChange={(e) => setFormData({ ...formData, tanggalAkhir: e.target.value })}
+                      className="border-b border-black outline-none px-1 py-0 text-[11px] font-bold w-28 bg-amber-50"
+                    />
+                  </div>
                 ) : (
-                  <span className="font-semibold text-black">
-                    {formData.tanggal}
-                    {formData.tanggalAkhir && formData.tanggalAkhir !== formData.tanggal && (
-                      <span className="ml-1 font-normal">s/d {formData.tanggalAkhir}</span>
-                    )}
-                  </span>
+                  <div className="flex items-baseline flex-1">
+                    <span className="font-bold border-b border-dotted border-black inline-block min-w-[90px] text-black">
+                      {formData.tanggal || '..................'}
+                    </span>
+                    <span className="mx-2">s/d</span>
+                    <span className="font-bold border-b border-dotted border-black inline-block min-w-[90px] text-black">
+                      {formData.tanggalAkhir || formData.tanggal || '..................'}
+                    </span>
+                  </div>
                 )}
               </div>
 
+              {/* Keterangan ijin / Form*** */}
               <div className="flex items-baseline">
-                <span className="w-36 font-semibold flex-shrink-0">Keterangan Ijin / Alasan</span>
+                <span className="w-40 font-bold flex-shrink-0">Keterangan ijin / Form***</span>
                 <span className="mr-2">:</span>
                 {isEditMode ? (
                   <input
                     type="text"
                     value={formData.keperluan}
                     onChange={(e) => setFormData({ ...formData, keperluan: e.target.value })}
-                    className="border-b border-black outline-none px-1 py-0 text-[11px] flex-1 bg-amber-50"
+                    className="border-b border-black outline-none px-1 py-0 text-[11px] flex-1 bg-amber-50 font-bold"
                   />
                 ) : (
-                  <span className="border-b border-dotted border-black flex-1 min-h-[16px] text-black">
-                    {formData.keperluan || '-'}
+                  <span className="border-b border-dotted border-black flex-1 min-h-[16px] text-black font-bold">
+                    {formData.keperluan || '...............................................................................'}
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-baseline gap-6 text-[10.5px] pt-0.5">
-                <div>
-                  <span className="font-semibold">Jam Masuk :</span>{' '}
-                  <span className="font-mono text-black">{formData.jamMasuk || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold">Jam Keluar :</span>{' '}
-                  <span className="font-mono text-black">{formData.jamKeluar || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-semibold">Jam Masuk Kembali :</span>{' '}
-                  <span className="font-mono text-black">{formData.jamMasukKembali || '-'}</span>
-                </div>
+              {/* Jam masuk, Jam keluar, Jam masuk kembali */}
+              <div className="flex items-baseline flex-wrap gap-y-1">
+                <span className="w-40 font-bold flex-shrink-0">Jam masuk</span>
+                <span className="mr-2">:</span>
+                <span className="border-b border-dotted border-black inline-block min-w-[80px] text-black mr-4">
+                  {formData.jamMasuk || '-'}
+                </span>
+
+                <span className="font-semibold mr-1">Jam keluar:</span>
+                <span className="border-b border-dotted border-black inline-block min-w-[80px] text-black mr-4">
+                  {formData.jamKeluar || '-'}
+                </span>
+
+                <span className="font-semibold mr-1">Jam masuk kembali:</span>
+                <span className="border-b border-dotted border-black inline-block min-w-[80px] text-black">
+                  {formData.jamMasukKembali || '-'}
+                </span>
               </div>
 
-              <div className="flex items-baseline pt-0.5">
-                <span className="w-36 font-semibold flex-shrink-0">Jumlah Ijin (Jam Kerja)</span>
+              {/* Jumlah Ijin (Jam Kerja) */}
+              <div className="flex items-baseline">
+                <span className="w-40 font-bold flex-shrink-0">Jumlah Ijin (Jam Kerja)</span>
                 <span className="mr-2">:</span>
-                <span className="font-bold text-black">
-                  {formData.jamBagian} Jam {formData.menitBagian} Menit
+                <span className="font-bold border-b border-dotted border-black inline-block min-w-[45px] text-center text-black">
+                  {formData.jamBagian}
                 </span>
-                <span className="ml-2 text-[9.5px] text-neutral-600 italic">
-                  (Diisi Hanya Jam Kerja Yang Diambil Untuk Ijin Saja)
+                <span className="mx-1.5 font-bold">Jam</span>
+                <span className="font-bold border-b border-dotted border-black inline-block min-w-[45px] text-center text-black">
+                  {formData.menitBagian}
                 </span>
+                <span className="ml-1.5 font-bold">Menit</span>
+              </div>
+              <div className="text-[10px] text-black pl-[170px] italic">
+                (Diisi Hanya Jam Kerja Yang Diambil Untuk Ijin Saja)
               </div>
             </div>
 
             {/* 5. Klausul Pernyataan Legal */}
-            <div className="text-[9.5px] leading-tight italic my-2 text-neutral-800">
+            <div className="text-[10.5px] leading-snug my-2.5 text-black">
               Demikian surat ijin ini kami buat dengan sebenarnya, kami bersedia menerima sanksi administrasi apabila dikemudian hari terjadi penyalahgunaan ijin / tidak sesuai dengan ijin yang kami ajukan.
             </div>
 
-            {/* 6. Signature & Approval Matrix Area */}
-            <div className="grid grid-cols-2 gap-4 text-[10.5px] pt-1">
-              {/* Left Column: Pejabat Yang Berwenang (Table Matrix) */}
-              <div>
-                <div className="font-bold mb-1 text-[10px]">Pejabat yang berwenang:</div>
-                <table className="w-full border-collapse border border-black text-center text-[9px]">
-                  <thead>
-                    <tr className="bg-neutral-100/50">
-                      <th className="border border-black py-0.5 font-bold w-1/4">Menyetujui</th>
-                      <th className="border border-black py-0.5 font-bold w-1/4">Mengetahui 1</th>
-                      <th className="border border-black py-0.5 font-bold w-1/4">Mengetahui 2</th>
-                      <th className="border border-black py-0.5 font-bold w-1/4 leading-tight">
-                        Mengetahui 3<br />HRD II &amp; Umum
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="border border-black h-10 align-bottom pb-0.5 text-[8.5px] text-neutral-400">
-                        ( ........... )
-                      </td>
-                      <td className="border border-black h-10 align-bottom pb-0.5 text-[8.5px] text-neutral-400">
-                        ( ........... )
-                      </td>
-                      <td className="border border-black h-10 align-bottom pb-0.5 text-[8.5px] text-neutral-400">
-                        ( ........... )
-                      </td>
-                      <td className="border border-black h-10 align-bottom pb-0.5 text-[8.5px] text-neutral-400">
-                        ( ........... )
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            {/* 6. Signature & Approval Matrix Area (Clean open layout matching official image) */}
+            <div className="grid grid-cols-12 gap-2 text-[10.5px] pt-1 text-black">
+              {/* Left Side: Pejabat Yang Berwenang (Cols 8) */}
+              <div className="col-span-8 flex flex-col justify-between">
+                <div>
+                  <div className="font-bold mb-1">Pejabat yang berwenang</div>
+                  <div className="grid grid-cols-4 gap-1 text-[10px]">
+                    <div>
+                      <div>Mengetahui 3,</div>
+                      <div className="text-[9.5px]">HRD II &amp; Umum II</div>
+                    </div>
+                    <div>
+                      <div>Mengetahui 2,</div>
+                    </div>
+                    <div>
+                      <div>Mengetahui 1,</div>
+                    </div>
+                    <div>
+                      <div>Menyetujui</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Signature blank brackets */}
+                <div className="grid grid-cols-4 gap-1 text-[10px] mt-9">
+                  <div>( ................ )</div>
+                  <div>( ................ )</div>
+                  <div>( ................ )</div>
+                  <div>( ................ )</div>
+                </div>
               </div>
 
-              {/* Right Column: Applicant Signature */}
-              <div className="text-right flex flex-col justify-between items-end pr-3">
+              {/* Right Side: Applicant Submission (Cols 4) */}
+              <div className="col-span-4 text-center flex flex-col justify-between items-center pl-2">
                 <div>
-                  <div className="text-[10px]">
-                    Malang, {formData.tglCetak} 20{formData.thnCetak}
+                  <div className="font-bold text-[10.5px]">
+                    Malang, {formatCetakDate()}
                   </div>
-                  <div className="mt-0.5 font-bold text-[10.5px]">Diajukan oleh,</div>
+                  <div className="mt-0.5">Diajukan oleh,</div>
                 </div>
-                <div className="text-center min-w-[130px] mt-6">
-                  <div className="font-bold underline text-[11px] text-black">
-                    {formData.namaTtd || formData.nama}
-                  </div>
-                  <div className="text-[9.5px] text-neutral-600">Pekerja Harian</div>
+
+                <div className="mt-9 font-bold text-[11px] text-black tracking-wide">
+                  ( {formData.namaTtd || formData.nama || '....................................'} )
                 </div>
               </div>
             </div>
 
-            {/* 7. Footnotes */}
-            <div className="mt-2 pt-1 border-t border-neutral-300 text-[8.5px] text-neutral-600 leading-snug space-y-0.2">
-              <div>* Pilih salah satu (√).</div>
-              <div>** Khusus tugas kerja yang bersifat ekstern Perusahaan tanpa dilengkapi Surat Tugas dari atasan.</div>
-              <div>*** Jika salah satu dari cecklok masuk / pulang tidak terdeteksi di mesin absen sidik jari.</div>
+            {/* 7. Footnotes with dotted underline matching official paper */}
+            <div className="mt-3 pt-1 text-[9px] text-black leading-tight space-y-0.5">
+              <div className="underline decoration-dotted">* pilih salah satu (√).</div>
+              <div className="underline decoration-dotted">** Khusus tugas kerja yang bersifat ekstern Perusahaan tanpa dilengkapi Surat Tugas dari atasan.</div>
+              <div className="underline decoration-dotted">*** Jika salah satu dari cecklok masuk / pulang tidak terdeteksi di mesin absen sidik jari</div>
             </div>
 
           </div>

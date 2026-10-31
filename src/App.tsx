@@ -376,8 +376,8 @@ export default function App() {
 
     // Lookup worker for exact Jabatan and Unit/Sekup
     const worker = pekerjaList.find(p => p.nama === rec.nama);
-    const jabatan = worker?.jabatan && worker.jabatan !== '-' ? worker.jabatan : 'Pekerja Harian';
-    const unitSekup = worker?.sekup ? `${worker.unit} (${worker.sekup})` : (rec.unit || 'Cengkeh');
+    const jabatan = worker?.jabatan && worker.jabatan !== '-' ? worker.jabatan : 'Harian';
+    const unitSekup = worker?.unit || rec.unit || 'Tembakau';
 
     // Accurate mapping to official 7 checkboxes
     let checkbox = 'tidakMasuk';
@@ -414,6 +414,8 @@ export default function App() {
       jamMasukKembali = rec.jamAkhir || '11:00';
     }
 
+    const tglStr = rec.tanggal || `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+
     setSuratIjinData({
       nama: rec.nama,
       jabatan: jabatan,
@@ -422,7 +424,9 @@ export default function App() {
       checkbox,
       isBulanan: false,
       hari: hariIndo,
-      tanggal: rec.tanggal || `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`,
+      hariAkhir: hariIndo,
+      tanggal: tglStr,
+      tanggalAkhir: tglStr,
       keperluan: rec.keperluan || '-',
       jamMasuk,
       jamKeluar,
