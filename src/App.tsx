@@ -733,6 +733,8 @@ export default function App() {
           const url = new URL(window.location.href);
           url.searchParams.delete('view');
           window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+          authService.logout();
+          setCurrentUser(null);
           setIsPublicMode(false);
         }}
       />
