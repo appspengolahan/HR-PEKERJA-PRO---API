@@ -435,10 +435,10 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
 
       </div>
 
-      {/* Modal Add Calon */}
+      {/* Modal Add Calon - Always Centered */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Pendaftaran Calon Pekerja Baru</h3>
@@ -547,10 +547,10 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
         </div>
       )}
 
-      {/* Modal Evaluasi Kelulusan */}
+      {/* Modal Evaluasi Kelulusan - Always Centered */}
       {updatingCalon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Evaluasi Kelulusan Calon Pekerja</h3>

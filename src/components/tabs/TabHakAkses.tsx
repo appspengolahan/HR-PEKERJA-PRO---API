@@ -43,6 +43,7 @@ import {
   CheckSquare,
   FileCode
 } from 'lucide-react';
+import { useSystemDialog } from '../../context/SystemDialogContext';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
   authService, 
@@ -180,6 +181,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'workers' | 'matrix'>('accounts');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchWorker, setSearchWorker] = useState('');
+  const { showConfirm, showAlert } = useSystemDialog();
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -454,8 +456,12 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     showNotification('success', 'Matriks hak akses dan preferensi beban upah berhasil disimpan!');
   };
 
-  const handleResetRoleMatrix = () => {
-    if (window.confirm('Kembalikan seluruh pengaturan matriks hak akses, peran, dan visibilitas beban upah ke setelan bawaan pabrik?')) {
+  const handleResetRoleMatrix = async () => {
+    const ok = await showConfirm({
+      message: 'Kembalikan seluruh pengaturan matriks hak akses, peran, dan visibilitas beban upah ke setelan bawaan pabrik?',
+      confirmLabel: 'Ya, Kembalikan'
+    });
+    if (ok) {
       const def = authService.resetRoleMatrix();
       const defWage = authService.getWageSummaryConfig();
       const defRoles = authService.getRoleDefinitions();
@@ -622,13 +628,18 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   };
 
   // Hapus Peran
-  const handleDeleteRole = (roleToDelete: UserAccessRole) => {
+  const handleDeleteRole = async (roleToDelete: UserAccessRole) => {
     if (roleToDelete === 'Super Admin') {
       showNotification('error', 'Peran Super Admin dilindungi sistem dan tidak dapat dihapus.');
       return;
     }
 
-    if (!window.confirm(`Yakin ingin menghapus peran "${roleToDelete}"? Pengguna dengan peran ini perlu dialihkan ke peran lain.`)) {
+    const ok = await showConfirm({
+      message: `Yakin ingin menghapus peran "${roleToDelete}"?\nPengguna dengan peran ini perlu dialihkan ke peran lain.`,
+      type: 'danger',
+      confirmLabel: 'Ya, Hapus Peran'
+    });
+    if (!ok) {
       return;
     }
 
@@ -951,7 +962,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   };
 
   // Delete account
-  const handleDelete = (index: number) => {
+  const handleDelete = async (index: number) => {
     const acc = accounts[index];
     if (acc.email.toLowerCase() === 'appspengolahan@gmail.com') {
       showNotification('error', 'Akun Super Admin Utama (Lead Developer) tidak dapat dihapus demi keamanan sistem!');
@@ -963,7 +974,12 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       return;
     }
 
-    if (confirm(`Apakah Anda yakin ingin menghapus akun "${acc.nama}" (${acc.email})?`)) {
+    const ok = await showConfirm({
+      message: `Apakah Anda yakin ingin menghapus akun "${acc.nama}" (${acc.email})?`,
+      type: 'danger',
+      confirmLabel: 'Ya, Hapus'
+    });
+    if (ok) {
       const updated = accounts.filter((_, idx) => idx !== index);
       setAccounts(updated);
       authService.saveInternalAccounts(updated);
@@ -1060,8 +1076,12 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   };
 
   // Reset to default
-  const handleResetDefault = () => {
-    if (confirm('Kembalikan seluruh daftar akun ke pengaturan default bawaan sistem? Akun yang baru Anda tambahkan akan direset.')) {
+  const handleResetDefault = async () => {
+    const ok = await showConfirm({
+      message: 'Kembalikan seluruh daftar akun ke pengaturan default bawaan sistem?\nAkun yang baru Anda tambahkan akan direset.',
+      confirmLabel: 'Ya, Reset'
+    });
+    if (ok) {
       const def = authService.resetToDefaultAccounts();
       setAccounts(def);
       showNotification('success', 'Daftar akun berhasil dikembalikan ke pengaturan default.');
@@ -1923,10 +1943,10 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         </div>
       )}
 
-      {/* MODAL TAMBAH / EDIT AKUN INTERNAL */}
+      {/* MODAL TAMBAH / EDIT AKUN INTERNAL - Always Centered */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
@@ -2234,10 +2254,10 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         </div>
       )}
 
-      {/* MODAL TAMBAH PERAN BARU */}
+      {/* MODAL TAMBAH PERAN BARU - Always Centered */}
       {isAddRoleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2519,10 +2539,10 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         </div>
       )}
 
-      {/* MODAL EDIT DEFINISI PERAN */}
+      {/* MODAL EDIT DEFINISI PERAN - Always Centered */}
       {isEditRoleModalOpen && editingRole && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2814,10 +2834,10 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         </div>
       )}
 
-      {/* MODAL PANDUAN INTEGRASI GOOGLE SHEET & CODE.GS */}
+      {/* MODAL PANDUAN INTEGRASI GOOGLE SHEET & CODE.GS - Always Centered */}
       {isShowGasGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
             
             {/* Modal Header */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">

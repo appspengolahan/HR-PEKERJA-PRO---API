@@ -9,6 +9,7 @@ import {
   Printer
 } from 'lucide-react';
 import { JadwalMutasiRecord } from '../../types';
+import { useSystemDialog } from '../../context/SystemDialogContext';
 
 interface TabJadwalMutasiProps {
   jadwalList: JadwalMutasiRecord[];
@@ -28,6 +29,7 @@ export const TabJadwalMutasi: React.FC<TabJadwalMutasiProps> = ({
   const [editNilaiBaru, setEditNilaiBaru] = useState('');
   const [editKeterangan, setEditKeterangan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showConfirm, showAlert } = useSystemDialog();
 
   const handleOpenEdit = (m: JadwalMutasiRecord) => {
     setEditingMutasi(m);
@@ -134,12 +136,17 @@ export const TabJadwalMutasi: React.FC<TabJadwalMutasiProps> = ({
                           Edit
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Batalkan mutasi terjadwal untuk ${m.nama}? Mutasi ini tidak akan diterapkan.`)) {
+                          onClick={async () => {
+                            const ok = await showConfirm({
+                              message: `Batalkan mutasi terjadwal untuk ${m.nama}?\nMutasi ini tidak akan diterapkan.`,
+                              type: 'danger',
+                              confirmLabel: 'Ya, Batalkan'
+                            });
+                            if (ok) {
                               onCancelMutasi(m.rowNum, m.nama);
                             }
                           }}
-                          className="px-2.5 py-1 rounded bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-semibold"
+                          className="px-2.5 py-1 rounded bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-semibold cursor-pointer"
                         >
                           Batalkan
                         </button>
@@ -154,10 +161,10 @@ export const TabJadwalMutasi: React.FC<TabJadwalMutasiProps> = ({
 
       </div>
 
-      {/* Edit Mutasi Modal */}
+      {/* Edit Mutasi Modal - Always Centered */}
       {editingMutasi && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Edit Mutasi: {editingMutasi.nama}</h3>

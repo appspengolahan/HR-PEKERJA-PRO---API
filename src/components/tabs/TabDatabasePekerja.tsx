@@ -17,6 +17,7 @@ import { exportPekerjaToCSV } from '../../utils/exportUtils';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { Download } from 'lucide-react';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { useSystemDialog } from '../../context/SystemDialogContext';
 
 interface TabDatabasePekerjaProps {
   pekerjaList: PekerjaData[];
@@ -50,6 +51,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const [search, setSearch] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('Semua');
   const [filterMutasiOnly, setFilterMutasiOnly] = useState(false);
+  const { showConfirm, showAlert } = useSystemDialog();
   
   // Wewenang modifikasi data induk pekerja
   const canManagePekerja = 
@@ -477,9 +479,14 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         handleResetSwipe();
-                        if (confirm(`Hapus ${p.nama} dari Database Pekerja? Data akan dikosongkan dan salinannya disimpan ke LOG_RIWAYAT_HAPUS_PEKERJA.`)) {
+                        const ok = await showConfirm({
+                          message: `Hapus ${p.nama} dari Database Pekerja?\nData akan dikosongkan dan salinannya disimpan ke LOG_RIWAYAT_HAPUS_PEKERJA.`,
+                          type: 'danger',
+                          confirmLabel: 'Ya, Hapus'
+                        });
+                        if (ok) {
                           onDeletePekerja(p.rowNum, p.nama);
                         }
                       }}
@@ -717,8 +724,13 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                         )}
                         {canDeletePekerja && (
                           <button
-                            onClick={() => {
-                              if (confirm(`Hapus ${p.nama} dari Database Pekerja? Data akan dikosongkan dan salinannya disimpan ke LOG_RIWAYAT_HAPUS_PEKERJA.`)) {
+                            onClick={async () => {
+                              const ok = await showConfirm({
+                                message: `Hapus ${p.nama} dari Database Pekerja?\nData akan dikosongkan dan salinannya disimpan ke LOG_RIWAYAT_HAPUS_PEKERJA.`,
+                                type: 'danger',
+                                confirmLabel: 'Ya, Hapus'
+                              });
+                              if (ok) {
                                 onDeletePekerja(p.rowNum, p.nama);
                               }
                             }}
@@ -739,10 +751,10 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       </div>
 
-      {/* Modal Add Pekerja */}
+      {/* Modal Add Pekerja - Always Centered */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Tambah Pekerja Baru</h3>
@@ -883,10 +895,10 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
         </div>
       )}
 
-      {/* Modal Edit Pekerja */}
+      {/* Modal Edit Pekerja - Always Centered */}
       {editingPekerja && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Pekerja: {editingPekerja.nama}</h3>
@@ -1016,10 +1028,10 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
         </div>
       )}
 
-      {/* Modal Mutasi Pekerja */}
+      {/* Modal Mutasi Pekerja - Always Centered */}
       {mutasiTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Mutasi / Rotasi: {mutasiTarget.nama}</h3>

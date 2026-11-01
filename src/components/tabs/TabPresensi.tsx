@@ -18,6 +18,7 @@ import {
   getWorkScheduleForDate, 
   formatMinutesToTime 
 } from '../../utils/workHoursUtils';
+import { useSystemDialog } from '../../context/SystemDialogContext';
 
 interface TabPresensiProps {
   presensiList: PresensiIjinRecord[];
@@ -68,6 +69,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PresensiIjinRecord | null>(null);
+  const { showConfirm, showAlert } = useSystemDialog();
 
   // Form Add State
   const [addNama, setAddNama] = useState('');
@@ -480,8 +482,13 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(`Hapus data ijin ${r.nama} pada tanggal ${r.tanggal}? Salinan akan disimpan ke arsip.`)) {
+                            onClick={async () => {
+                              const ok = await showConfirm({
+                                message: `Hapus data ijin ${r.nama} pada tanggal ${r.tanggal}?\nSalinan akan disimpan ke arsip.`,
+                                type: 'danger',
+                                confirmLabel: 'Ya, Hapus'
+                              });
+                              if (ok) {
                                 onDeletePresensi(r.rowNum);
                               }
                             }}
@@ -502,10 +509,10 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
       </div>
 
-      {/* Modal Add Ijin */}
+      {/* Modal Add Ijin - Always Centered */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Catat Ijin / Ketidakhadiran Pekerja</h3>
@@ -700,10 +707,10 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         </div>
       )}
 
-      {/* Modal Edit Ijin */}
+      {/* Modal Edit Ijin - Always Centered */}
       {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Ijin: {editingRecord.nama}</h3>

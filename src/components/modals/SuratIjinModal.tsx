@@ -84,7 +84,7 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
       
       {/* Printable styles isolated strictly to this form */}
       <style>{`
@@ -131,7 +131,7 @@ export const SuratIjinModal: React.FC<SuratIjinModalProps> = ({
         }
       `}</style>
 
-      <div className="bg-slate-100 rounded-2xl shadow-2xl border border-slate-300 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
+      <div className="relative m-auto bg-slate-100 rounded-2xl shadow-2xl border border-slate-300 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
         
         {/* Modal Toolbar (Screen Only) */}
         <div className="p-3 sm:p-4 bg-white border-b border-slate-300 flex flex-wrap items-center justify-between gap-3 print:hidden">
