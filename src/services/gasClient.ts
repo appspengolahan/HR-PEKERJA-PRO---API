@@ -158,6 +158,11 @@ export const gasClient = {
     return gasClient.postMutation('initUserLoginSheet', {}, currentUser);
   },
 
+  // Merapikan baris data presensi yang melompat ke 806/807 & membersihkan duplikasi di spreadsheet
+  realignPresensiRows: async (currentUser = 'Admin'): Promise<GasApiResponse> => {
+    return gasClient.postMutation('realignPresensiRows', {}, currentUser);
+  },
+
   // Post Mutation
   postMutation: async (action: string, data: unknown, currentUser = 'Web App User'): Promise<GasApiResponse> => {
     const url = gasClient.getEndpointUrl();

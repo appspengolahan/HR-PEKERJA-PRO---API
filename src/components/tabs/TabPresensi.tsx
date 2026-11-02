@@ -9,7 +9,8 @@ import {
   FileText, 
   Clock, 
   X,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { PresensiIjinRecord, PekerjaData, SuratIjinData } from '../../types';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
@@ -48,6 +49,7 @@ interface TabPresensiProps {
   onFilterChange: (bulan: string, tahun: string, nama: string) => void;
   isLoading: boolean;
   currentUser?: AuthUser | null;
+  onRealignPresensi?: () => Promise<any>;
 }
 
 export const TabPresensi: React.FC<TabPresensiProps> = ({
@@ -61,7 +63,8 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   onOpenSuratIjin,
   onFilterChange,
   isLoading,
-  currentUser
+  currentUser,
+  onRealignPresensi
 }) => {
   const [selectedBulan, setSelectedBulan] = useState(String(new Date().getMonth() + 1));
   const [selectedTahun, setSelectedTahun] = useState(String(new Date().getFullYear()));
@@ -69,7 +72,42 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PresensiIjinRecord | null>(null);
+  const [isRealigning, setIsRealigning] = useState(false);
   const { showConfirm, showAlert } = useSystemDialog();
+
+  const handleTriggerRealign = async () => {
+    if (!onRealignPresensi) return;
+    const ok = await showConfirm({
+      title: 'Rapikan Baris Spreadsheet & Hapus Duplikasi?',
+      message: 'Fitur ini akan menyusun ulang baris di sheet LOG_PRESENSI_IJIN tepat berurutan mulai baris 382 (di bawah Rudiono), membersihkan baris yang terlempar ke 806/807, serta menghapus data kembar/duplikat (Andri Buang & Dadang Nurjianto). Lanjutkan?',
+      confirmLabel: 'Ya, Rapikan Sekarang',
+      type: 'warning'
+    });
+    if (!ok) return;
+
+    setIsRealigning(true);
+    try {
+      const res = await onRealignPresensi();
+      if (res && res.status === 'success') {
+        await showAlert(res.message || 'Baris presensi berhasil ditata rapi berurutan mulai baris 382.', {
+          title: 'Sukses Merapikan Spreadsheet',
+          type: 'success'
+        });
+      } else {
+        await showAlert(res?.message || 'Gagal merapikan baris data.', {
+          title: 'Catatan Sinkronisasi',
+          type: 'warning'
+        });
+      }
+    } catch (err) {
+      await showAlert('Gagal merapikan data: ' + String(err), {
+        title: 'Error',
+        type: 'danger'
+      });
+    } finally {
+      setIsRealigning(false);
+    }
+  };
 
   // Form Add State
   const [addNama, setAddNama] = useState('');
@@ -331,6 +369,17 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               <Printer className="w-4 h-4 text-slate-600" />
               Export PDF
             </button>
+            {onRealignPresensi && (
+              <button
+                onClick={handleTriggerRealign}
+                disabled={isRealigning}
+                className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-amber-200 transition-colors cursor-pointer"
+                title="Menata ulang baris spreadsheet tepat di bawah baris 381 Rudiono & membersihkan duplikasi tanggal pekerja"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${isRealigning ? 'animate-spin' : ''}`} />
+                {isRealigning ? 'Merapikan...' : 'Rapikan & Hapus Duplikat'}
+              </button>
+            )}
           </div>
         </div>
 

@@ -181,6 +181,9 @@ function doPost(e) {
     if (action === 'initUserLoginSheet') {
       return jsonResponse_(initUserLoginSheet_());
     }
+    if (action === 'realignPresensiRows') {
+      return jsonResponse_(realignPresensiRows_(currentUser));
+    }
     if (action === 'addPresensiIjin') {
       return jsonResponse_(addPresensiIjin_(payload.data, currentUser));
     }
@@ -719,9 +722,58 @@ function addPresensiIjin_(data, currentUser) {
     ? data.tanggalList
     : [{ tanggal: data.tanggal, jamAwal: data.jamAwal, jamAkhir: data.jamAkhir }];
 
+  // 1. Scan data yang sudah ada: CARI BARIS KOSONG SEBENARNYA & CATAT KUNCI UNTUK CEGAH DUPLIKASI
+  // Scan seluruh tabel presensi dari baris 6 s/d 850
+  const maxScan = Math.max(sh.getLastRow() + 10, 850);
+  const scanCount = maxScan - ROWS.PRESENSI_START + 1;
+  const existingColCD = sh.getRange(ROWS.PRESENSI_START, 3, scanCount, 2).getValues(); // Col C (Tanggal) & Col D (Nama)
+
+  let firstEmptyRow = -1;
+  const existingKeys = {};
+
+  for (let i = 0; i < existingColCD.length; i++) {
+    const curRowNum = ROWS.PRESENSI_START + i;
+    const cVal = existingColCD[i][0];
+    const dVal = existingColCD[i][1];
+
+    const dStr = dVal === null || dVal === undefined ? '' : String(dVal).trim();
+    const cStr = cVal === null || cVal === undefined ? '' : String(cVal).trim();
+
+    // Baris kosong terdeteksi jika nama pekerja kosong (dropdown belum dipilih) dan tanggal kosong
+    if ((!dStr || dStr === '-') && (!cStr || cStr === '-')) {
+      if (firstEmptyRow === -1 && curRowNum <= 805) {
+        firstEmptyRow = curRowNum;
+      }
+    } else if (dStr && dStr !== '-') {
+      // Ada nama pekerja: simpan kunci untuk mencegah dobel input (format: TANGGAL_NAMA)
+      let dateKey = cStr;
+      if (cVal instanceof Date) {
+        dateKey = Utilities.formatDate(cVal, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      existingKeys[dateKey + '_' + dStr.toUpperCase()] = true;
+    }
+  }
+
+  // Jika semua baris 6..805 terisi, tulis di baris berikutnya
+  if (firstEmptyRow === -1) {
+    firstEmptyRow = Math.max(sh.getLastRow() + 1, 382);
+  }
+
   const rowsToAdd = [];
   tanggalList.forEach(t => {
     const tglObj = toDateValue_(t.tanggal);
+    let dateKey = String(t.tanggal).trim();
+    if (tglObj instanceof Date) {
+      dateKey = Utilities.formatDate(tglObj, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    const checkKey = dateKey + '_' + String(data.nama).trim().toUpperCase();
+
+    // PENCEGAHAN DUPLIKASI: jika pekerja ini sudah terdaftar pada tanggal yang sama, lewati agar tidak dobel!
+    if (existingKeys[checkKey]) {
+      return;
+    }
+    existingKeys[checkKey] = true;
+
     const calc = hitungMenitIjinEfektif_(tglObj, t.jamAwal, t.jamAkhir, data.jenisIjin);
     const durasiMenit = calc.durasiMenit;
     const faktorPotongan = calc.faktorPotongan;
@@ -748,42 +800,118 @@ function addPresensiIjin_(data, currentUser) {
     ]);
   });
 
-  if (rowsToAdd.length > 0) {
-    // Cari baris kosong pertama di tabel presensi (berdasarkan Kolom C: Tanggal & Kolom D: Nama)
-    // agar data tersimpan langsung berurutan di bawah baris data terakhir (misal di bawah baris #381 Rudiono)
-    // dan tidak melompati baris-baris kosong berformula
-    let nextRow = ROWS.PRESENSI_START;
-    const maxScan = Math.max(sh.getLastRow() + 10, 850);
-    const scanCount = maxScan - ROWS.PRESENSI_START + 1;
-    if (scanCount > 0) {
-      const existingData = sh.getRange(ROWS.PRESENSI_START, 3, scanCount, 2).getValues();
-      for (let i = 0; i < existingData.length; i++) {
-        const cVal = existingData[i][0];
-        const dVal = existingData[i][1];
-        if ((cVal === '' || cVal === null || cVal === undefined) &&
-            (dVal === '' || dVal === null || dVal === undefined)) {
-          nextRow = ROWS.PRESENSI_START + i;
-          break;
-        }
-        if (i === existingData.length - 1) {
-          nextRow = ROWS.PRESENSI_START + existingData.length;
-        }
-      }
-    }
+  if (rowsToAdd.length === 0) {
+    return { 
+      status: 'success', 
+      message: 'Ijin untuk "' + data.nama + '" pada tanggal ini sudah ada di database. Duplikasi otomatis dicegah.' 
+    };
+  }
 
-    sh.getRange(nextRow, 3, rowsToAdd.length, 14).setValues(rowsToAdd);
+  const nextRow = firstEmptyRow;
+  sh.getRange(nextRow, 3, rowsToAdd.length, 14).setValues(rowsToAdd);
 
-    // Pastikan Kolom B (No) terisi jika tidak memiliki formula
-    for (let i = 0; i < rowsToAdd.length; i++) {
-      const curRow = nextRow + i;
-      const noCell = sh.getRange(curRow, 2);
-      if (!noCell.getValue() && !noCell.getFormula()) {
-        noCell.setValue(curRow - ROWS.PRESENSI_START + 1);
-      }
+  // Pastikan Kolom B (No urut) terisi berurutan berkesinambungan
+  for (let i = 0; i < rowsToAdd.length; i++) {
+    const curRow = nextRow + i;
+    const noCell = sh.getRange(curRow, 2);
+    if (!noCell.getValue() && !noCell.getFormula()) {
+      noCell.setValue(curRow - ROWS.PRESENSI_START + 1);
     }
   }
 
-  return { status: 'success', message: 'Berhasil mencatat ' + rowsToAdd.length + ' presensi/ijin ke spreadsheet.' };
+  return { 
+    status: 'success', 
+    message: 'Berhasil mencatat ' + rowsToAdd.length + ' presensi/ijin ke spreadsheet pada baris #' + nextRow + ' (berurutan rapi).' 
+  };
+}
+
+/**
+ * RE-ALIGN & DEDUPLICATION ENGINE
+ * Merapikan baris data presensi yang melompat ke baris 806/807
+ * Menata kembali data tepat di bawah baris 381 (Rudiono) dan menghapus entri duplikat
+ */
+function realignPresensiRows_(currentUser) {
+  const sh = getSheet_(SHEET.PRESENSI);
+  if (!sh) throw new Error('Sheet ' + SHEET.PRESENSI + ' tidak ditemukan.');
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < ROWS.PRESENSI_START) {
+    return { status: 'success', message: 'Tabel presensi kosong.', totalRecords: 0, removedDuplicates: 0, movedFrom806: 0 };
+  }
+
+  // Scan SEMUA baris mulai dari baris 6 sampai baris data paling bawah (termasuk baris 806 ke atas)
+  const numRows = lastRow - ROWS.PRESENSI_START + 1;
+  const rawValues = sh.getRange(ROWS.PRESENSI_START, 2, numRows, 15).getValues(); // Col B (No) .. Col P (Faktor)
+
+  const validRecords = [];
+  const seenKeyMap = {};
+  let removedDuplicates = 0;
+  let rowsFrom806Count = 0;
+
+  for (let i = 0; i < rawValues.length; i++) {
+    const curRowNum = ROWS.PRESENSI_START + i;
+    const row = rawValues[i];
+    // Col 0: No (B), Col 1: Tanggal (C), Col 2: Nama (D), Col 3: Unit (E), Col 4: Sekup (F), Col 7: Jenis Ijin (J)
+    const tglRaw = row[1];
+    const namaRaw = row[2];
+
+    const namaStr = namaRaw === null || namaRaw === undefined ? '' : String(namaRaw).trim();
+    const tglStr = tglRaw === null || tglRaw === undefined ? '' : String(tglRaw).trim();
+
+    // Lewati baris template kosong (tanpa nama pekerja atau tanpa tanggal)
+    if (!namaStr || namaStr === '-' || !tglStr || tglStr === '-') {
+      continue;
+    }
+
+    if (curRowNum >= 806) {
+      rowsFrom806Count++;
+    }
+
+    // Normalisasi kunci tanggal untuk mendeteksi duplikasi
+    let dateKey = tglStr;
+    if (tglRaw instanceof Date) {
+      dateKey = Utilities.formatDate(tglRaw, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+
+    const uniqueKey = dateKey + '_' + namaStr.toUpperCase();
+
+    if (seenKeyMap[uniqueKey]) {
+      // DUPLIKASI TERDETEKSI: simpan 1 saja, lewati duplikat
+      removedDuplicates++;
+      continue;
+    }
+
+    seenKeyMap[uniqueKey] = true;
+    validRecords.push(row);
+  }
+
+  // 1. Bersihkan seluruh baris >= 806 yang terlempar
+  if (lastRow >= 806) {
+    const orphanCount = lastRow - 806 + 1;
+    sh.getRange(806, 1, orphanCount, 16).clearContent();
+  }
+
+  // 2. Kosongkan rentang tabel template (baris 6 s/d 805 kolom B s/d P) agar bisa ditulis ulang secara berurutan
+  const templateCount = ROWS.PRESENSI_LAST - ROWS.PRESENSI_START + 1;
+  sh.getRange(ROWS.PRESENSI_START, 2, templateCount, 15).clearContent();
+
+  // 3. Tulis ulang semua data valid secara berurutan mulai baris 6
+  // Baris 6 s/d 381 adalah data lama s/d Rudiono
+  // Baris 382, 383, dst langsung diisi pekerja ijin baru (Andri Buang, Dadang Nurjianto) tanpa melompat ke 807!
+  if (validRecords.length > 0) {
+    for (let idx = 0; idx < validRecords.length; idx++) {
+      validRecords[idx][0] = idx + 1; // Nomor urut berkesinambungan di Kolom B
+    }
+    sh.getRange(ROWS.PRESENSI_START, 2, validRecords.length, 15).setValues(validRecords);
+  }
+
+  return {
+    status: 'success',
+    message: 'Tabel presensi berhasil dirapikan! Total ' + validRecords.length + ' data tertata rapi berurutan mulai baris 6 (di bawah Rudiono baris 381). Duplikasi dihapus: ' + removedDuplicates + ' entri. Baris terlempar (>=806) dibersihkan: ' + rowsFrom806Count + ' entri.',
+    totalRecords: validRecords.length,
+    removedDuplicates: removedDuplicates,
+    movedFrom806: rowsFrom806Count
+  };
 }
 
 function updatePresensiIjin_(data, currentUser) {

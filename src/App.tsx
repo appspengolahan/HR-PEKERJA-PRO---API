@@ -115,10 +115,27 @@ export default function App() {
     'Sakit (S Dokter)', 'Sakit (S Tangan)', 'Ijin (S Tangan)', 'Ijin Terlambat', 
     'Ijin Keluar Sementara', 'Ijin Pulang Awal', 'Ijin Normatif', 'Alpha'
   ]);
+  const deduplicatePresensiList = (records: PresensiIjinRecord[]): PresensiIjinRecord[] => {
+    const seen = new Set<string>();
+    const clean: PresensiIjinRecord[] = [];
+    for (const r of records) {
+      const iso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+      const nama = (r.nama || '').trim().toUpperCase();
+      if (!nama || !iso) continue;
+      const key = `${iso}_${nama}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        clean.push(r);
+      }
+    }
+    return clean;
+  };
+
   const [switchAppUrl, setSwitchAppUrl] = useState('https://appspengolahan.github.io/HR-Karyawan-PP1/');
   const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>(() => {
     const cached = localStorage.getItem('hr_presensi_cache');
-    return cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
+    const raw = cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
+    return deduplicatePresensiList(Array.isArray(raw) ? raw : INITIAL_PRESENSI_FALLBACK);
   });
   const [lemburList, setLemburList] = useState<LemburRecord[]>([]);
   const [jadwalMutasiList, setJadwalMutasiList] = useState<JadwalMutasiRecord[]>(() => {
@@ -211,12 +228,11 @@ export default function App() {
               const existsInCloud = cloudList.some(cItem => {
                 const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
                 return cIso === localIso && 
-                  (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase() &&
-                  cItem.jenisIjin === localItem.jenisIjin;
+                  (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase();
               });
               return !existsInCloud;
             });
-            const merged = [...missingLocal, ...cloudList];
+            const merged = deduplicatePresensiList([...missingLocal, ...cloudList]);
             localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
             return merged;
           });
@@ -240,12 +256,11 @@ export default function App() {
                 const existsInCloud = cloudList.some(cItem => {
                   const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
                   return cIso === localIso && 
-                    (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase() &&
-                    cItem.jenisIjin === localItem.jenisIjin;
+                    (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase();
                 });
                 return !existsInCloud;
               });
-              const merged = [...missingLocal, ...cloudList];
+              const merged = deduplicatePresensiList([...missingLocal, ...cloudList]);
               localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
               return merged;
             });
@@ -322,7 +337,17 @@ export default function App() {
     });
 
     setPresensiList(prev => {
-      const next = [...newRecords, ...prev];
+      // Hilangkan entri pekerja pada tanggal yang sama agar tidak duplikat di UI
+      const filteredPrev = prev.filter(p => {
+        const pIso = normalizeDateToIso(p.tanggalIso || p.tanggal);
+        const pName = (p.nama || '').trim().toUpperCase();
+        return !newRecords.some(n => {
+          const nIso = normalizeDateToIso(n.tanggalIso || n.tanggal);
+          const nName = (n.nama || '').trim().toUpperCase();
+          return pIso === nIso && pName === nName;
+        });
+      });
+      const next = deduplicatePresensiList([...newRecords, ...filteredPrev]);
       localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
       return next;
     });
@@ -335,6 +360,19 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Sync to Google Sheets pending/offline:', err);
+    }
+  };
+
+  const handleRealignPresensi = async () => {
+    try {
+      setIsRefreshing(true);
+      const res = await gasClient.realignPresensiRows(currentUser?.nama || 'Admin');
+      await syncLiveData();
+      return res;
+    } catch (err) {
+      return { status: 'error', message: String(err) };
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -913,6 +951,7 @@ export default function App() {
               onFilterChange={handleFilterPresensi}
               isLoading={isRefreshing}
               currentUser={currentUser}
+              onRealignPresensi={handleRealignPresensi}
             />
           )}
 
@@ -1035,6 +1074,7 @@ export default function App() {
           setGasConfig(newCfg);
           storageService.saveGasConfig(newCfg);
         }}
+        onRealignPresensi={handleRealignPresensi}
       />
 
       <SwitchBoardModal

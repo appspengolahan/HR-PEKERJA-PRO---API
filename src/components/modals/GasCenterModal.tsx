@@ -24,19 +24,23 @@ interface GasCenterModalProps {
   onClose: () => void;
   config: GasConfig;
   onSaveConfig: (newConfig: GasConfig) => void;
+  onRealignPresensi?: () => Promise<any>;
 }
 
 export const GasCenterModal: React.FC<GasCenterModalProps> = ({
   isOpen,
   onClose,
   config,
-  onSaveConfig
+  onSaveConfig,
+  onRealignPresensi
 }) => {
   const [activeTab, setActiveTab] = useState<'config' | 'schema' | 'diagnostics' | 'code' | 'test'>('config');
   const [webAppUrl, setWebAppUrl] = useState(config.webAppUrl);
   const [sheetId, setSheetId] = useState(config.sheetId || TARGET_SPREADSHEET_ID);
   const [copiedCode, setCopiedCode] = useState(false);
   const [isRunningAudit, setIsRunningAudit] = useState(false);
+  const [isRealigning, setIsRealigning] = useState(false);
+  const [realignResult, setRealignResult] = useState<{ status: 'success' | 'error'; message: string } | null>(null);
   const [auditResult, setAuditResult] = useState<{
     status: 'SEHAT' | 'PERINGATAN';
     timestamp: string;
@@ -172,6 +176,33 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
       alert('Gagal menjalankan diagnostik: ' + err);
     } finally {
       setIsRunningAudit(false);
+    }
+  };
+
+  const handleRunRealign = async () => {
+    setIsRealigning(true);
+    setRealignResult(null);
+    try {
+      if (onRealignPresensi) {
+        const res = await onRealignPresensi();
+        setRealignResult({
+          status: res && res.status === 'success' ? 'success' : 'error',
+          message: res && res.message ? res.message : (res && res.status === 'success' ? 'Berhasil merapikan baris data presensi.' : 'Gagal merapikan baris data.')
+        });
+      } else {
+        const res = await gasClient.realignPresensiRows();
+        setRealignResult({
+          status: res.status === 'success' ? 'success' : 'error',
+          message: res.message || (res.status === 'success' ? 'Berhasil merapikan baris data presensi.' : 'Gagal merapikan baris data.')
+        });
+      }
+    } catch (err) {
+      setRealignResult({
+        status: 'error',
+        message: 'Gagal merapikan data: ' + String(err)
+      });
+    } finally {
+      setIsRealigning(false);
     }
   };
 
@@ -346,6 +377,37 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
                   <RefreshCw className={`w-3.5 h-3.5 ${isRunningAudit ? 'animate-spin' : ''}`} />
                   {isRunningAudit ? 'Memeriksa...' : 'Jalankan Audit Data'}
                 </button>
+              </div>
+
+              {/* Card Perapian & Pembersihan Duplikasi */}
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-amber-900 text-sm flex items-center gap-1.5">
+                      <span>🧹</span> Perapian Baris Presensi &amp; Hapus Duplikasi (Auto-Realign)
+                    </h3>
+                    <p className="text-[11px] text-amber-950 leading-relaxed mt-0.5">
+                      Menata ulang baris data presensi di Google Sheets tepat di bawah Rudiono (mulai baris 382), menghapus duplikasi entri (seperti Andri Buang &amp; Dadang Nurjianto), serta membersihkan baris yang terlempar ke 806/807.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRunRealign}
+                    disabled={isRealigning}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRealigning ? 'animate-spin' : ''}`} />
+                    {isRealigning ? 'Merapikan...' : 'Rapikan Spreadsheet Sekarang'}
+                  </button>
+                </div>
+                {realignResult && (
+                  <div className={`p-3 rounded-xl text-xs font-medium leading-relaxed border ${
+                    realignResult.status === 'success' 
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                      : 'bg-red-100 text-red-900 border-red-300'
+                  }`}>
+                    {realignResult.message}
+                  </div>
+                )}
               </div>
 
               {auditResult && (
