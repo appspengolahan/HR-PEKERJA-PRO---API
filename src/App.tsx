@@ -39,7 +39,12 @@ import {
   GasConfig 
 } from './types';
 import { INITIAL_PRESENSI_FALLBACK } from './data/initialPresensi';
-import { calculateEffectivePermitMinutes, getWorkScheduleForDate } from './utils/workHoursUtils';
+import { 
+  calculateEffectivePermitMinutes, 
+  getWorkScheduleForDate,
+  normalizeDateToIso,
+  normalizeDateToDmy 
+} from './utils/workHoursUtils';
 
 // Fallback initial workers if completely offline before first sync
 const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
@@ -160,6 +165,9 @@ export default function App() {
   const syncLiveData = useCallback(async () => {
     setIsRefreshing(true);
     try {
+      // Sinkronkan akun internal dari CONFIG_USER_LOGIN secara proaktif
+      authService.syncFromCloud().catch(() => {});
+
       // 1. Selalu minta 'ALL' agar master pekerjaList (63 orang) dan data utama lengkap di memori,
       // kemudian hak akses (RBAC) per peran dan sekup aktif difilter secara presisi di setiap tab modul.
       const res = await gasClient.getAllData('ALL');
@@ -196,8 +204,22 @@ export default function App() {
           setCalonList(d.calonPekerja);
         }
         if (d.presensi && Array.isArray(d.presensi) && d.presensi.length > 0) {
-          setPresensiList(d.presensi);
-          localStorage.setItem('hr_presensi_cache', JSON.stringify(d.presensi));
+          setPresensiList(prev => {
+            const cloudList = d.presensi as PresensiIjinRecord[];
+            const missingLocal = prev.filter(localItem => {
+              const localIso = normalizeDateToIso(localItem.tanggalIso || localItem.tanggal);
+              const existsInCloud = cloudList.some(cItem => {
+                const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
+                return cIso === localIso && 
+                  (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase() &&
+                  cItem.jenisIjin === localItem.jenisIjin;
+              });
+              return !existsInCloud;
+            });
+            const merged = [...missingLocal, ...cloudList];
+            localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
+            return merged;
+          });
         }
         if (d.lembur) {
           if (Array.isArray(d.lembur)) {
@@ -211,8 +233,22 @@ export default function App() {
         try {
           const presensiHistory = await gasClient.getPresensi('', '2026', '', 'ALL');
           if (presensiHistory.status === 'success' && Array.isArray(presensiHistory.data) && presensiHistory.data.length > 0) {
-            setPresensiList(presensiHistory.data);
-            localStorage.setItem('hr_presensi_cache', JSON.stringify(presensiHistory.data));
+            setPresensiList(prev => {
+              const cloudList = presensiHistory.data as PresensiIjinRecord[];
+              const missingLocal = prev.filter(localItem => {
+                const localIso = normalizeDateToIso(localItem.tanggalIso || localItem.tanggal);
+                const existsInCloud = cloudList.some(cItem => {
+                  const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
+                  return cIso === localIso && 
+                    (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase() &&
+                    cItem.jenisIjin === localItem.jenisIjin;
+                });
+                return !existsInCloud;
+              });
+              const merged = [...missingLocal, ...cloudList];
+              localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
+              return merged;
+            });
           }
         } catch (e) {
           console.warn('Presensi history fetch note:', e);
@@ -262,12 +298,15 @@ export default function App() {
     tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
   }) => {
     // Optimistic local add using official schedule and break deduction
-    const worker = pekerjaList.find(p => p.nama === data.nama);
+    const worker = pekerjaList.find(p => p.nama.trim().toUpperCase() === data.nama.trim().toUpperCase());
     const newRecords: PresensiIjinRecord[] = data.tanggalList.map((t, idx) => {
       const eff = calculateEffectivePermitMinutes(t.tanggal, t.jamAwal, t.jamAkhir, false, data.jenisIjin);
+      const iso = normalizeDateToIso(t.tanggal);
+      const dmy = normalizeDateToDmy(t.tanggal);
       return {
         rowNum: Date.now() + idx,
-        tanggal: t.tanggal,
+        tanggal: dmy,
+        tanggalIso: iso,
         nama: data.nama,
         unit: worker?.unit || '-',
         sekup: worker?.sekup || '-',
@@ -289,8 +328,9 @@ export default function App() {
     });
 
     try {
-      const res = await gasClient.postMutation('addPresensiIjin', data, currentUser?.nama);
+      const res = await gasClient.postMutation('addPresensiIjin', data, currentUser?.nama || 'Admin');
       if (res.status === 'success') {
+        // Refresh live data but preserve local records if not returned yet
         await syncLiveData();
       }
     } catch (err) {
@@ -723,6 +763,8 @@ export default function App() {
       <PublicPortal
         pekerjaList={pekerjaList}
         presensiList={presensiList}
+        onAddPresensi={handleAddPresensi}
+        currentUser={currentUser}
         onExitPublic={() => {
           const url = new URL(window.location.href);
           url.searchParams.delete('view');

@@ -88,6 +88,55 @@ export function parseDateSafe(dateInput: string | Date | null | undefined): Date
 }
 
 /**
+ * Normalisasi string tanggal apapun (DD/MM/YYYY, D/M/YYYY, ISO YYYY-MM-DD, atau Date object)
+ * ke format ISO standar: YYYY-MM-DD
+ */
+export function normalizeDateToIso(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '';
+  if (dateInput instanceof Date) {
+    const y = dateInput.getFullYear();
+    const m = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const d = String(dateInput.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(dateInput).trim();
+  if (s.includes('T')) return s.split('T')[0];
+  
+  if (s.includes('-')) {
+    const parts = s.split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+  }
+  
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2];
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  return s;
+}
+
+/**
+ * Normalisasi string tanggal apapun ke format DD/MM/YYYY
+ */
+export function normalizeDateToDmy(dateInput: string | Date | null | undefined): string {
+  const iso = normalizeDateToIso(dateInput);
+  if (!iso || !iso.includes('-')) return String(dateInput || '');
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+/**
  * Mendapatkan konfigurasi jadwal resmi berdasarkan tanggal
  */
 export function getWorkScheduleForDate(dateInput: string | Date): WorkScheduleConfig {

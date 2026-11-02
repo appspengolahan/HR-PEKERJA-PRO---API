@@ -26,22 +26,41 @@ import {
   Sparkles,
   Info,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  X
 } from 'lucide-react';
 import { PekerjaData, PresensiIjinRecord } from '../../types';
+import { 
+  normalizeDateToIso, 
+  normalizeDateToDmy, 
+  calculateEffectivePermitMinutes, 
+  getWorkScheduleForDate 
+} from '../../utils/workHoursUtils';
 
 interface PublicPortalProps {
   pekerjaList: PekerjaData[];
   presensiList: PresensiIjinRecord[];
   onExitPublic?: () => void;
   onSwitchToLogin?: () => void;
+  onAddPresensi?: (data: {
+    nama: string;
+    jenisIjin: string;
+    keperluan: string;
+    lampiran: string;
+    catatan: string;
+    tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
+  }) => Promise<void>;
+  currentUser?: any;
 }
 
 export const PublicPortal: React.FC<PublicPortalProps> = ({
   pekerjaList,
   presensiList,
   onExitPublic,
-  onSwitchToLogin
+  onSwitchToLogin,
+  onAddPresensi,
+  currentUser
 }) => {
   // Navigation sub-tabs within public portal: daily, rekap, capacity, lowest (10 Kehadiran Terendah)
   const [activeTab, setActiveTab] = useState<'daily' | 'rekap' | 'capacity' | 'lowest'>('daily');
@@ -85,6 +104,102 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   // Copy Link State
   const [isCopied, setIsCopied] = useState(false);
 
+  // Input Ijin Modal State (fitur input ijin langsung dari portal publik)
+  const [showInputModal, setShowInputModal] = useState(false);
+  const [inputNama, setInputNama] = useState(pekerjaList[0]?.nama || '');
+  const [inputTanggal, setInputTanggal] = useState(() => formatIsoDate(todayDateObj));
+  const [inputJenisIjin, setInputJenisIjin] = useState('Ijin Terlambat');
+  const [inputSehariPenuh, setInputSehariPenuh] = useState(false);
+  const [inputJamAwal, setInputJamAwal] = useState('08:00');
+  const [inputJamAkhir, setInputJamAkhir] = useState('16:00');
+  const [inputKeperluan, setInputKeperluan] = useState('');
+  const [inputPelapor, setInputPelapor] = useState('Mandor Lapangan');
+  const [isSubmittingIjin, setIsSubmittingIjin] = useState(false);
+  const [inputStatusMessage, setInputStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleToggleSehariPenuh = (checked: boolean) => {
+    setInputSehariPenuh(checked);
+    if (checked) {
+      const sched = getWorkScheduleForDate(inputTanggal);
+      if (sched.isWorkDay) {
+        setInputJamAwal(sched.workStart);
+        setInputJamAkhir(sched.workEnd);
+      }
+    }
+  };
+
+  const handleInputTanggalChange = (val: string) => {
+    setInputTanggal(val);
+    if (inputSehariPenuh) {
+      const sched = getWorkScheduleForDate(val);
+      if (sched.isWorkDay) {
+        setInputJamAwal(sched.workStart);
+        setInputJamAkhir(sched.workEnd);
+      }
+    }
+  };
+
+  const handleAddIjinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputNama || !inputTanggal || !inputJenisIjin) {
+      setInputStatusMessage({ type: 'error', text: 'Nama, Tanggal, dan Jenis Izin wajib diisi.' });
+      return;
+    }
+
+    if (!onAddPresensi) {
+      setInputStatusMessage({ type: 'error', text: 'Fungsi input presensi tidak tersedia di sesi ini.' });
+      return;
+    }
+
+    setIsSubmittingIjin(true);
+    setInputStatusMessage(null);
+
+    try {
+      let jamAwal = inputJamAwal;
+      let jamAkhir = inputJamAkhir;
+
+      if (inputSehariPenuh) {
+        const sched = getWorkScheduleForDate(inputTanggal);
+        jamAwal = sched.workStart;
+        jamAkhir = sched.workEnd;
+      }
+
+      await onAddPresensi({
+        nama: inputNama,
+        jenisIjin: inputJenisIjin,
+        keperluan: inputKeperluan || 'Izin Lapangan (Portal Publik)',
+        lampiran: 'Tidak',
+        catatan: `Dicatat dari Portal Publik oleh: ${inputPelapor || 'Mandor'}`,
+        tanggalList: [{
+          tanggal: inputTanggal,
+          jamAwal,
+          jamAkhir
+        }]
+      });
+
+      // Sinkronkan selected date ke tanggal yang baru diinput agar pengguna langsung melihat perubahannya
+      setSelectedIsoDate(inputTanggal);
+
+      setInputStatusMessage({
+        type: 'success',
+        text: `Sukses! Data ijin "${inputNama}" pada ${normalizeDateToDmy(inputTanggal)} berhasil dicatat & disinkronkan ke spreadsheet.`
+      });
+
+      setTimeout(() => {
+        setShowInputModal(false);
+        setInputStatusMessage(null);
+        setInputKeperluan('');
+      }, 1500);
+    } catch (err) {
+      setInputStatusMessage({
+        type: 'error',
+        text: `Gagal menyimpan: ${String(err)}`
+      });
+    } finally {
+      setIsSubmittingIjin(false);
+    }
+  };
+
   const handleCopyLink = () => {
     const publicUrl = window.location.origin + window.location.pathname + '?view=public';
     navigator.clipboard.writeText(publicUrl).then(() => {
@@ -126,14 +241,13 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
     });
   }, [pekerjaList, selectedUnit, searchQuery]);
 
-  // 2. Presensi / Ijin records on selected date
+  // 2. Presensi / Ijin records on selected date (menggunakan normalisasi ISO yang tahan segala format)
   const selectedDateLeaves = useMemo(() => {
     return presensiList.filter(rec => {
-      if (!rec.tanggal) return false;
-      const cleanDate = rec.tanggal.trim();
-      return cleanDate === selectedDmyDate || cleanDate === selectedIsoDate;
+      const recIso = normalizeDateToIso(rec.tanggalIso || rec.tanggal);
+      return recIso === selectedIsoDate;
     });
-  }, [presensiList, selectedDmyDate, selectedIsoDate]);
+  }, [presensiList, selectedIsoDate]);
 
   // Map worker leaves on this date
   const workerLeaveMap = useMemo(() => {
@@ -203,18 +317,11 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         if (!r.tanggal || !r.nama) return false;
         if (!workerNames.has(r.nama.trim().toUpperCase())) return false;
         
-        // Extract month & year from "DD/MM/YYYY" or "YYYY-MM-DD"
-        let m = 0;
-        let y = 0;
-        if (r.tanggal.includes('/')) {
-          const parts = r.tanggal.split('/');
-          m = Number(parts[1]);
-          y = Number(parts[2]);
-        } else if (r.tanggal.includes('-')) {
-          const parts = r.tanggal.split('-');
-          y = Number(parts[0]);
-          m = Number(parts[1]);
-        }
+        const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+        if (!rIso || !rIso.includes('-')) return false;
+        const [yStr, mStr] = rIso.split('-');
+        const m = Number(mStr);
+        const y = Number(yStr);
         return m === selectedMonth && (y === selectedYear || y === 2026);
       });
 
@@ -268,17 +375,11 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       const stats = workerStatsMap.get(cleanName);
       if (!stats) return;
 
-      let m = 0;
-      let y = 0;
-      if (r.tanggal.includes('/')) {
-        const parts = r.tanggal.split('/');
-        m = Number(parts[1]);
-        y = Number(parts[2]);
-      } else if (r.tanggal.includes('-')) {
-        const parts = r.tanggal.split('-');
-        y = Number(parts[0]);
-        m = Number(parts[1]);
-      }
+      const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+      if (!rIso || !rIso.includes('-')) return;
+      const [yStr, mStr] = rIso.split('-');
+      const m = Number(mStr);
+      const y = Number(yStr);
 
       if (m === selectedMonth && (y === selectedYear || y === 2026)) {
         stats.totalLeaves += 1;
@@ -379,6 +480,25 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Cetak</span>
             </button>
+
+            {/* Input Izin Pekerja Langsung */}
+            {onAddPresensi && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInputModal(true);
+                  setInputStatusMessage(null);
+                  if (filteredWorkers.length > 0 && !inputNama) {
+                    setInputNama(filteredWorkers[0].nama);
+                  }
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                title="Input atau laporkan ketidakhadiran / izin pekerja hari ini"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Input Izin</span>
+              </button>
+            )}
 
             {/* Login Pekerja Internal */}
             {onSwitchToLogin && (
@@ -1324,6 +1444,201 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
         </div>
       </footer>
+
+      {/* 5. MODAL INPUT IZIN PEKERJA LANGSUNG DARI PORTAL PUBLIK */}
+      {showInputModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden my-auto">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <CalendarCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Input Izin / Ketidakhadiran Pekerja</h3>
+                  <p className="text-[11px] text-slate-400">Tercatat langsung ke sistem dan database Google Sheets</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInputModal(false);
+                  setInputStatusMessage(null);
+                }}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleAddIjinSubmit} className="p-5 space-y-4 text-xs">
+              
+              {inputStatusMessage && (
+                <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
+                  inputStatusMessage.type === 'success'
+                    ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
+                    : 'bg-red-950/60 border-red-800/80 text-red-300'
+                }`}>
+                  {inputStatusMessage.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  )}
+                  <span className="leading-relaxed">{inputStatusMessage.text}</span>
+                </div>
+              )}
+
+              {/* Pilih Pekerja */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1.5">Pilih Nama Pekerja (Total {pekerjaList.length} Orang)</label>
+                <select
+                  value={inputNama}
+                  onChange={(e) => setInputNama(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500"
+                  required
+                >
+                  {pekerjaList.map((p) => (
+                    <option key={p.id} value={p.nama} className="bg-slate-900 text-white">
+                      {p.nama} — ({p.unit} &bull; {p.sekup})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tanggal & Jenis Ijin */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1.5">Tanggal Izin</label>
+                  <input
+                    type="date"
+                    value={inputTanggal}
+                    onChange={(e) => handleInputTanggalChange(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1.5">Jenis Izin</label>
+                  <select
+                    value={inputJenisIjin}
+                    onChange={(e) => setInputJenisIjin(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500"
+                    required
+                  >
+                    <option value="Ijin Terlambat" className="bg-slate-900">Ijin Terlambat</option>
+                    <option value="Ijin Pulang Awal" className="bg-slate-900">Ijin Pulang Awal</option>
+                    <option value="Sakit (S Dokter)" className="bg-slate-900">Sakit (S Dokter)</option>
+                    <option value="Sakit (S Tangan)" className="bg-slate-900">Sakit (S Tangan)</option>
+                    <option value="Ijin (S Tangan)" className="bg-slate-900">Ijin (S Tangan)</option>
+                    <option value="Ijin Normatif" className="bg-slate-900">Ijin Normatif</option>
+                    <option value="Alpha" className="bg-slate-900">Alpha</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Jam Kerja / Sehari Penuh */}
+              <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-300">Waktu &amp; Jam Presensi</span>
+                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={inputSehariPenuh}
+                      onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
+                      className="rounded border-slate-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span className="text-xs text-blue-400 font-semibold select-none">Sehari Penuh (Shift Normal)</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Jam Awal</span>
+                    <input
+                      type="time"
+                      value={inputJamAwal}
+                      onChange={(e) => setInputJamAwal(e.target.value)}
+                      disabled={inputSehariPenuh}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white font-medium disabled:opacity-50"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">Jam Akhir</span>
+                    <input
+                      type="time"
+                      value={inputJamAkhir}
+                      onChange={(e) => setInputJamAkhir(e.target.value)}
+                      disabled={inputSehariPenuh}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white font-medium disabled:opacity-50"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Alasan / Keperluan */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1.5">Alasan / Keperluan</label>
+                <input
+                  type="text"
+                  value={inputKeperluan}
+                  onChange={(e) => setInputKeperluan(e.target.value)}
+                  placeholder="Contoh: Mengurus SIM di Polres, Keperluan Keluarga, Sakit Demam"
+                  className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
+                  required
+                />
+              </div>
+
+              {/* Identitas Pelapor */}
+              <div>
+                <label className="block font-bold text-slate-300 mb-1.5">Dicatat / Dilaporkan Oleh</label>
+                <input
+                  type="text"
+                  value={inputPelapor}
+                  onChange={(e) => setInputPelapor(e.target.value)}
+                  placeholder="Nama Mandor / Petugas Lapangan"
+                  className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowInputModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingIjin}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-blue-900/30 transition-all disabled:opacity-50"
+                >
+                  {isSubmittingIjin ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Simpan &amp; Sinkronkan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

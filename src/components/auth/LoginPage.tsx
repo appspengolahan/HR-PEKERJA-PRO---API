@@ -311,7 +311,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
               <div className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">Email / Username Login</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-300">Email, Username, atau Nama Lengkap</label>
+                    <span className="text-[10px] text-blue-400">Toleran Nama / Huruf Besar-Kecil</span>
+                  </div>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -320,12 +323,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      placeholder="indahnurmala189@gmail.com atau username login"
+                      placeholder="Contoh: aditrivianto@gmail.com, Adi Tri Vianto, atau Yulia"
                       value={internalEmail}
                       onChange={(e) => setInternalEmail(e.target.value)}
                       className="w-full pl-10 pr-3 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Bisa diketik nama lengkap, email, atau username sesuai di Hak Akses.</p>
                 </div>
 
                 <div>

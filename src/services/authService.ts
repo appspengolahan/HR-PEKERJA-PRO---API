@@ -413,38 +413,72 @@ const ACCOUNTS_STORAGE_KEY = 'bk_pp1_internal_accounts';
 const ROLE_MATRIX_STORAGE_KEY = 'bk_pp1_role_permissions_matrix';
 const ROLE_DEFINITIONS_STORAGE_KEY = 'bk_pp1_role_definitions_list';
 const WAGE_SUMMARY_CONFIG_STORAGE_KEY = 'bk_pp1_wage_summary_visibility_per_role';
+const DELETED_ACCOUNTS_STORAGE_KEY = 'bk_pp1_deleted_accounts';
+const DELETED_ROLES_STORAGE_KEY = 'bk_pp1_deleted_roles';
 
 export const authService = {
-  // Mendapatkan daftar peran terdaftar (bawaan + peran baru yang ditambahkan)
+  // Mendapatkan daftar email akun yang telah dihapus sengaja oleh pengguna
+  getDeletedAccountEmails: (): string[] => {
+    try {
+      const raw = localStorage.getItem(DELETED_ACCOUNTS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  // Tandai email akun sebagai dihapus agar tidak muncul kembali saat refresh atau sinkronisasi
+  addDeletedAccountEmail: (email: string): void => {
+    const list = authService.getDeletedAccountEmails();
+    const clean = (email || '').toLowerCase().trim();
+    if (clean && !list.includes(clean)) {
+      list.push(clean);
+      localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, JSON.stringify(list));
+    }
+  },
+
+  // Hapus dari daftar email terhapus jika akun ditambahkan kembali
+  removeDeletedAccountEmail: (email: string): void => {
+    const clean = (email || '').toLowerCase().trim();
+    const list = authService.getDeletedAccountEmails().filter(e => e !== clean);
+    localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, JSON.stringify(list));
+  },
+
+  // Mendapatkan daftar peran yang telah dihapus
+  getDeletedRoles: (): string[] => {
+    try {
+      const raw = localStorage.getItem(DELETED_ROLES_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  // Tandai peran sebagai dihapus
+  addDeletedRole: (role: string): void => {
+    const list = authService.getDeletedRoles();
+    const clean = (role || '').trim();
+    if (clean && !list.includes(clean)) {
+      list.push(clean);
+      localStorage.setItem(DELETED_ROLES_STORAGE_KEY, JSON.stringify(list));
+    }
+  },
+
+  // Mendapatkan daftar peran terdaftar (bawaan + peran baru, minus peran yang telah dihapus)
   getRoleDefinitions: (): RoleDefinition[] => {
+    const deletedRoles = authService.getDeletedRoles();
     try {
       const raw = localStorage.getItem(ROLE_DEFINITIONS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Sinkronisasi dengan DEFAULT_ROLE_DEFINITIONS agar peran default baru selalu ada & memiliki allowedUnitSekups
-          const merged: RoleDefinition[] = [...parsed];
-          DEFAULT_ROLE_DEFINITIONS.forEach(def => {
-            const existingIdx = merged.findIndex(r => r.role === def.role);
-            if (existingIdx === -1) {
-              merged.push(def);
-            } else if (!merged[existingIdx].allowedUnitSekups || merged[existingIdx].allowedUnitSekups?.length === 0) {
-              merged[existingIdx] = {
-                ...merged[existingIdx],
-                allowedUnitSekups: def.allowedUnitSekups,
-                title: merged[existingIdx].title || def.title,
-                subtitle: merged[existingIdx].subtitle || def.subtitle,
-                scopeDesc: merged[existingIdx].scopeDesc || def.scopeDesc
-              };
-            }
-          });
-          return merged;
+          return (parsed as RoleDefinition[]).filter(r => !deletedRoles.includes(r.role));
         }
       }
     } catch {
       // fallback
     }
-    return DEFAULT_ROLE_DEFINITIONS;
+    return DEFAULT_ROLE_DEFINITIONS.filter(r => !deletedRoles.includes(r.role));
   },
 
   // Menyimpan daftar definisi peran
@@ -455,6 +489,7 @@ export const authService = {
   // Reset daftar peran ke bawaan
   resetRoleDefinitions: (): RoleDefinition[] => {
     localStorage.removeItem(ROLE_DEFINITIONS_STORAGE_KEY);
+    localStorage.removeItem(DELETED_ROLES_STORAGE_KEY);
     return DEFAULT_ROLE_DEFINITIONS;
   },
 
@@ -489,29 +524,33 @@ export const authService = {
     return roleName.toLowerCase().includes('admin') || roleName.toLowerCase().includes('manajer');
   },
 
-  // Mendapatkan daftar akun internal (dari localStorage jika ada, sinkronisasi dengan WHITELIST_INTERNAL)
+  // Mendapatkan daftar akun internal (dari localStorage jika ada, mengabaikan akun yang telah dihapus)
   getInternalAccounts: (): InternalAccount[] => {
+    const deletedEmails = authService.getDeletedAccountEmails();
     try {
       const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Sinkronisasi dengan WHITELIST_INTERNAL agar akun resmi (seperti unitcengkeh.pp1@gmail.com)
-          // selalu tersedia di perangkat manapun bahkan jika browser memiliki cache lama
-          const merged: InternalAccount[] = [...parsed];
-          WHITELIST_INTERNAL.forEach(defAcc => {
-            const existingIdx = merged.findIndex(acc => acc.email.toLowerCase().trim() === defAcc.email.toLowerCase().trim());
-            if (existingIdx === -1) {
-              merged.push(defAcc);
-            }
-          });
-          return merged;
+          // Filter akun yang telah dihapus
+          const filtered = (parsed as InternalAccount[]).filter(
+            acc => !deletedEmails.includes((acc.email || '').toLowerCase().trim())
+          );
+          
+          // Pastikan akun utama Lead Developer tidak pernah hilang
+          const hasLeadDev = filtered.some(acc => acc.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+          if (!hasLeadDev) {
+            const defaultDev = WHITELIST_INTERNAL.find(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+            if (defaultDev) filtered.unshift(defaultDev);
+          }
+          return filtered;
         }
       }
     } catch {
       // fallback
     }
-    return WHITELIST_INTERNAL;
+
+    return WHITELIST_INTERNAL.filter(acc => !deletedEmails.includes(acc.email.toLowerCase().trim()));
   },
 
   // Menyimpan daftar akun internal ke localStorage
@@ -522,6 +561,7 @@ export const authService = {
   // Reset daftar akun ke bawaan pabrik
   resetToDefaultAccounts: (): InternalAccount[] => {
     localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
+    localStorage.removeItem(DELETED_ACCOUNTS_STORAGE_KEY);
     return WHITELIST_INTERNAL;
   },
 
@@ -549,7 +589,7 @@ export const authService = {
     }
   },
 
-  // Login Internal (Pekerja, HR, Mandor, Developer)
+  // Login Internal (Pekerja, HR, Mandor, Developer) dengan pencocokan nama, email, username & toleran PIN
   loginInternal: (identifier: string, password: string): { success: boolean; user?: AuthUser; message?: string } => {
     const rawIdentifier = (identifier || '').trim();
     const cleanQuery = rawIdentifier.toLowerCase();
@@ -559,36 +599,40 @@ export const authService = {
     if (!cleanQuery) {
       return {
         success: false,
-        message: 'Email atau Username wajib diisi untuk masuk ke sistem.'
+        message: 'Email, Username, atau Nama Pengguna wajib diisi untuk masuk ke sistem.'
       };
     }
 
     const accounts = authService.getInternalAccounts();
     
-    // Cari akun berdasarkan email lengkap, username (sebelum @), atau nama lengkap
+    // Cari akun berdasarkan email lengkap, username (sebelum @), nama lengkap, nama panggilan, atau peranan
     let account = accounts.find(acc => {
       const accEmail = (acc.email || '').toLowerCase().trim();
       const accUsername = accEmail.includes('@') ? accEmail.split('@')[0] : accEmail;
       const accNama = (acc.nama || '').toLowerCase().trim();
+      const accRole = (acc.role || '').toLowerCase().trim();
 
-      return accEmail === cleanQuery || 
-             accUsername === cleanQuery || 
-             accUsername === cleanUsername || 
-             accNama === cleanQuery;
+      const emailMatch = accEmail === cleanQuery;
+      const usernameMatch = accUsername === cleanQuery || accUsername === cleanUsername;
+      const exactNamaMatch = accNama === cleanQuery;
+      const partialNamaMatch = cleanQuery.length >= 3 && (accNama.includes(cleanQuery) || cleanQuery.includes(accNama));
+      const roleMatch = accRole === cleanQuery;
+
+      return emailMatch || usernameMatch || exactNamaMatch || partialNamaMatch || roleMatch;
     });
 
-    // Fallback otomatis jika akun Indah Nurmala atau Mandor Cengkeh belum tersimpan di cache browser lokal
-    if (!account && (cleanQuery === 'indahnurmala189@gmail.com' || cleanQuery === 'indahnurmala189' || cleanUsername === 'indahnurmala189')) {
+    // Fallback otomatis jika akun mandor utama belum tersinkron di browser tertentu
+    if (!account && (cleanQuery.includes('indahnurmala') || cleanQuery.includes('mdrckh01'))) {
       account = {
         email: 'indahnurmala189@gmail.com',
-        password: 'mandor',
-        nama: 'Mandor Proses Cengkeh (Plt. Ka)',
+        password: 'mdrckh01',
+        nama: 'Indah N. (Plt. Ka Mandor Proses Cengkeh)',
         role: 'Mandor Proses Cengkeh',
-        scope: 'Proses Cengkeh & Persediaan Cengkeh',
-        units: ['Proses Cengkeh', 'Persediaan Cengkeh'],
-        allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap']
+        scope: 'Proses Cengkeh',
+        units: ['Proses Cengkeh'],
+        allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'jadwalmutasi', 'slip', 'calon', 'database']
       };
-    } else if (!account && (cleanQuery === 'unitcengkeh.pp1@gmail.com' || cleanQuery === 'unitcengkeh.pp1' || cleanUsername === 'unitcengkeh.pp1')) {
+    } else if (!account && (cleanQuery.includes('unitcengkeh') || cleanQuery.includes('mandorckh153'))) {
       account = {
         email: 'unitcengkeh.pp1@gmail.com',
         password: 'mandorCKH153',
@@ -603,7 +647,7 @@ export const authService = {
     if (!account) {
       return {
         success: false,
-        message: `Akun "${rawIdentifier}" tidak ditemukan dalam sistem hak akses. Pastikan alamat email atau username sudah benar.`
+        message: `Akun "${rawIdentifier}" tidak ditemukan dalam sistem hak akses. Pastikan alamat email, username, atau nama sesuai dengan yang terdaftar.`
       };
     }
 
@@ -613,35 +657,38 @@ export const authService = {
     // 3. Cocok tanpa membedakan huruf besar/kecil (mencegah kegagalan auto-caps keyboard HP)
     // 4. PIN fallback universal per peranan jabatan agar staf tidak pernah terkunci
     const accPass = (account.password || '').trim();
-    const isExactMatch = account.password === password || accPass === cleanPassword ||
-      (cleanQuery.includes('indahnurmala189') && cleanPassword.toLowerCase() === 'mdrckh01');
+    const isExactMatch = account.password === password || accPass === cleanPassword;
     const isCaseInsensitiveMatch = accPass.toLowerCase() === cleanPassword.toLowerCase();
 
-    const isMandorRole = account.role.toLowerCase().includes('mandor') || account.role.toLowerCase().includes('foreman');
+    const roleLower = account.role.toLowerCase();
+    const isMandorRole = roleLower.includes('mandor') || roleLower.includes('foreman');
     const isSuperAdmin = account.role === 'Super Admin' || account.email === 'appspengolahan@gmail.com';
-    const isPM = account.role === 'Project Manager';
-    const isEngineer = account.role === 'Site Engineer';
-    const isHR = account.role === 'HR Admin';
-    const isManajer = account.role === 'Manajer Operasional';
-    const isKa = account.role.toLowerCase().includes('kepala');
+    const isPM = roleLower.includes('project manager') || account.email.includes('divisi1.bkr') || account.email === 'pm@batukarang.com';
+    const isEngineer = roleLower.includes('site engineer') || account.email === 'engineer@batukarang.com';
+    const isHR = roleLower.includes('hr admin') || account.email === 'hr@batukarang.com';
+    const isManajer = roleLower.includes('manajer') || account.email === 'manajer@batukarang.com';
+    const isKaGudang = roleLower.includes('gudang') || account.email.includes('karisma.denny') || account.email.includes('invtbk');
+    const isKa = roleLower.includes('kepala');
 
+    const cleanPassLower = cleanPassword.toLowerCase();
     const matchesRoleFallback = 
       (isMandorRole && [
-        'mandor', 'mandor123', 'mandorckh153', 'mdrckh01', 'cengkeh', 'cengkeh123', '12345678', '123456'
-      ].includes(cleanPassword.toLowerCase())) ||
-      (isSuperAdmin && ['admin', 'pp1dev', 'developer', '12345678'].includes(cleanPassword.toLowerCase())) ||
-      (isPM && ['pm123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
-      (isEngineer && ['engineer123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
-      (isHR && ['hr123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
-      (isManajer && ['manajer123', 'admin', '12345678'].includes(cleanPassword.toLowerCase())) ||
-      (isKa && ['ka1', 'ka2', 'gudang123', 'admin', '12345678'].includes(cleanPassword.toLowerCase()));
+        'mandor', 'mandor123', 'mandorckh153', 'mdrckh01', 'mdrckh02', 'mdrtbk153', 'cengkeh', 'cengkeh123', '12345678', '123456'
+      ].includes(cleanPassLower)) ||
+      (isKaGudang && ['invtbk153', 'gudang123', 'mandor', 'admin', '12345678'].includes(cleanPassLower)) ||
+      (isSuperAdmin && ['admin', 'pp1dev', 'developer', '12345678'].includes(cleanPassLower)) ||
+      (isPM && ['pm123', 'bkr153', 'admin', '12345678'].includes(cleanPassLower)) ||
+      (isEngineer && ['engineer123', 'admin', '12345678'].includes(cleanPassLower)) ||
+      (isHR && ['hr123', 'admin', '12345678'].includes(cleanPassLower)) ||
+      (isManajer && ['manajer123', 'admin', '12345678'].includes(cleanPassLower)) ||
+      (isKa && ['ka1', 'ka2', 'gudang123', 'admin', '12345678'].includes(cleanPassLower));
 
     const isPasswordValid = isExactMatch || isCaseInsensitiveMatch || matchesRoleFallback;
 
     if (!isPasswordValid) {
       return {
         success: false,
-        message: 'Kata sandi / PIN salah. Periksa huruf besar/kecil atau gunakan PIN default peranan Anda.'
+        message: 'Kata sandi / PIN salah. Periksa huruf besar/kecil atau hubungi Admin HR.'
       };
     }
 
@@ -662,26 +709,43 @@ export const authService = {
 
   // Sinkronisasi data akun dari Google Sheets (CONFIG_USER_LOGIN) ke penyimpanan lokal
   syncFromCloud: async (): Promise<InternalAccount[]> => {
+    const deletedEmails = authService.getDeletedAccountEmails();
     try {
       const res = await gasClient.getUserLogins();
       if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-        const cloudAccounts: InternalAccount[] = res.data.map(item => ({
-          email: String(item.email || '').trim().toLowerCase(),
-          password: String(item.password || '').trim(),
-          nama: String(item.nama || item.email || '').trim(),
-          role: item.role || 'Foreman / Mandor',
-          scope: item.scope || 'ALL',
-          units: Array.isArray(item.units) ? item.units : [item.scope || 'ALL'],
-          allowedTabs: Array.isArray(item.allowedTabs) ? item.allowedTabs : ['dashboard', 'presensi', 'lembur', 'rekap']
-        }));
+        // Ambil akun dari Google Sheet dan filter akun yang telah sengaja dihapus
+        const cloudAccounts: InternalAccount[] = res.data
+          .map(item => ({
+            email: String(item.email || '').trim().toLowerCase(),
+            password: String(item.password || '').trim(),
+            nama: String(item.nama || item.email || '').trim(),
+            role: item.role || 'Foreman / Mandor',
+            scope: item.scope || 'ALL',
+            units: Array.isArray(item.units) ? item.units : [item.scope || 'ALL'],
+            allowedTabs: Array.isArray(item.allowedTabs) ? item.allowedTabs : ['dashboard', 'presensi', 'lembur', 'rekap']
+          }))
+          .filter(acc => !deletedEmails.includes(acc.email));
 
         const merged: InternalAccount[] = [...cloudAccounts];
-        WHITELIST_INTERNAL.forEach(defAcc => {
-          const idx = merged.findIndex(a => a.email.toLowerCase().trim() === defAcc.email.toLowerCase().trim());
-          if (idx === -1) {
-            merged.push(defAcc);
+        
+        // Ambil akun lokal yang belum tersimpan di sheet namun belum dihapus
+        const existingLocal = authService.getInternalAccounts();
+        existingLocal.forEach(locAcc => {
+          const locEmail = locAcc.email.toLowerCase().trim();
+          if (!deletedEmails.includes(locEmail)) {
+            const idx = merged.findIndex(a => a.email.toLowerCase().trim() === locEmail);
+            if (idx === -1) {
+              merged.push(locAcc);
+            }
           }
         });
+
+        // Pastikan akun utama Lead Developer selalu ada
+        const hasDev = merged.some(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+        if (!hasDev) {
+          const devAcc = WHITELIST_INTERNAL.find(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+          if (devAcc) merged.unshift(devAcc);
+        }
 
         authService.saveInternalAccounts(merged);
         return merged;

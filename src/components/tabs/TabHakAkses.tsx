@@ -643,6 +643,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       return;
     }
 
+    authService.addDeletedRole(roleToDelete);
     const nextRoles = rolesList.filter(r => r.role !== roleToDelete);
     setRolesList(nextRoles);
     authService.saveRoleDefinitions(nextRoles);
@@ -933,6 +934,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
     }
 
     setAccounts(updatedList);
+    authService.removeDeletedAccountEmail(cleanEmail);
     authService.saveInternalAccounts(updatedList);
     setIsModalOpen(false);
 
@@ -980,6 +982,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
       confirmLabel: 'Ya, Hapus'
     });
     if (ok) {
+      authService.addDeletedAccountEmail(acc.email);
       const updated = accounts.filter((_, idx) => idx !== index);
       setAccounts(updated);
       authService.saveInternalAccounts(updated);
@@ -993,7 +996,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
         console.warn('Delete user from GAS warning:', err);
       });
 
-      showNotification('success', `Akun ${acc.nama} telah berhasil dihapus.`);
+      showNotification('success', `Akun ${acc.nama} telah berhasil dihapus secara permanen.`);
     }
   };
 

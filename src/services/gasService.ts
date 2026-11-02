@@ -384,13 +384,15 @@ function getPresensiList_(bulan, tahun, nama, scope) {
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < ROWS.PRESENSI_START) return [];
-  const numRows = Math.min(lastRow, ROWS.PRESENSI_LAST) - ROWS.PRESENSI_START + 1;
-  const data = sh.getRange(ROWS.PRESENSI_START, 3, numRows, 14).getValues(); // C..P
+  // Pindai seluruh baris aktif tanpa terpotong batas kaku template
+  const scanRows = Math.max(lastRow, 1200) - ROWS.PRESENSI_START + 1;
+  const data = sh.getRange(ROWS.PRESENSI_START, 3, scanRows, 14).getValues(); // C..P
   const res = [];
   data.forEach((r, i) => {
     const tgl = r[0];
     if (!tgl) return;
     const rNama = r[1];
+    if (!rNama) return;
     const rUnit = r[2];
     const rSekup = r[3];
     const rBulan = r[11];
@@ -747,8 +749,38 @@ function addPresensiIjin_(data, currentUser) {
   });
 
   if (rowsToAdd.length > 0) {
-    const nextRow = sh.getLastRow() + 1;
+    // Cari baris kosong pertama di tabel presensi (berdasarkan Kolom C: Tanggal & Kolom D: Nama)
+    // agar data tersimpan langsung berurutan di bawah baris data terakhir (misal di bawah baris #381 Rudiono)
+    // dan tidak melompati baris-baris kosong berformula
+    let nextRow = ROWS.PRESENSI_START;
+    const maxScan = Math.max(sh.getLastRow() + 10, 850);
+    const scanCount = maxScan - ROWS.PRESENSI_START + 1;
+    if (scanCount > 0) {
+      const existingData = sh.getRange(ROWS.PRESENSI_START, 3, scanCount, 2).getValues();
+      for (let i = 0; i < existingData.length; i++) {
+        const cVal = existingData[i][0];
+        const dVal = existingData[i][1];
+        if ((cVal === '' || cVal === null || cVal === undefined) &&
+            (dVal === '' || dVal === null || dVal === undefined)) {
+          nextRow = ROWS.PRESENSI_START + i;
+          break;
+        }
+        if (i === existingData.length - 1) {
+          nextRow = ROWS.PRESENSI_START + existingData.length;
+        }
+      }
+    }
+
     sh.getRange(nextRow, 3, rowsToAdd.length, 14).setValues(rowsToAdd);
+
+    // Pastikan Kolom B (No) terisi jika tidak memiliki formula
+    for (let i = 0; i < rowsToAdd.length; i++) {
+      const curRow = nextRow + i;
+      const noCell = sh.getRange(curRow, 2);
+      if (!noCell.getValue() && !noCell.getFormula()) {
+        noCell.setValue(curRow - ROWS.PRESENSI_START + 1);
+      }
+    }
   }
 
   return { status: 'success', message: 'Berhasil mencatat ' + rowsToAdd.length + ' presensi/ijin ke spreadsheet.' };
