@@ -1022,3 +1022,45 @@ export function getUserAuthorizedUnitSekups(user: AuthUser | null): string[] {
 
   return result;
 }
+
+/**
+ * Memeriksa apakah suatu peran memiliki wewenang untuk Mengubah (Edit) dan Menghapus (Delete) data presensi/ijin.
+ * Wewenang ini HANYA diberikan kepada:
+ * 1. Developer / Lead Developer / Super Admin
+ * 2. Site Engineer
+ * 3. Manajer Operasional
+ *
+ * Pada peran Kepala Pengolahan (1 & 2), Mandor (semua unit), Foreman, dan Staff/Pekerja, tombol Edit & Hapus disembunyikan.
+ */
+export function canRoleEditOrDeletePresensi(role?: string | null): boolean {
+  if (!role) return false;
+  const r = role.toLowerCase().trim();
+
+  // 1. Developer / Lead Developer / Super Admin / Project Manager
+  if (
+    r.includes('developer') || 
+    r.includes('super admin') || 
+    r.includes('lead developer') || 
+    r.includes('project manager')
+  ) {
+    return true;
+  }
+
+  // 2. Site Engineer
+  if (r.includes('site engineer') || r.includes('site enginer')) {
+    return true;
+  }
+
+  // 3. Manajer Operasional
+  if (
+    r.includes('manajer operasional') || 
+    r.includes('manager operasional') || 
+    r.includes('operational manager') ||
+    r.includes('manajer operasi')
+  ) {
+    return true;
+  }
+
+  // Peran lain: Kepala Pengolahan, Mandor, Staff, dll. -> False (Disembunyikan)
+  return false;
+}

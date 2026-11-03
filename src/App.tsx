@@ -26,7 +26,7 @@ import { PublicPortal } from './components/public/PublicPortal';
 import { gasClient } from './services/gasClient';
 import { storageService } from './services/storageService';
 import { LoginPage } from './components/auth/LoginPage';
-import { authService, AuthUser, getUserAuthorizedUnitSekups } from './services/authService';
+import { authService, AuthUser, getUserAuthorizedUnitSekups, canRoleEditOrDeletePresensi } from './services/authService';
 import { 
   MainTabType, 
   UserScope, 
@@ -386,6 +386,11 @@ export default function App() {
     lampiran: string;
     catatan: string;
   }) => {
+    if (!canRoleEditOrDeletePresensi(currentUser?.role)) {
+      console.warn('Akses ditolak: Hanya Developer, Site Engineer, dan Manajer Operasional yang dapat mengubah data presensi.');
+      return;
+    }
+
     const eff = calculateEffectivePermitMinutes(data.tanggal, data.jamAwal, data.jamAkhir, false, data.jenisIjin);
     setPresensiList(prev => {
       const next = prev.map(r => r.rowNum === data.rowNum ? { 
@@ -409,6 +414,11 @@ export default function App() {
   };
 
   const handleDeletePresensi = async (rowNum: number) => {
+    if (!canRoleEditOrDeletePresensi(currentUser?.role)) {
+      console.warn('Akses ditolak: Hanya Developer, Site Engineer, dan Manajer Operasional yang dapat menghapus data presensi.');
+      return;
+    }
+
     // Optimistic local deletion
     setPresensiList(prev => {
       const next = prev.filter(r => r.rowNum !== rowNum);

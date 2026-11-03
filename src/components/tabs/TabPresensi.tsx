@@ -13,7 +13,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PresensiIjinRecord, PekerjaData, SuratIjinData } from '../../types';
-import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { AuthUser, isWorkerInUserScope, canRoleEditOrDeletePresensi } from '../../services/authService';
 import { 
   calculateEffectivePermitMinutes, 
   getWorkScheduleForDate, 
@@ -75,8 +75,11 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [isRealigning, setIsRealigning] = useState(false);
   const { showConfirm, showAlert } = useSystemDialog();
 
+  // Wewenang Edit & Hapus HANYA untuk Developer, Site Engineer, dan Manajer Operasional
+  const canEditOrDelete = useMemo(() => canRoleEditOrDeletePresensi(currentUser?.role), [currentUser?.role]);
+
   const handleTriggerRealign = async () => {
-    if (!onRealignPresensi) return;
+    if (!onRealignPresensi || !canEditOrDelete) return;
     const ok = await showConfirm({
       title: 'Rapikan Baris Spreadsheet & Hapus Duplikasi?',
       message: 'Fitur ini akan menyusun ulang baris di sheet LOG_PRESENSI_IJIN tepat berurutan mulai baris 382 (di bawah Rudiono), membersihkan baris yang terlempar ke 806/807, serta menghapus data kembar/duplikat (Andri Buang & Dadang Nurjianto). Lanjutkan?',
@@ -205,6 +208,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   };
 
   const handleOpenEdit = (rec: PresensiIjinRecord) => {
+    if (!canEditOrDelete) return;
     setEditingRecord(rec);
   };
 
@@ -369,7 +373,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               <Printer className="w-4 h-4 text-slate-600" />
               Export PDF
             </button>
-            {onRealignPresensi && (
+            {canEditOrDelete && onRealignPresensi && (
               <button
                 onClick={handleTriggerRealign}
                 disabled={isRealigning}
@@ -518,34 +522,38 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onOpenSuratIjin(r)}
-                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors cursor-pointer"
                             title="Buka &amp; Cetak Surat Permohonan Ijin"
                           >
                             <FileText className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => handleOpenEdit(r)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                            title="Edit Data Ijin"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const ok = await showConfirm({
-                                message: `Hapus data ijin ${r.nama} pada tanggal ${r.tanggal}?\nSalinan akan disimpan ke arsip.`,
-                                type: 'danger',
-                                confirmLabel: 'Ya, Hapus'
-                              });
-                              if (ok) {
-                                onDeletePresensi(r.rowNum);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-700 transition-colors"
-                            title="Hapus Data Ijin"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canEditOrDelete && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEdit(r)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                                title="Edit Data Ijin"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const ok = await showConfirm({
+                                    message: `Hapus data ijin ${r.nama} pada tanggal ${r.tanggal}?\nSalinan akan disimpan ke arsip.`,
+                                    type: 'danger',
+                                    confirmLabel: 'Ya, Hapus'
+                                  });
+                                  if (ok) {
+                                    onDeletePresensi(r.rowNum);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-700 transition-colors cursor-pointer"
+                                title="Hapus Data Ijin"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -757,7 +765,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       )}
 
       {/* Modal Edit Ijin - Always Centered */}
-      {editingRecord && (
+      {editingRecord && canEditOrDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
           <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
