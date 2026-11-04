@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
-import { AuthUser } from '../../services/authService';
+import { AuthUser, canUserSwitchRole } from '../../services/authService';
 
 interface HeaderProps {
   activeTab: MainTabType;
@@ -114,6 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
     : `👤 ${currentScope}`;
 
   const isWorkerRole = currentUser?.role === 'Pekerja Harian';
+  const canSwitch = canUserSwitchRole(currentUser);
 
   return (
     <header 
@@ -186,12 +187,12 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Quick Role Switcher Pill in Header */}
-        {onOpenRoleSwitcher && (
+        {/* Quick Role Switcher Pill in Header (HANYA UNTUK SUPER ADMIN / DEVELOPER) */}
+        {onOpenRoleSwitcher && canSwitch && (
           <button
             onClick={onOpenRoleSwitcher}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-xs transition-all text-xs font-bold cursor-pointer active:scale-95"
-            title="Ganti peran jabatan cepat (Lead Dev, PM, Engineer, Manajer, Mandor, Pekerja)"
+            title="Ganti peran jabatan cepat (Khusus Developer / Super Admin)"
           >
             <Repeat className="w-3.5 h-3.5 text-amber-700" />
             <span className="inline text-[11px] font-bold">Ganti Peran</span>
@@ -260,8 +261,8 @@ export const Header: React.FC<HeaderProps> = ({
                   Navigasi &amp; Ekosistem
                 </span>
                 
-                {/* Ganti Peran Cepat (Semua Peran) */}
-                {onOpenRoleSwitcher && (
+                {/* Ganti Peran Cepat (Khusus Super Admin / Developer) */}
+                {onOpenRoleSwitcher && canSwitch && (
                   <button
                     onClick={() => {
                       setIsDropdownOpen(false);

@@ -22,7 +22,7 @@ import {
   Repeat
 } from 'lucide-react';
 import { MainTabType } from '../../types';
-import { AuthUser } from '../../services/authService';
+import { AuthUser, canUserSwitchRole } from '../../services/authService';
 
 export type ActiveTab = MainTabType;
 
@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile
 }) => {
   const isWorkerRole = currentUser?.role === 'Pekerja Harian';
+  const canSwitch = canUserSwitchRole(currentUser);
 
   const allMenuItems: { id: MainTabType; label: string; icon: React.ElementType; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -131,13 +132,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Quick Role Switcher (Desktop Sidebar) */}
-          {onOpenRoleSwitcher && (
+          {/* Quick Role Switcher (Desktop Sidebar - Khusus Developer / Super Admin) */}
+          {onOpenRoleSwitcher && canSwitch && (
             <button
               type="button"
               onClick={onOpenRoleSwitcher}
               className="mt-2 w-full py-1.5 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/30 text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
-              title="Buka Pusat Ganti Peran Jabatan Cepat"
+              title="Buka Pusat Ganti Peran Jabatan Cepat (Khusus Developer / Super Admin)"
             >
               <Repeat className="w-3.5 h-3.5 text-amber-400" />
               <span>Ganti Peran Cepat</span>
@@ -299,8 +300,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
 
-              {/* Quick Role Switcher Button (Mobile Drawer) */}
-              {onOpenRoleSwitcher && (
+              {/* Quick Role Switcher Button (Mobile Drawer - Khusus Developer / Super Admin) */}
+              {onOpenRoleSwitcher && canSwitch && (
                 <button
                   type="button"
                   onClick={() => {
@@ -381,7 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
 
-            {onOpenRoleSwitcher && (
+            {onOpenRoleSwitcher && canSwitch && (
               <button
                 onClick={() => {
                   onCloseMobile?.();

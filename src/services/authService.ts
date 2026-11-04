@@ -852,6 +852,9 @@ export const authService = {
   logout: (): void => {
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem('bk_supervisor_session');
+    sessionStorage.removeItem('bk_supervisor_user');
+    sessionStorage.removeItem('bk_dev_sim_unlocked');
   }
 };
 
@@ -1063,4 +1066,46 @@ export function canRoleEditOrDeletePresensi(role?: string | null): boolean {
 
   // Peran lain: Kepala Pengolahan, Mandor, Staff, dll. -> False (Disembunyikan)
   return false;
+}
+
+/**
+ * Memeriksa apakah pengguna memiliki hak untuk beralih/simulasi peran (Role Switcher / Simulator).
+ * Aturan Ketat:
+ * HANYA Super Admin / Lead Developer (email appspengolahan@gmail.com / admin@batukarang.com atau peran 'Super Admin')
+ * yang berhak melihat dan menggunakan fitur Ganti Peran / Simulasi.
+ * 
+ * Jika pengguna sedang berada dalam mode simulasi, ia HANYA boleh berganti peran jika sesi simulasi tersebut
+ * aslinya berasal dari Super Admin (originalUser adalah Super Admin).
+ * 
+ * Pengguna dengan peran operasional (Mandor semua unit, Kepala Pengolahan, Kepala Gudang, Engineer, 
+ * Manajer Operasional, HR Admin, Pekerja Harian, dll.) TIDAK BERHAK melihat tombol "Ganti Peran".
+ */
+export function canUserSwitchRole(user?: AuthUser | null): boolean {
+  if (!user) return false;
+
+  const isSuperAdminEmail = 
+    user.email === 'appspengolahan@gmail.com' || 
+    user.email === 'admin@batukarang.com';
+  const isSuperAdminRole = 
+    user.role === 'Super Admin' || 
+    user.role.toLowerCase().includes('super admin') ||
+    user.role.toLowerCase().includes('lead developer');
+
+  // Jika sedang simulasi, cek akun asli
+  if (user.isSimulated) {
+    if (user.originalUser) {
+      const origEmail = user.originalUser.email;
+      const origRole = user.originalUser.role || '';
+      return (
+        origEmail === 'appspengolahan@gmail.com' ||
+        origEmail === 'admin@batukarang.com' ||
+        origRole === 'Super Admin' ||
+        origRole.toLowerCase().includes('super admin') ||
+        origRole.toLowerCase().includes('lead developer')
+      );
+    }
+    return false;
+  }
+
+  return isSuperAdminEmail || isSuperAdminRole;
 }

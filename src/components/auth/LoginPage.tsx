@@ -142,8 +142,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const handleDevQuickLogin = (email: string, pass: string) => {
     setIsLoading(true);
     try {
+      sessionStorage.removeItem('bk_supervisor_session');
+      sessionStorage.removeItem('bk_supervisor_user');
+      sessionStorage.removeItem('bk_dev_sim_unlocked');
+
       const res = authService.loginInternal(email, pass);
       if (res.success && res.user) {
+        if (res.user.role === 'Super Admin' || res.user.email === 'appspengolahan@gmail.com' || res.user.email === 'admin@batukarang.com') {
+          sessionStorage.setItem('bk_supervisor_session', 'true');
+          sessionStorage.setItem('bk_supervisor_user', JSON.stringify(res.user));
+        }
         onLoginSuccess(res.user);
       }
     } finally {
@@ -154,6 +162,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const handleDevWorkerQuickLogin = (nama: string, id: string) => {
     setIsLoading(true);
     try {
+      sessionStorage.removeItem('bk_supervisor_session');
+      sessionStorage.removeItem('bk_supervisor_user');
+      sessionStorage.removeItem('bk_dev_sim_unlocked');
+
       const res = authService.loginPekerjaHarian(nama, id, pekerjaList);
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -170,9 +182,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoading(true);
 
     try {
+      sessionStorage.removeItem('bk_supervisor_session');
+      sessionStorage.removeItem('bk_supervisor_user');
+      sessionStorage.removeItem('bk_dev_sim_unlocked');
+
       const res = await authService.loginInternalAsync(internalEmail.trim(), internalPassword.trim());
       if (res.success && res.user) {
-        if (['Super Admin', 'Project Manager', 'Site Engineer', 'Manajer Operasional', 'HR Admin'].includes(res.user.role) || res.user.email === 'appspengolahan@gmail.com') {
+        if (res.user.role === 'Super Admin' || res.user.email === 'appspengolahan@gmail.com' || res.user.email === 'admin@batukarang.com') {
           sessionStorage.setItem('bk_supervisor_session', 'true');
           sessionStorage.setItem('bk_supervisor_user', JSON.stringify(res.user));
         }
@@ -191,6 +207,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoading(true);
 
     try {
+      sessionStorage.removeItem('bk_supervisor_session');
+      sessionStorage.removeItem('bk_supervisor_user');
+      sessionStorage.removeItem('bk_dev_sim_unlocked');
+
       const res = authService.loginPekerjaHarian(pekerjaNama, pekerjaId, pekerjaList);
       if (res.success && res.user) {
         onLoginSuccess(res.user);

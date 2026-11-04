@@ -16,7 +16,7 @@ import {
   BadgePercent,
   CheckCircle2
 } from 'lucide-react';
-import { AuthUser, UserAccessRole, authService } from '../../services/authService';
+import { AuthUser, UserAccessRole, authService, canUserSwitchRole } from '../../services/authService';
 import { PekerjaData } from '../../types';
 
 interface RoleSwitcherModalProps {
@@ -40,19 +40,23 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   const [activeCategory, setActiveCategory] = useState<RoleCategory>('all');
   const [selectedWorkerId, setSelectedWorkerId] = useState<number | string>('');
 
-  if (!isOpen) return null;
+  if (!isOpen || !canUserSwitchRole(currentUser)) return null;
 
-  // Retrieve original supervisor / developer user if in simulation
-  const originalUser = currentUser?.originalUser || (
-    currentUser?.email === 'appspengolahan@gmail.com' ? currentUser : {
-      id: 'appspengolahan@gmail.com',
-      nama: 'Lalu Mahendra (Lead Developer)',
-      email: 'appspengolahan@gmail.com',
-      role: 'Super Admin' as UserAccessRole,
-      scope: 'ALL',
-      allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
-    }
-  );
+  // Retrieve original supervisor / developer user if in simulation (HANYA jika akun asli Super Admin)
+  const isSuperAdminAccount = (u?: AuthUser | null) => 
+    Boolean(
+      u && (
+        u.role === 'Super Admin' || 
+        u.email === 'appspengolahan@gmail.com' || 
+        u.email === 'admin@batukarang.com'
+      )
+    );
+
+  const originalUser: AuthUser | null = currentUser?.isSimulated
+    ? (isSuperAdminAccount(currentUser.originalUser) ? currentUser.originalUser! : null)
+    : (isSuperAdminAccount(currentUser) ? currentUser : null);
+
+  if (!originalUser) return null;
 
   const handleSelectRole = (
     role: UserAccessRole,

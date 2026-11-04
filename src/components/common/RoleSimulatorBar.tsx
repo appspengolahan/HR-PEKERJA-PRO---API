@@ -11,7 +11,7 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
-import { AuthUser, UserAccessRole, authService } from '../../services/authService';
+import { AuthUser, UserAccessRole, authService, canUserSwitchRole } from '../../services/authService';
 import { PekerjaData } from '../../types';
 
 interface RoleSimulatorBarProps {
@@ -29,31 +29,26 @@ export const RoleSimulatorBar: React.FC<RoleSimulatorBarProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Check if current user is Developer, PM, Site Engineer, Manajer Operasional, or is currently simulating a role
-  const isSupervisoryUser = 
-    currentUser?.isSimulated ||
-    currentUser?.role === 'Super Admin' ||
-    currentUser?.role === 'Project Manager' ||
-    currentUser?.role === 'Site Engineer' ||
-    currentUser?.role === 'Manajer Operasional' ||
-    currentUser?.role === 'HR Admin' ||
-    currentUser?.email === 'appspengolahan@gmail.com' ||
-    sessionStorage.getItem('bk_dev_sim_unlocked') === 'true' ||
-    sessionStorage.getItem('bk_supervisor_session') === 'true';
+  // HANYA tampil jika user adalah Super Admin / Lead Developer resmi atau sesi simulasi yang sah berasal dari Super Admin
+  const canSimulate = canUserSwitchRole(currentUser);
+  if (!canSimulate) return null;
 
-  if (!isSupervisoryUser) return null;
+  // Retrieve original developer user if in simulation (HANYA jika akun asli adalah Super Admin)
+  const isSuperAdminAccount = (u?: AuthUser | null) => 
+    Boolean(
+      u && (
+        u.role === 'Super Admin' || 
+        u.email === 'appspengolahan@gmail.com' || 
+        u.email === 'admin@batukarang.com'
+      )
+    );
 
-  // Retrieve original developer user if in simulation
-  const originalUser = currentUser?.originalUser || (
-    currentUser?.email === 'appspengolahan@gmail.com' ? currentUser : {
-      id: 'appspengolahan@gmail.com',
-      nama: 'Lalu Mahendra (Lead Developer)',
-      email: 'appspengolahan@gmail.com',
-      role: 'Super Admin' as UserAccessRole,
-      scope: 'ALL',
-      allowedTabs: ['dashboard', 'presensi', 'lembur', 'rekap', 'slip', 'database', 'jadwalmutasi', 'profil', 'calon', 'hakakses']
-    }
-  );
+  const originalUser: AuthUser | null = currentUser?.isSimulated
+    ? (isSuperAdminAccount(currentUser.originalUser) ? currentUser.originalUser! : null)
+    : (isSuperAdminAccount(currentUser) ? currentUser : null);
+
+  // Jika akun bukan Super Admin dan tidak memiliki akun asli Super Admin, jangan tampilkan simulator bar
+  if (!originalUser) return null;
 
   const handleSwitchToInternal = (
     role: UserAccessRole, 

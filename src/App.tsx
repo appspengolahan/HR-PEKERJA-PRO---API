@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
@@ -26,7 +26,7 @@ import { PublicPortal } from './components/public/PublicPortal';
 import { gasClient } from './services/gasClient';
 import { storageService } from './services/storageService';
 import { LoginPage } from './components/auth/LoginPage';
-import { authService, AuthUser, getUserAuthorizedUnitSekups, canRoleEditOrDeletePresensi } from './services/authService';
+import { authService, AuthUser, getUserAuthorizedUnitSekups, canRoleEditOrDeletePresensi, canUserSwitchRole } from './services/authService';
 import { 
   MainTabType, 
   UserScope, 
@@ -78,6 +78,9 @@ export default function App() {
     return localStorage.getItem('hrPekerjaScope') || 'ALL';
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Periksa apakah pengguna saat ini berhak mengganti/mensimulasikan peran
+  const canSwitchRole = useMemo(() => canUserSwitchRole(currentUser), [currentUser]);
 
   // Strict Role Gate Guard: Pastikan activeTab selalu berada di dalam daftar allowedTabs akun
   useEffect(() => {
@@ -783,6 +786,12 @@ export default function App() {
 
   // Handler beralih peran cepat (tersedia dari Header, Sidebar, Simulator, dan Drawer)
   const handleSwitchUserRole = (newUser: AuthUser) => {
+    // SECURITY GUARD: Tolak jika pengguna aktif saat ini tidak berhak berganti peran
+    if (!canUserSwitchRole(currentUser)) {
+      console.warn('Percobaan penggantian peran ditolak: Akun tidak memiliki hak akses simulasi peran.');
+      return;
+    }
+
     setCurrentUser(newUser);
     authService.updateCurrentUserSession(newUser);
     const authScopes = getUserAuthorizedUnitSekups(newUser);
@@ -873,7 +882,7 @@ export default function App() {
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
         onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
         onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
-        onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+        onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
         currentUser={currentUser}
         onLogout={handleLogout}
         mobileOpen={isMobileMenuOpen}
@@ -899,22 +908,24 @@ export default function App() {
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
-          onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+          onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           switchAppUrl={switchAppUrl}
           currentUser={currentUser}
           onLogout={handleLogout}
         />
 
-        {/* Role Simulator Bar for Developer, PM, Site Engineer, Manajer & Simulation Sessions */}
-        <div className="mt-16 w-full max-w-full overflow-x-hidden">
-          <RoleSimulatorBar
-            currentUser={currentUser}
-            pekerjaList={pekerjaList}
-            onSwitchUser={handleSwitchUserRole}
-            onOpenRoleSwitcherModal={() => setIsRoleSwitcherOpen(true)}
-          />
-        </div>
+        {/* Role Simulator Bar HANYA untuk Lead Developer / Super Admin atau sesi simulasi yang sah */}
+        {canSwitchRole && (
+          <div className="mt-16 w-full max-w-full overflow-x-hidden">
+            <RoleSimulatorBar
+              currentUser={currentUser}
+              pekerjaList={pekerjaList}
+              onSwitchUser={handleSwitchUserRole}
+              onOpenRoleSwitcherModal={() => setIsRoleSwitcherOpen(true)}
+            />
+          </div>
+        )}
 
         {/* Tab Panel Viewports */}
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
@@ -1101,14 +1112,16 @@ export default function App() {
         onOpenPreview={() => setIsPublicMode(true)}
       />
 
-      {/* Quick Role Switcher Modal */}
-      <RoleSwitcherModal
-        isOpen={isRoleSwitcherOpen}
-        onClose={() => setIsRoleSwitcherOpen(false)}
-        currentUser={currentUser}
-        pekerjaList={pekerjaList}
-        onSwitchUser={handleSwitchUserRole}
-      />
+      {/* Quick Role Switcher Modal (Terkunci khusus Lead Developer / Super Admin) */}
+      {canSwitchRole && (
+        <RoleSwitcherModal
+          isOpen={isRoleSwitcherOpen}
+          onClose={() => setIsRoleSwitcherOpen(false)}
+          currentUser={currentUser}
+          pekerjaList={pekerjaList}
+          onSwitchUser={handleSwitchUserRole}
+        />
+      )}
 
       {/* Mobile Bottom Navigation */}
       <BottomNav
