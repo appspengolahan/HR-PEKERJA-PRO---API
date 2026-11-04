@@ -17,7 +17,8 @@ import { AuthUser, isWorkerInUserScope, canRoleEditOrDeletePresensi } from '../.
 import { 
   calculateEffectivePermitMinutes, 
   getWorkScheduleForDate, 
-  formatMinutesToTime 
+  formatMinutesToTime,
+  parseTimeToMinutes
 } from '../../utils/workHoursUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
 
@@ -118,12 +119,20 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [addTglAkhir, setAddTglAkhir] = useState('');
   const [addJenisIjin, setAddJenisIjin] = useState(jenisIjinList[0] || 'Ijin Terlambat');
   const [addSehariPenuh, setAddSehariPenuh] = useState(false);
+  // Jam kehadiran shift kerja (standar pabrik / jam masuk awal & pulang akhir)
+  const [addMasukAwal, setAddMasukAwal] = useState('08:00');
+  const [addPulangAkhir, setAddPulangAkhir] = useState('16:00');
+  // Jam izin keluar sementara (yang dipotong dari jam kerja)
   const [addJamAwal, setAddJamAwal] = useState('08:00');
   const [addJamAkhir, setAddJamAkhir] = useState('16:00');
   const [addKeperluan, setAddKeperluan] = useState('');
   const [addLampiran, setAddLampiran] = useState('Tidak');
   const [addCatatan, setAddCatatan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form Edit State for Shift Context
+  const [editMasukAwal, setEditMasukAwal] = useState('08:00');
+  const [editPulangAkhir, setEditPulangAkhir] = useState('16:00');
 
   // Filter pekerja according to user role authorization and current scope
   const filteredPekerja = pekerjaList.filter(p => {
@@ -173,7 +182,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     if (j.includes('sementara') || j.includes('keluar')) {
       return {
         awalLabel: 'Jam Keluar Sementara (Mulai Ijin)',
-        awalHelp: 'Jam pekerja mulai meninggalkan pabrik (misal: 09:00)',
+        awalHelp: 'Jam pekerja mulai meninggalkan tempat kerja (misal: 09:00)',
         akhirLabel: 'Jam Masuk Kembali (Selesai Ijin)',
         akhirHelp: 'Jam pekerja kembali & lanjut bekerja (misal: 11:00)',
         isKeluarSementara: true
@@ -211,7 +220,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     if (j.includes('sementara') || j.includes('keluar')) {
       return {
         awalLabel: 'Jam Keluar Sementara (Mulai Ijin)',
-        awalHelp: 'Jam pekerja mulai meninggalkan pabrik (misal: 09:00)',
+        awalHelp: 'Jam pekerja mulai meninggalkan tempat kerja (misal: 09:00)',
         akhirLabel: 'Jam Masuk Kembali (Selesai Ijin)',
         akhirHelp: 'Jam pekerja kembali & lanjut bekerja (misal: 11:00)',
         isKeluarSementara: true
@@ -244,14 +253,143 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     };
   }, [editingRecord?.jenisIjin]);
 
+  // Simulasi kehadiran & upah untuk Ijin Keluar Sementara (Add Modal)
+  const simAddKeluarSementara = useMemo(() => {
+    const isKS = (addJenisIjin || '').toLowerCase().includes('sementara') || (addJenisIjin || '').toLowerCase().includes('keluar');
+    if (!isKS) return null;
+
+    const sched = liveAddPermitResult.schedule;
+    const mMasuk = parseTimeToMinutes(addMasukAwal || sched.workStart);
+    const mKeluar = parseTimeToMinutes(addJamAwal || '09:00');
+    const mKembali = parseTimeToMinutes(addJamAkhir || '11:00');
+    const mPulang = parseTimeToMinutes(addPulangAkhir || sched.workEnd);
+
+    // Sesi 1 Hadir Pagi: Jam Masuk s/d Jam Keluar
+    const sesi1Bruto = Math.max(0, mKeluar - mMasuk);
+    let sesi1Break = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mMasuk, sched.breakStartMin);
+      const oEnd = Math.min(mKeluar, sched.breakEndMin);
+      if (oEnd > oStart) sesi1Break = oEnd - oStart;
+    }
+    const sesi1Net = Math.max(0, sesi1Bruto - sesi1Break);
+
+    // Sesi Izin Keluar (Dipotong): Jam Keluar s/d Jam Kembali
+    const izinBruto = Math.max(0, mKembali - mKeluar);
+    let izinBreak = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mKeluar, sched.breakStartMin);
+      const oEnd = Math.min(mKembali, sched.breakEndMin);
+      if (oEnd > oStart) izinBreak = oEnd - oStart;
+    }
+    const izinNet = Math.max(0, izinBruto - izinBreak);
+
+    // Sesi 2 Hadir Siang/Sore: Jam Kembali s/d Jam Pulang
+    const sesi2Bruto = Math.max(0, mPulang - mKembali);
+    let sesi2Break = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mKembali, sched.breakStartMin);
+      const oEnd = Math.min(mPulang, sched.breakEndMin);
+      if (oEnd > oStart) sesi2Break = oEnd - oStart;
+    }
+    const sesi2Net = Math.max(0, sesi2Bruto - sesi2Break);
+
+    const totalKerjaNet = sesi1Net + sesi2Net;
+    const totalTarget = sched.effectiveWorkMinutes || 420;
+    const faktorPotongan = Math.min(1, Math.round((izinNet / totalTarget) * 100) / 100);
+    const hakUpahFaktor = Math.max(0, Math.round((1 - faktorPotongan) * 100) / 100);
+
+    return {
+      sesi1Net,
+      sesi2Net,
+      izinNet,
+      izinBreak,
+      totalKerjaNet,
+      totalTarget,
+      faktorPotongan,
+      hakUpahFaktor,
+      workStart: addMasukAwal || sched.workStart,
+      workEnd: addPulangAkhir || sched.workEnd,
+      jamKeluar: addJamAwal || '09:00',
+      jamKembali: addJamAkhir || '11:00'
+    };
+  }, [addJenisIjin, liveAddPermitResult.schedule, addMasukAwal, addJamAwal, addJamAkhir, addPulangAkhir]);
+
+  // Simulasi kehadiran & upah untuk Ijin Keluar Sementara (Edit Modal)
+  const simEditKeluarSementara = useMemo(() => {
+    if (!editingRecord) return null;
+    const j = (editingRecord.jenisIjin || '').toLowerCase();
+    const isKS = j.includes('sementara') || j.includes('keluar');
+    if (!isKS) return null;
+
+    const dateStr = editingRecord.tanggalIso || editingRecord.tanggal;
+    const sched = getWorkScheduleForDate(dateStr);
+    const mMasuk = parseTimeToMinutes(editMasukAwal || sched.workStart);
+    const mKeluar = parseTimeToMinutes(editingRecord.jamAwal || '09:00');
+    const mKembali = parseTimeToMinutes(editingRecord.jamAkhir || '11:00');
+    const mPulang = parseTimeToMinutes(editPulangAkhir || sched.workEnd);
+
+    // Sesi 1 Hadir Pagi: Jam Masuk s/d Jam Keluar
+    const sesi1Bruto = Math.max(0, mKeluar - mMasuk);
+    let sesi1Break = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mMasuk, sched.breakStartMin);
+      const oEnd = Math.min(mKeluar, sched.breakEndMin);
+      if (oEnd > oStart) sesi1Break = oEnd - oStart;
+    }
+    const sesi1Net = Math.max(0, sesi1Bruto - sesi1Break);
+
+    // Sesi Izin Keluar (Dipotong): Jam Keluar s/d Jam Kembali
+    const izinBruto = Math.max(0, mKembali - mKeluar);
+    let izinBreak = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mKeluar, sched.breakStartMin);
+      const oEnd = Math.min(mKembali, sched.breakEndMin);
+      if (oEnd > oStart) izinBreak = oEnd - oStart;
+    }
+    const izinNet = Math.max(0, izinBruto - izinBreak);
+
+    // Sesi 2 Hadir Siang/Sore: Jam Kembali s/d Jam Pulang
+    const sesi2Bruto = Math.max(0, mPulang - mKembali);
+    let sesi2Break = 0;
+    if (sched.breakStartMin > 0 && sched.breakEndMin > sched.breakStartMin) {
+      const oStart = Math.max(mKembali, sched.breakStartMin);
+      const oEnd = Math.min(mPulang, sched.breakEndMin);
+      if (oEnd > oStart) sesi2Break = oEnd - oStart;
+    }
+    const sesi2Net = Math.max(0, sesi2Bruto - sesi2Break);
+
+    const totalKerjaNet = sesi1Net + sesi2Net;
+    const totalTarget = sched.effectiveWorkMinutes || 420;
+    const faktorPotongan = Math.min(1, Math.round((izinNet / totalTarget) * 100) / 100);
+    const hakUpahFaktor = Math.max(0, Math.round((1 - faktorPotongan) * 100) / 100);
+
+    return {
+      sesi1Net,
+      sesi2Net,
+      izinNet,
+      izinBreak,
+      totalKerjaNet,
+      totalTarget,
+      faktorPotongan,
+      hakUpahFaktor,
+      workStart: editMasukAwal || sched.workStart,
+      workEnd: editPulangAkhir || sched.workEnd,
+      jamKeluar: editingRecord.jamAwal || '09:00',
+      jamKembali: editingRecord.jamAkhir || '11:00'
+    };
+  }, [editingRecord, editMasukAwal, editPulangAkhir]);
+
   const handleJenisIjinChange = (val: string) => {
     setAddJenisIjin(val);
     const vLower = val.toLowerCase();
     const sched = getWorkScheduleForDate(addTglAwal);
     if (vLower.includes('sementara') || vLower.includes('keluar')) {
       setAddSehariPenuh(false);
+      setAddMasukAwal(sched.workStart || '08:00');
       setAddJamAwal('09:00');
       setAddJamAkhir('11:00');
+      setAddPulangAkhir(sched.workEnd || '16:00');
     } else if (vLower.includes('terlambat')) {
       setAddSehariPenuh(false);
       setAddJamAwal(sched.workStart || '08:00');
@@ -282,8 +420,11 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
   const handleTglAwalChange = (val: string) => {
     setAddTglAwal(val);
-    if (addSehariPenuh) {
-      const sched = getWorkScheduleForDate(val);
+    const sched = getWorkScheduleForDate(val);
+    if (addTimeLabels.isKeluarSementara) {
+      setAddMasukAwal(sched.workStart || '08:00');
+      setAddPulangAkhir(sched.workEnd || '16:00');
+    } else if (addSehariPenuh) {
       if (sched.isWorkDay) {
         setAddJamAwal(sched.workStart);
         setAddJamAkhir(sched.workEnd);
@@ -299,9 +440,19 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     const sched = getWorkScheduleForDate(todayStr);
     setAddTglAwal(todayStr);
     setAddTglAkhir('');
-    setAddSehariPenuh(false);
-    setAddJamAwal(sched.workStart);
-    setAddJamAkhir(sched.workEnd);
+    setAddMasukAwal(sched.workStart || '08:00');
+    setAddPulangAkhir(sched.workEnd || '16:00');
+    
+    const isKS = (addJenisIjin || '').toLowerCase().includes('sementara') || (addJenisIjin || '').toLowerCase().includes('keluar');
+    if (isKS) {
+      setAddSehariPenuh(false);
+      setAddJamAwal('09:00');
+      setAddJamAkhir('11:00');
+    } else {
+      setAddSehariPenuh(false);
+      setAddJamAwal(sched.workStart);
+      setAddJamAkhir(sched.workEnd);
+    }
     setAddKeperluan('');
     setAddLampiran('Tidak');
     setAddCatatan('');
@@ -311,6 +462,18 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const handleOpenEdit = (rec: PresensiIjinRecord) => {
     if (!canEditOrDelete) return;
     setEditingRecord(rec);
+    const dateStr = rec.tanggalIso || rec.tanggal;
+    const sched = getWorkScheduleForDate(dateStr);
+    let masuk = sched.workStart;
+    let pulang = sched.workEnd;
+    if (rec.catatan) {
+      const matchMasuk = rec.catatan.match(/Masuk Pagi:\s*(\d{2}:\d{2})/);
+      if (matchMasuk) masuk = matchMasuk[1];
+      const matchPulang = rec.catatan.match(/Pulang:\s*(\d{2}:\d{2})/);
+      if (matchPulang) pulang = matchPulang[1];
+    }
+    setEditMasukAwal(masuk);
+    setEditPulangAkhir(pulang);
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -358,6 +521,17 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       return;
     }
 
+    // Format catatan khusus jika Ijin Keluar Sementara
+    let finalCatatan = addCatatan.trim();
+    if (addTimeLabels.isKeluarSementara) {
+      const detailNote = `Keluar: ${addJamAwal}, Kembali: ${addJamAkhir} (Masuk Pagi: ${addMasukAwal}, Pulang: ${addPulangAkhir})`;
+      if (!finalCatatan) {
+        finalCatatan = detailNote;
+      } else if (!finalCatatan.includes('Masuk Pagi')) {
+        finalCatatan = `${finalCatatan} [${detailNote}]`;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await onAddPresensi({
@@ -365,7 +539,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         jenisIjin: addJenisIjin,
         keperluan: addKeperluan,
         lampiran: addLampiran,
-        catatan: addCatatan,
+        catatan: finalCatatan,
         tanggalList
       });
       setShowAddModal(false);
@@ -380,6 +554,16 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     e.preventDefault();
     if (!editingRecord) return;
 
+    let finalCatatan = (editingRecord.catatan || '').trim();
+    if (editTimeLabels.isKeluarSementara) {
+      const detailNote = `Keluar: ${editingRecord.jamAwal}, Kembali: ${editingRecord.jamAkhir} (Masuk Pagi: ${editMasukAwal}, Pulang: ${editPulangAkhir})`;
+      if (!finalCatatan) {
+        finalCatatan = detailNote;
+      } else if (!finalCatatan.includes('Masuk Pagi')) {
+        finalCatatan = `${finalCatatan} [${detailNote}]`;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await onUpdatePresensi({
@@ -390,7 +574,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         jamAkhir: editingRecord.jamAkhir,
         keperluan: editingRecord.keperluan,
         lampiran: editingRecord.lampiran,
-        catatan: editingRecord.catatan
+        catatan: finalCatatan
       });
       setEditingRecord(null);
     } catch (err) {
@@ -751,92 +935,190 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                 </select>
               </div>
 
-              {/* Sehari Penuh Checkbox */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={addSehariPenuh}
-                    onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Sehari Penuh (Otomatis {liveAddPermitResult.schedule.effectiveWorkMinutes} menit: {liveAddPermitResult.schedule.workStart} s/d {liveAddPermitResult.schedule.workEnd})</span>
-                </label>
-              </div>
+              {/* Sehari Penuh Checkbox - HANYA untuk ijin selain Keluar Sementara */}
+              {!addTimeLabels.isKeluarSementara && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={addSehariPenuh}
+                      onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Sehari Penuh (Otomatis {liveAddPermitResult.schedule.effectiveWorkMinutes} menit: {liveAddPermitResult.schedule.workStart} s/d {liveAddPermitResult.schedule.workEnd})</span>
+                  </label>
+                </div>
+              )}
 
-              {!addSehariPenuh && (
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 gap-3">
+              {/* TAMPILAN KHUSUS: IJIN KELUAR SEMENTARA DI TENGAH JAM KERJA */}
+              {addTimeLabels.isKeluarSementara ? (
+                <div className="space-y-3 p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl">
+                  {/* Penjelasan Singkat */}
+                  <div className="flex items-start gap-2 text-amber-950">
+                    <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <label className="block font-bold text-slate-700 mb-0.5">{addTimeLabels.awalLabel}</label>
-                      <p className="text-[10px] text-slate-400 mb-1">{addTimeLabels.awalHelp}</p>
-                      <input
-                        type="time"
-                        value={addJamAwal}
-                        onChange={(e) => setAddJamAwal(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-0.5">{addTimeLabels.akhirLabel}</label>
-                      <p className="text-[10px] text-slate-400 mb-1">{addTimeLabels.akhirHelp}</p>
-                      <input
-                        type="time"
-                        value={addJamAkhir}
-                        onChange={(e) => setAddJamAkhir(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
-                      />
+                      <h4 className="font-bold text-xs text-amber-900">Ijin Meninggalkan Tempat Kerja Sementara Waktu</h4>
+                      <p className="text-[11px] text-amber-800 leading-snug">
+                        Pekerja hadir masuk kerja, izin keluar sementara di tengah hari, lalu <strong>kembali masuk</strong> melanjutkan kerja hingga jam pulang shift.
+                      </p>
                     </div>
                   </div>
 
-                  {/* Contextual Visual Timeline for Ijin Keluar Sementara */}
-                  {addTimeLabels.isKeluarSementara && (
-                    <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-950 text-[11px] leading-relaxed space-y-1.5">
-                      <div className="font-bold flex items-center gap-1.5 text-amber-900">
-                        <span>💡 Alur Ijin Keluar Sementara di Tengah Jam Kerja:</span>
+                  {/* Bagian 1: Jadwal Shift Kehadiran Hari Ini */}
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/80 space-y-1.5">
+                    <span className="font-bold text-[11px] text-slate-700 block">
+                      1. Shift Kehadiran Kerja Pekerja Hari Ini
+                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Jam Masuk Pagi</label>
+                        <input
+                          type="time"
+                          value={addMasukAwal}
+                          onChange={(e) => setAddMasukAwal(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                        />
                       </div>
-                      <p className="text-slate-700 text-[11px]">
-                        Pekerja hadir masuk kerja, lalu izin keluar sementara, kemudian <strong>kembali masuk</strong> melanjutkan kerja hingga jam pulang shift.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono">
-                        <span className="px-2 py-0.5 rounded bg-white border border-amber-300 text-slate-800">
-                          Masuk: <strong>{liveAddPermitResult.schedule.workStart}</strong>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Jam Pulang Shift</label>
+                        <input
+                          type="time"
+                          value={addPulangAkhir}
+                          onChange={(e) => setAddPulangAkhir(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 2: Waktu Ijin Keluar Sementara (Waktu Yang Dipotongkan) */}
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-amber-300 space-y-1.5 ring-2 ring-amber-400/30">
+                    <span className="font-bold text-[11px] text-amber-950 block">
+                      2. Waktu Ijin Keluar Sementara (Yang Dipotongkan) *
+                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-amber-900 mb-0.5">Jam Keluar Sementara</label>
+                        <p className="text-[9px] text-slate-500 mb-1">Mulai izin / keluar pabrik</p>
+                        <input
+                          type="time"
+                          value={addJamAwal}
+                          onChange={(e) => setAddJamAwal(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-amber-400 font-mono font-black text-amber-950 text-xs bg-amber-50/50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-900 mb-0.5">Jam Masuk Kembali</label>
+                        <p className="text-[9px] text-slate-500 mb-1">Kembali lanjut bekerja</p>
+                        <input
+                          type="time"
+                          value={addJamAkhir}
+                          onChange={(e) => setAddJamAkhir(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-emerald-400 font-mono font-black text-emerald-950 text-xs bg-emerald-50/50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 3: Simulasi Rincian Kehadiran & Upah */}
+                  {simAddKeluarSementara && (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-800 space-y-2">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="font-bold text-[11px] text-slate-900">📊 Simulasi Kehadiran &amp; Hak Upah:</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Hak Upah: {simAddKeluarSementara.hakUpahFaktor} Hari ({Math.round(simAddKeluarSementara.hakUpahFaktor * 100)}%)
                         </span>
-                        <span className="text-slate-400 font-sans">➜</span>
-                        <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-400 text-amber-900 font-bold">
-                          Keluar: <strong>{addJamAwal || '09:00'}</strong>
-                        </span>
-                        <span className="text-slate-400 font-sans">➜</span>
-                        <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-400 text-emerald-900 font-bold">
-                          Kembali: <strong>{addJamAkhir || '11:00'}</strong>
-                        </span>
-                        <span className="text-slate-400 font-sans">➜</span>
-                        <span className="px-2 py-0.5 rounded bg-white border border-amber-300 text-slate-800">
-                          Pulang: <strong>{liveAddPermitResult.schedule.workEnd}</strong>
-                        </span>
+                      </div>
+
+                      {/* Visual Timeline Bar */}
+                      <div className="space-y-1 text-[10px] font-mono">
+                        <div className="flex items-center justify-between text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                          <span>🟢 Sesi Hadir Pagi ({simAddKeluarSementara.workStart} - {simAddKeluarSementara.jamKeluar}):</span>
+                          <strong className="text-slate-800">{simAddKeluarSementara.sesi1Net} menit</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-amber-900 bg-amber-50 px-2 py-1 rounded font-bold border border-amber-200">
+                          <span>⚠️ Ijin Keluar ({simAddKeluarSementara.jamKeluar} - {simAddKeluarSementara.jamKembali}):</span>
+                          <span className="text-amber-800 font-black">-{simAddKeluarSementara.izinNet} menit dipotong</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                          <span>🟢 Sesi Hadir Lanjutan ({simAddKeluarSementara.jamKembali} - {simAddKeluarSementara.workEnd}):</span>
+                          <strong className="text-slate-800">{simAddKeluarSementara.sesi2Net} menit</strong>
+                        </div>
+                      </div>
+
+                      {simAddKeluarSementara.izinBreak > 0 && (
+                        <p className="text-[10px] text-blue-700 bg-blue-50/70 p-1.5 rounded">
+                          ✓ Otomatis mengecualikan jam istirahat resmi <strong>{simAddKeluarSementara.izinBreak} menit</strong>
+                        </p>
+                      )}
+
+                      {/* Ringkasan Angka */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px]">
+                        <div className="bg-emerald-50/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-slate-500 block text-[10px]">Total Jam Hadir Kerja:</span>
+                          <span className="font-extrabold text-emerald-900 text-xs">
+                            {simAddKeluarSementara.totalKerjaNet} mnt ({Math.floor(simAddKeluarSementara.totalKerjaNet / 60)}j {simAddKeluarSementara.totalKerjaNet % 60}m)
+                          </span>
+                        </div>
+                        <div className="bg-red-50/80 p-2 rounded-lg border border-red-200">
+                          <span className="text-slate-500 block text-[10px]">Durasi Ijin Dipotong:</span>
+                          <span className="font-extrabold text-red-700 text-xs">
+                            {simAddKeluarSementara.izinNet} mnt (Faktor {simAddKeluarSementara.faktorPotongan})
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Live Calculation Preview Card */}
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
-                    <div>
-                      <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
-                        <span>Durasi Ijin yang Dipotong:</span>
-                        <strong className="text-emerald-700 font-black text-sm">{liveAddPermitResult.durasiMenit} menit</strong>
-                        <span className="text-slate-500 font-normal">({Math.floor(liveAddPermitResult.durasiMenit / 60)}j {liveAddPermitResult.durasiMenit % 60}m)</span>
-                      </div>
-                      {liveAddPermitResult.potonganIstirahatMenit > 0 && (
-                        <p className="text-[11px] text-emerald-700 mt-0.5">
-                          ✓ Otomatis memotong jam istirahat resmi <strong>{liveAddPermitResult.potonganIstirahatMenit} menit</strong> ({liveAddPermitResult.schedule.breakStart}-{liveAddPermitResult.schedule.breakEnd})
-                        </p>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
-                      Faktor: {liveAddPermitResult.faktorPotongan}
-                    </span>
-                  </div>
                 </div>
+              ) : (
+                /* TAMPILAN STANDAR (SELAIN KELUAR SEMENTARA) */
+                !addSehariPenuh && (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-0.5">{addTimeLabels.awalLabel}</label>
+                        <p className="text-[10px] text-slate-400 mb-1">{addTimeLabels.awalHelp}</p>
+                        <input
+                          type="time"
+                          value={addJamAwal}
+                          onChange={(e) => setAddJamAwal(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-0.5">{addTimeLabels.akhirLabel}</label>
+                        <p className="text-[10px] text-slate-400 mb-1">{addTimeLabels.akhirHelp}</p>
+                        <input
+                          type="time"
+                          value={addJamAkhir}
+                          onChange={(e) => setAddJamAkhir(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Calculation Preview Card */}
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
+                      <div>
+                        <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                          <span>Durasi Ijin yang Dipotong:</span>
+                          <strong className="text-emerald-700 font-black text-sm">{liveAddPermitResult.durasiMenit} menit</strong>
+                          <span className="text-slate-500 font-normal">({Math.floor(liveAddPermitResult.durasiMenit / 60)}j {liveAddPermitResult.durasiMenit % 60}m)</span>
+                        </div>
+                        {liveAddPermitResult.potonganIstirahatMenit > 0 && (
+                          <p className="text-[11px] text-emerald-700 mt-0.5">
+                            ✓ Otomatis memotong jam istirahat resmi <strong>{liveAddPermitResult.potonganIstirahatMenit} menit</strong> ({liveAddPermitResult.schedule.breakStart}-{liveAddPermitResult.schedule.breakEnd})
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
+                        Faktor: {liveAddPermitResult.faktorPotongan}
+                      </span>
+                    </div>
+                  </div>
+                )
               )}
 
               <div>
@@ -939,76 +1221,175 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                 </select>
               </div>
 
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-0.5">{editTimeLabels.awalLabel}</label>
-                    <p className="text-[10px] text-slate-400 mb-1">{editTimeLabels.awalHelp}</p>
-                    <input
-                      type="time"
-                      value={editingRecord.jamAwal && editingRecord.jamAwal !== '-' ? editingRecord.jamAwal : ''}
-                      onChange={(e) => setEditingRecord({ ...editingRecord, jamAwal: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-0.5">{editTimeLabels.akhirLabel}</label>
-                    <p className="text-[10px] text-slate-400 mb-1">{editTimeLabels.akhirHelp}</p>
-                    <input
-                      type="time"
-                      value={editingRecord.jamAkhir && editingRecord.jamAkhir !== '-' ? editingRecord.jamAkhir : ''}
-                      onChange={(e) => setEditingRecord({ ...editingRecord, jamAkhir: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-
-                {/* Contextual Visual Timeline for Ijin Keluar Sementara */}
-                {editTimeLabels.isKeluarSementara && liveEditPermitResult && (
-                  <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-950 text-[11px] leading-relaxed space-y-1.5">
-                    <div className="font-bold flex items-center gap-1.5 text-amber-900">
-                      <span>💡 Alur Ijin Keluar Sementara di Tengah Jam Kerja:</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px] font-mono">
-                      <span className="px-2 py-0.5 rounded bg-white border border-amber-300 text-slate-800">
-                        Masuk: <strong>{liveEditPermitResult.schedule.workStart}</strong>
-                      </span>
-                      <span className="text-slate-400 font-sans">➜</span>
-                      <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-400 text-amber-900 font-bold">
-                        Keluar: <strong>{editingRecord.jamAwal || '09:00'}</strong>
-                      </span>
-                      <span className="text-slate-400 font-sans">➜</span>
-                      <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-400 text-emerald-900 font-bold">
-                        Kembali: <strong>{editingRecord.jamAkhir || '11:00'}</strong>
-                      </span>
-                      <span className="text-slate-400 font-sans">➜</span>
-                      <span className="px-2 py-0.5 rounded bg-white border border-amber-300 text-slate-800">
-                        Pulang: <strong>{liveEditPermitResult.schedule.workEnd}</strong>
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {liveEditPermitResult && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
+              {/* TAMPILAN KHUSUS EDIT: IJIN KELUAR SEMENTARA DI TENGAH JAM KERJA */}
+              {editTimeLabels.isKeluarSementara ? (
+                <div className="space-y-3 p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl">
+                  {/* Penjelasan Singkat */}
+                  <div className="flex items-start gap-2 text-amber-950">
+                    <Clock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
-                        <span>Durasi Ijin yang Dipotong:</span>
-                        <strong className="text-emerald-700 font-black text-sm">{liveEditPermitResult.durasiMenit} menit</strong>
-                        <span className="text-slate-500 font-normal">({Math.floor(liveEditPermitResult.durasiMenit / 60)}j {liveEditPermitResult.durasiMenit % 60}m)</span>
+                      <h4 className="font-bold text-xs text-amber-900">Ijin Meninggalkan Tempat Kerja Sementara Waktu</h4>
+                      <p className="text-[11px] text-amber-800 leading-snug">
+                        Pekerja hadir masuk kerja di awal shift, izin keluar sementara di tengah hari, lalu <strong>kembali masuk</strong> melanjutkan kerja hingga jam pulang.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bagian 1: Jadwal Shift Kehadiran Hari Ini */}
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/80 space-y-1.5">
+                    <span className="font-bold text-[11px] text-slate-700 block">
+                      1. Shift Kehadiran Kerja Pekerja Hari Ini
+                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Jam Masuk Pagi</label>
+                        <input
+                          type="time"
+                          value={editMasukAwal}
+                          onChange={(e) => setEditMasukAwal(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                        />
                       </div>
-                      {liveEditPermitResult.potonganIstirahatMenit > 0 && (
-                        <p className="text-[11px] text-emerald-700 mt-0.5">
-                          ✓ Dipotong istirahat resmi <strong>{liveEditPermitResult.potonganIstirahatMenit} menit</strong> ({liveEditPermitResult.schedule.breakStart}-{liveEditPermitResult.schedule.breakEnd})
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Jam Pulang Shift</label>
+                        <input
+                          type="time"
+                          value={editPulangAkhir}
+                          onChange={(e) => setEditPulangAkhir(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono font-bold text-slate-900 text-xs bg-slate-50 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 2: Waktu Ijin Keluar Sementara (Waktu Yang Dipotongkan) */}
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-amber-300 space-y-1.5 ring-2 ring-amber-400/30">
+                    <span className="font-bold text-[11px] text-amber-950 block">
+                      2. Waktu Ijin Keluar Sementara (Yang Dipotongkan) *
+                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-amber-900 mb-0.5">Jam Keluar Sementara</label>
+                        <p className="text-[9px] text-slate-500 mb-1">Mulai izin / keluar pabrik</p>
+                        <input
+                          type="time"
+                          value={editingRecord.jamAwal && editingRecord.jamAwal !== '-' ? editingRecord.jamAwal : ''}
+                          onChange={(e) => setEditingRecord({ ...editingRecord, jamAwal: e.target.value })}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-amber-400 font-mono font-black text-amber-950 text-xs bg-amber-50/50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-900 mb-0.5">Jam Masuk Kembali</label>
+                        <p className="text-[9px] text-slate-500 mb-1">Kembali lanjut bekerja</p>
+                        <input
+                          type="time"
+                          value={editingRecord.jamAkhir && editingRecord.jamAkhir !== '-' ? editingRecord.jamAkhir : ''}
+                          onChange={(e) => setEditingRecord({ ...editingRecord, jamAkhir: e.target.value })}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-emerald-400 font-mono font-black text-emerald-950 text-xs bg-emerald-50/50 focus:bg-white"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 3: Simulasi Rincian Kehadiran & Upah */}
+                  {simEditKeluarSementara && (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-800 space-y-2">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                        <span className="font-bold text-[11px] text-slate-900">📊 Simulasi Kehadiran &amp; Hak Upah:</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Hak Upah: {simEditKeluarSementara.hakUpahFaktor} Hari ({Math.round(simEditKeluarSementara.hakUpahFaktor * 100)}%)
+                        </span>
+                      </div>
+
+                      {/* Visual Timeline Bar */}
+                      <div className="space-y-1 text-[10px] font-mono">
+                        <div className="flex items-center justify-between text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                          <span>🟢 Sesi Hadir Pagi ({simEditKeluarSementara.workStart} - {simEditKeluarSementara.jamKeluar}):</span>
+                          <strong className="text-slate-800">{simEditKeluarSementara.sesi1Net} menit</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-amber-900 bg-amber-50 px-2 py-1 rounded font-bold border border-amber-200">
+                          <span>⚠️ Ijin Keluar ({simEditKeluarSementara.jamKeluar} - {simEditKeluarSementara.jamKembali}):</span>
+                          <span className="text-amber-800 font-black">-{simEditKeluarSementara.izinNet} menit dipotong</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                          <span>🟢 Sesi Hadir Lanjutan ({simEditKeluarSementara.jamKembali} - {simEditKeluarSementara.workEnd}):</span>
+                          <strong className="text-slate-800">{simEditKeluarSementara.sesi2Net} menit</strong>
+                        </div>
+                      </div>
+
+                      {simEditKeluarSementara.izinBreak > 0 && (
+                        <p className="text-[10px] text-blue-700 bg-blue-50/70 p-1.5 rounded">
+                          ✓ Otomatis mengecualikan jam istirahat resmi <strong>{simEditKeluarSementara.izinBreak} menit</strong>
                         </p>
                       )}
+
+                      {/* Ringkasan Angka */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-[11px]">
+                        <div className="bg-emerald-50/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-slate-500 block text-[10px]">Total Jam Hadir Kerja:</span>
+                          <span className="font-extrabold text-emerald-900 text-xs">
+                            {simEditKeluarSementara.totalKerjaNet} mnt ({Math.floor(simEditKeluarSementara.totalKerjaNet / 60)}j {simEditKeluarSementara.totalKerjaNet % 60}m)
+                          </span>
+                        </div>
+                        <div className="bg-red-50/80 p-2 rounded-lg border border-red-200">
+                          <span className="text-slate-500 block text-[10px]">Durasi Ijin Dipotong:</span>
+                          <span className="font-extrabold text-red-700 text-xs">
+                            {simEditKeluarSementara.izinNet} mnt (Faktor {simEditKeluarSementara.faktorPotongan})
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
-                      Faktor: {liveEditPermitResult.faktorPotongan}
-                    </span>
+                  )}
+                </div>
+              ) : (
+                /* TAMPILAN STANDAR EDIT (SELAIN KELUAR SEMENTARA) */
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-0.5">{editTimeLabels.awalLabel}</label>
+                      <p className="text-[10px] text-slate-400 mb-1">{editTimeLabels.awalHelp}</p>
+                      <input
+                        type="time"
+                        value={editingRecord.jamAwal && editingRecord.jamAwal !== '-' ? editingRecord.jamAwal : ''}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, jamAwal: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-0.5">{editTimeLabels.akhirLabel}</label>
+                      <p className="text-[10px] text-slate-400 mb-1">{editTimeLabels.akhirHelp}</p>
+                      <input
+                        type="time"
+                        value={editingRecord.jamAkhir && editingRecord.jamAkhir !== '-' ? editingRecord.jamAkhir : ''}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, jamAkhir: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-slate-900"
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {liveEditPermitResult && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-900 text-xs">
+                      <div>
+                        <div className="font-semibold text-emerald-950 flex items-center gap-1.5">
+                          <span>Durasi Ijin yang Dipotong:</span>
+                          <strong className="text-emerald-700 font-black text-sm">{liveEditPermitResult.durasiMenit} menit</strong>
+                          <span className="text-slate-500 font-normal">({Math.floor(liveEditPermitResult.durasiMenit / 60)}j {liveEditPermitResult.durasiMenit % 60}m)</span>
+                        </div>
+                        {liveEditPermitResult.potonganIstirahatMenit > 0 && (
+                          <p className="text-[11px] text-emerald-700 mt-0.5">
+                            ✓ Dipotong istirahat resmi <strong>{liveEditPermitResult.potonganIstirahatMenit} menit</strong> ({liveEditPermitResult.schedule.breakStart}-{liveEditPermitResult.schedule.breakEnd})
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-1 bg-white/80 rounded-md border border-emerald-300 text-emerald-800">
+                        Faktor: {liveEditPermitResult.faktorPotongan}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Keperluan</label>

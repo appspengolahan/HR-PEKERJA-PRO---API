@@ -1531,6 +1531,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                   >
                     <option value="Ijin Terlambat" className="bg-slate-900">Ijin Terlambat</option>
                     <option value="Ijin Pulang Awal" className="bg-slate-900">Ijin Pulang Awal</option>
+                    <option value="Ijin Keluar Sementara" className="bg-slate-900">Ijin Keluar Sementara (Tengah Jam Kerja)</option>
                     <option value="Sakit (S Dokter)" className="bg-slate-900">Sakit (S Dokter)</option>
                     <option value="Sakit (S Tangan)" className="bg-slate-900">Sakit (S Tangan)</option>
                     <option value="Ijin (S Tangan)" className="bg-slate-900">Ijin (S Tangan)</option>
@@ -1544,36 +1545,48 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
               <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-300">Waktu &amp; Jam Presensi</span>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={inputSehariPenuh}
-                      onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
-                      className="rounded border-slate-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    <span className="text-xs text-blue-400 font-semibold select-none">Sehari Penuh (Shift Normal)</span>
-                  </label>
+                  {inputJenisIjin !== 'Ijin Keluar Sementara' && (
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={inputSehariPenuh}
+                        onChange={(e) => handleToggleSehariPenuh(e.target.checked)}
+                        className="rounded border-slate-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      />
+                      <span className="text-xs text-blue-400 font-semibold select-none">Sehari Penuh (Shift Normal)</span>
+                    </label>
+                  )}
                 </div>
+
+                {inputJenisIjin === 'Ijin Keluar Sementara' && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] leading-relaxed">
+                    💡 <strong>Alur Ijin Keluar Sementara:</strong> Pekerja hadir bekerja di awal shift, lalu keluar sementara pada jam di bawah ini, kemudian <strong>kembali masuk</strong> melanjutkan kerja hingga jam pulang. Hanya durasi keluar yang dipotongkan.
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] text-slate-400 block mb-1">Jam Awal</span>
+                    <span className="text-[11px] text-slate-400 block mb-1">
+                      {inputJenisIjin === 'Ijin Keluar Sementara' ? 'Jam Keluar Sementara (Mulai Ijin)' : 'Jam Awal'}
+                    </span>
                     <input
                       type="time"
                       value={inputJamAwal}
                       onChange={(e) => setInputJamAwal(e.target.value)}
-                      disabled={inputSehariPenuh}
+                      disabled={inputSehariPenuh && inputJenisIjin !== 'Ijin Keluar Sementara'}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white font-medium disabled:opacity-50"
                       required
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-400 block mb-1">Jam Akhir</span>
+                    <span className="text-[11px] text-slate-400 block mb-1">
+                      {inputJenisIjin === 'Ijin Keluar Sementara' ? 'Jam Masuk Kembali (Selesai Ijin)' : 'Jam Akhir'}
+                    </span>
                     <input
                       type="time"
                       value={inputJamAkhir}
                       onChange={(e) => setInputJamAkhir(e.target.value)}
-                      disabled={inputSehariPenuh}
+                      disabled={inputSehariPenuh && inputJenisIjin !== 'Ijin Keluar Sementara'}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-white font-medium disabled:opacity-50"
                       required
                     />
