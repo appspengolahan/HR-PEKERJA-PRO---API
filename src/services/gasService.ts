@@ -99,6 +99,9 @@ function doGet(e) {
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
+      // Otomatis terapkan mutasi terjadwal yang sudah jatuh tempo (efektif <= hari ini)
+      try { jalankanPemicuHarian_(); } catch (errMutasi) {}
+
       const pekerjaList = getAllPekerja_(scope);
       const unitSekupSet = {};
       pekerjaList.forEach(p => {
@@ -1027,6 +1030,7 @@ function addNewPekerja_(data, currentUser) {
   const nextRow = sh.getLastRow() + 1;
   const newId = nextRow - ROWS.MASTER_START + 1;
   const unitSekup = (data.sekup && data.unit) ? (data.sekup + ' ' + data.unit) : '';
+  const cleanPendidikan = String(data.pendidikanTerakhir || '').trim() === 'SMA/SMK' ? 'SMK' : (data.pendidikanTerakhir || 'SMK');
 
   const newRow = [
     newId,
@@ -1040,7 +1044,7 @@ function addNewPekerja_(data, currentUser) {
     toDateValue_(data.akhirPKWT) || data.akhirPKWT || '-',
     data.statusPKWT || 'PKWT Berjalan',
     Number(data.upahHarian) || 146675.96,
-    data.pendidikanTerakhir || '-'
+    cleanPendidikan
   ];
 
   sh.getRange(nextRow, 2, 1, 12).setValues([newRow]);
@@ -1054,19 +1058,26 @@ function updatePekerja_(data, currentUser) {
   if (!r || r < ROWS.MASTER_START) throw new Error('Nomor baris pekerja tidak valid.');
 
   const unitSekup = (data.sekup && data.unit) ? (data.sekup + ' ' + data.unit) : '';
-  sh.getRange(r, 3).setValue(data.nama);
-  sh.getRange(r, 4).setValue(data.unit);
-  sh.getRange(r, 5).setValue(data.sekup);
-  sh.getRange(r, 6).setValue(unitSekup);
-  sh.getRange(r, 7).setValue(data.jabatan || 'Harian');
-  sh.getRange(r, 8).setValue(data.status || 'PKWT');
-  sh.getRange(r, 9).setValue(toDateValue_(data.awalPKWT) || data.awalPKWT || '-');
-  sh.getRange(r, 10).setValue(toDateValue_(data.akhirPKWT) || data.akhirPKWT || '-');
-  sh.getRange(r, 11).setValue(data.statusPKWT || '-');
-  sh.getRange(r, 12).setValue(Number(data.upahHarian) || 146675.96);
-  sh.getRange(r, 13).setValue(data.pendidikanTerakhir || '-');
+  
+  // Perlindungan nama: JANGAN PERNAH menghapus nama jika data.nama undefined/kosong!
+  if (data.nama && String(data.nama).trim() !== '') {
+    sh.getRange(r, 3).setValue(String(data.nama).trim());
+  }
+  if (data.unit) sh.getRange(r, 4).setValue(data.unit);
+  if (data.sekup) sh.getRange(r, 5).setValue(data.sekup);
+  if (unitSekup) sh.getRange(r, 6).setValue(unitSekup);
+  if (data.jabatan) sh.getRange(r, 7).setValue(data.jabatan || 'Harian');
+  if (data.status) sh.getRange(r, 8).setValue(data.status || 'PKWT');
+  if (data.awalPKWT !== undefined) sh.getRange(r, 9).setValue(toDateValue_(data.awalPKWT) || data.awalPKWT || '-');
+  if (data.akhirPKWT !== undefined) sh.getRange(r, 10).setValue(toDateValue_(data.akhirPKWT) || data.akhirPKWT || '-');
+  if (data.statusPKWT) sh.getRange(r, 11).setValue(data.statusPKWT || '-');
+  if (data.upahHarian !== undefined) sh.getRange(r, 12).setValue(Number(data.upahHarian) || 146675.96);
+  if (data.pendidikanTerakhir) {
+    const cleanPend = String(data.pendidikanTerakhir).trim() === 'SMA/SMK' ? 'SMK' : String(data.pendidikanTerakhir).trim();
+    sh.getRange(r, 13).setValue(cleanPend || 'SMK');
+  }
 
-  return { status: 'success', message: 'Data pekerja ' + data.nama + ' berhasil diperbarui di spreadsheet.' };
+  return { status: 'success', message: 'Data pekerja ' + (data.nama || '#' + r) + ' berhasil diperbarui di spreadsheet.' };
 }
 
 function deletePekerja_(rowNum, currentUser) {

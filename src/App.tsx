@@ -489,17 +489,20 @@ export default function App() {
     const durasi = Number(rec.durasiMenit) || 0;
 
     // Set time fields logically based on type
+    const workStart = '08:00';
     let jamMasuk = '-';
     let jamKeluar = '-';
     let jamMasukKembali = '-';
 
     if (checkbox === 'terlambat') {
-      jamMasuk = rec.jamAkhir || '08:00';
+      jamMasuk = rec.jamAkhir || workStart;
     } else if (checkbox === 'pulangCepat') {
+      jamMasuk = workStart;
       jamKeluar = rec.jamAwal || '14:00';
     } else if (checkbox === 'keluarSementara') {
-      jamKeluar = rec.jamAwal || '10:00';
-      jamMasukKembali = rec.jamAkhir || '11:00';
+      jamMasuk = workStart; // Jam masuk kerja pagi
+      jamKeluar = rec.jamAwal || '09:00'; // Jam mulai keluar sementara
+      jamMasukKembali = rec.jamAkhir || '11:00'; // Jam kembali masuk bekerja
     }
 
     const tglStr = rec.tanggal || `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;

@@ -137,7 +137,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const [newSekup, setNewSekup] = useState('Proses');
   const [newStatus, setNewStatus] = useState('PKWT 1');
   const [newUpah, setNewUpah] = useState('146263.92');
-  const [newPendidikan, setNewPendidikan] = useState('SMA/SMK');
+  const [newPendidikan, setNewPendidikan] = useState('SMK');
   const [newAwalPKWT, setNewAwalPKWT] = useState('');
   const [newAkhirPKWT, setNewAkhirPKWT] = useState('');
 
@@ -216,15 +216,27 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPekerja) return;
+    if (!editingPekerja.nama || !editingPekerja.nama.trim()) {
+      alert('Nama pekerja tidak boleh kosong.');
+      return;
+    }
     setIsSubmitting(true);
     try {
+      const normalizedPendidikan = editingPekerja.pendidikanTerakhir === 'SMA/SMK' 
+        ? 'SMK' 
+        : (editingPekerja.pendidikanTerakhir || 'SMK');
+
       await onUpdatePekerja({
         rowNum: editingPekerja.rowNum,
+        id: editingPekerja.id,
+        nama: editingPekerja.nama.trim(),
         unit: editingPekerja.unit,
         sekup: editingPekerja.sekup,
+        unitSekup: (editingPekerja.sekup && editingPekerja.unit) ? `${editingPekerja.sekup} ${editingPekerja.unit}` : editingPekerja.unitSekup,
+        jabatan: editingPekerja.jabatan || 'Harian',
         status: editingPekerja.status,
         upahHarian: Number(editingPekerja.upahHarian) || 0,
-        pendidikanTerakhir: editingPekerja.pendidikanTerakhir,
+        pendidikanTerakhir: normalizedPendidikan,
         awalPKWT: editingPekerja.awalPKWT,
         akhirPKWT: editingPekerja.akhirPKWT
       });
@@ -842,7 +854,8 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                 >
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
-                  <option value="SMA/SMK">SMA/SMK</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SMK">SMK</option>
                   <option value="D1">D1</option>
                   <option value="D2">D2</option>
                   <option value="D3">D3</option>
@@ -914,6 +927,18 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
             <form onSubmit={handleEditSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nama Pekerja *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingPekerja.nama || ''}
+                  onChange={(e) => setEditingPekerja({ ...editingPekerja, nama: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-bold text-slate-900 bg-slate-50 focus:bg-white"
+                  placeholder="Nama pekerja..."
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Unit</label>
@@ -969,13 +994,14 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Pendidikan Terakhir</label>
                 <select
-                  value={editingPekerja.pendidikanTerakhir || 'SMA/SMK'}
+                  value={editingPekerja.pendidikanTerakhir || 'SMK'}
                   onChange={(e) => setEditingPekerja({ ...editingPekerja, pendidikanTerakhir: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300"
                 >
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
-                  <option value="SMA/SMK">SMA/SMK</option>
+                  <option value="SMA">SMA</option>
+                  <option value="SMK">SMK</option>
                   <option value="D1">D1</option>
                   <option value="D2">D2</option>
                   <option value="D3">D3</option>
