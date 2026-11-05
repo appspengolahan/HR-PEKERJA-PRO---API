@@ -871,7 +871,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden relative">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden relative print:bg-white print:overflow-visible">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -891,7 +891,7 @@ export default function App() {
 
       {/* Main Workspace Area */}
       <div 
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-28 lg:pb-12 min-w-0 w-full max-w-full overflow-x-hidden ${
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-28 lg:pb-12 min-w-0 w-full max-w-full overflow-x-hidden print:ml-0 print:p-0 print:min-h-0 print:overflow-visible ${
           collapsed ? 'lg:ml-[68px] ml-0' : 'lg:ml-64 ml-0'
         }`}
       >
@@ -917,7 +917,7 @@ export default function App() {
 
         {/* Role Simulator Bar HANYA untuk Lead Developer / Super Admin atau sesi simulasi yang sah */}
         {canSwitchRole && (
-          <div className="mt-16 w-full max-w-full overflow-x-hidden">
+          <div className="mt-16 w-full max-w-full overflow-x-hidden print:hidden">
             <RoleSimulatorBar
               currentUser={currentUser}
               pekerjaList={pekerjaList}
@@ -928,7 +928,7 @@ export default function App() {
         )}
 
         {/* Tab Panel Viewports */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden print:p-0 print:m-0 print:max-w-none print:overflow-visible">
           
           {/* Akses Modul Dibatasi Fallback */}
           {currentUser && Array.isArray(currentUser.allowedTabs) && !currentUser.allowedTabs.includes(activeTab) && (

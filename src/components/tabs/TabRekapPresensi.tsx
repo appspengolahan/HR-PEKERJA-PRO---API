@@ -336,10 +336,32 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
     : '';
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-200">
+    <div className="space-y-5 animate-in fade-in duration-200 print:space-y-3">
       
-      {/* Filter Card */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+      {/* Official Print Header (Hanya tampil saat dicetak atau Export PDF) */}
+      <div className="hidden print:block pb-3 mb-2 border-b-2 border-slate-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-extrabold tracking-wider text-slate-500 uppercase">
+              PT Batu Karang — Divisi Produksi I
+            </div>
+            <h1 className="text-base font-black text-slate-900 tracking-tight">
+              REKAPITULASI PRESENSI &amp; EVALUASI PERINGKAT KEHADIRAN PEKERJA
+            </h1>
+            <p className="text-[10px] text-slate-600 mt-0.5">
+              Periode Evaluasi: <strong>Januari – Desember {tahun}</strong> &bull; Unit: <strong>{rankingUnit}</strong> &bull; Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-1 bg-slate-100 border border-slate-300 rounded text-[9px] font-bold text-slate-800">
+              Dokumen Resmi HR
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Card (Disembunyikan saat dicetak agar dokumen bersih) */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 print:hidden">
         
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
@@ -462,7 +484,10 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
       <div className="space-y-6">
         
         {/* Card 1: Grafik Tren Tingkat Kehadiran Bulanan (Jan – Des) */}
-        <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <div 
+          className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 print:border print:border-slate-300 print:shadow-none print:p-4 print:mb-4 break-inside-avoid"
+          style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
+        >
           
           {/* Header & Toggle Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -725,6 +750,16 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                 <option value="tertinggi">⇅ Tingkat Kehadiran Tertinggi (Hijau → Merah)</option>
                 <option value="nama">🔤 Urut Nama (A – Z)</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                title="Cetak seluruh grafik balok evaluasi peringkat kehadiran atau simpan ke PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-amber-600" />
+                <span>Cetak / Export PDF</span>
+              </button>
             </div>
           </div>
 
@@ -732,25 +767,25 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs print:pt-1 print:border-slate-200">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-[11px] font-semibold">
               <span className="flex items-center gap-1.5 text-red-600">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span>
                 &lt; 95.0% (Perlu Pembinaan / Perhatian)
               </span>
               <span className="flex items-center gap-1.5 text-blue-600">
-                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span>
                 95.0% - 97.9% (Memenuhi Baku)
               </span>
               <span className="flex items-center gap-1.5 text-emerald-600">
-                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span>
                 &ge; 98.0% (Sangat Baik / Sempurna)
               </span>
             </div>
-            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500">
-              Total {rankingRows.length} Pekerja Ditampilkan
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 print:text-slate-900">
+              Total {rankingRows.length} Pekerja Ditampilkan Penuh (Tanpa Slider)
             </span>
           </div>
 
-          {/* List of Evaluation Progress Cards - Compact on screen & Ultra-compact for print */}
-          <div className="max-h-[500px] overflow-y-auto space-y-1.5 pr-1.5 print:max-h-none print:overflow-visible print:space-y-1 print:pr-0">
+          {/* List of Evaluation Progress Cards - Tampil penuh seluruh pekerja tanpa slider */}
+          <div className="space-y-1.5 print:space-y-1 overflow-visible">
             {rankingRows.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
                 Tidak ada data pekerja yang cocok dengan kriteria pencarian atau filter.
@@ -790,13 +825,14 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                 return (
                   <div
                     key={`${r.id}-${idx}`}
-                    className="bg-white py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 print:py-1 print:px-2 print:my-0.5 print:border-b print:border-slate-200 print:shadow-none print:rounded-none print:flex-row print:items-center print:gap-2 break-inside-avoid"
+                    className="bg-white py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 print:py-1 print:px-2.5 print:my-0.5 print:border print:border-slate-300 print:shadow-none print:rounded-md print:flex-row print:items-center print:gap-2 break-inside-avoid"
                     style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
                   >
                     {/* Left: Rank Badge + Worker Identity */}
                     <div className="flex items-center gap-2 sm:gap-2.5 sm:min-w-[190px] sm:max-w-[230px] print:min-w-[170px] print:max-w-[200px] print:gap-1.5">
                       <div
                         className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg ${rankBg} text-white font-bold text-[10px] sm:text-[11px] flex items-center justify-center shrink-0 shadow-xs print:w-5 print:h-5 print:text-[9px] print:rounded`}
+                        style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
                       >
                         #{idx + 1}
                       </div>
@@ -814,11 +850,15 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                     </div>
 
                     {/* Middle: Horizontal Progress Bar */}
-                    <div className="flex-1 sm:mx-2 print:mx-1.5">
-                      <div className="w-full bg-slate-100 h-2 sm:h-2.5 rounded-full overflow-hidden p-0.5 print:h-1.5 print:p-0">
+                    <div className="flex-1 sm:mx-2 print:mx-2">
+                      <div className="w-full bg-slate-100 h-2 sm:h-2.5 rounded-full overflow-hidden p-0.5 print:h-2 print:bg-slate-200 print:border print:border-slate-300">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${barGradient}`}
-                          style={{ width: `${Math.min(100, Math.max(5, r.pctKehadiran))}%` }}
+                          style={{
+                            width: `${Math.min(100, Math.max(5, r.pctKehadiran))}%`,
+                            WebkitPrintColorAdjust: 'exact',
+                            printColorAdjust: 'exact'
+                          }}
                         />
                       </div>
                     </div>
@@ -835,7 +875,8 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
                       </div>
 
                       <span
-                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9.5px] sm:text-[10px] font-bold border whitespace-nowrap print:px-1.5 print:py-0 print:text-[8px] ${badgeClass}`}
+                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9.5px] sm:text-[10px] font-bold border whitespace-nowrap print:px-2 print:py-0.5 print:text-[8.5px] ${badgeClass}`}
+                        style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
                       >
                         {badgeText}
                       </span>

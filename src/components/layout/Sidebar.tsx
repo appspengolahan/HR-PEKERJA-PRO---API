@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
     <aside 
-      className={`fixed top-0 left-0 h-screen z-30 hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 select-none ${
+      className={`fixed top-0 left-0 h-screen z-30 hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 select-none print:hidden ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
@@ -239,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     {/* Mobile Drawer Backdrop & Drawer Panel (< lg) */}
     {mobileOpen && (
-      <div className="fixed inset-0 z-50 lg:hidden flex">
+      <div className="fixed inset-0 z-50 lg:hidden flex print:hidden">
         {/* Backdrop Overlay */}
         <div 
           className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
