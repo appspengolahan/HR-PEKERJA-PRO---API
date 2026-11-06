@@ -142,6 +142,10 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<number>(todayDateObj.getMonth() + 1); // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(todayDateObj.getFullYear());
 
+  // State: Tab 10 Kehadiran Terendah filter (mendukung "Semua Bulan" dan "Semua Tahun")
+  const [lowestMonth, setLowestMonth] = useState<number | 'all'>(todayDateObj.getMonth() + 1);
+  const [lowestYear, setLowestYear] = useState<number | 'all'>(todayDateObj.getFullYear());
+
   // Copy Link State
   const [isCopied, setIsCopied] = useState(false);
 
@@ -347,6 +351,41 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
+  const effectivePresensi = useMemo(() => {
+    return (presensiList && presensiList.length > 0)
+      ? presensiList
+      : INITIAL_PRESENSI_FALLBACK;
+  }, [presensiList]);
+
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    yearsSet.add(2026);
+    yearsSet.add(2025);
+    effectivePresensi.forEach(r => {
+      const iso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+      if (iso && iso.includes('-')) {
+        const y = Number(iso.split('-')[0]);
+        if (y && !isNaN(y) && y >= 2020 && y <= 2035) {
+          yearsSet.add(y);
+        }
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [effectivePresensi]);
+
+  const lowestPeriodText = useMemo(() => {
+    if (lowestMonth === 'all' && lowestYear === 'all') {
+      return 'Semua Bulan — Semua Tahun';
+    }
+    if (lowestMonth === 'all') {
+      return `Semua Bulan — Tahun ${lowestYear}`;
+    }
+    if (lowestYear === 'all') {
+      return `Bulan ${MONTH_NAMES[lowestMonth - 1]} — Semua Tahun`;
+    }
+    return `Bulan ${MONTH_NAMES[lowestMonth - 1]} ${lowestYear}`;
+  }, [lowestMonth, lowestYear]);
+
   const monthlyUnitStats = useMemo(() => {
     const units = ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'];
     return units.map(unitName => {
@@ -354,7 +393,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       const workerNames = new Set(unitWorkers.map(p => p.nama.trim().toUpperCase()));
       
       // Count total absence records for this month
-      const monthLeaves = presensiList.filter(r => {
+      const monthLeaves = effectivePresensi.filter(r => {
         if (!r.tanggal || !r.nama) return false;
         if (!workerNames.has(r.nama.trim().toUpperCase())) return false;
         
@@ -382,11 +421,32 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         attendanceRate: Number(percentage)
       };
     });
-  }, [pekerjaList, presensiList, selectedMonth, selectedYear]);
+  }, [pekerjaList, effectivePresensi, selectedMonth, selectedYear]);
 
-  // 10 Pekerja dengan Kehadiran Terendah pada Bulan Terpilih (Item 2)
+  // 10 Pekerja dengan Kehadiran Terendah (Mendukung Filter "Semua Bulan" dan "Semua Tahun")
   const lowestAttendanceStats = useMemo(() => {
-    const workDays = 26; // Hari kerja standar sebulan
+    const totalTahunCount = Math.max(1, availableYears.length);
+    let workDays = 26; // Default bulanan
+    let workDaysLabel = 'Standar Hari Kerja Bulanan';
+    let workDaysSubLabel = 'Basis kalkulasi rasio kehadiran resmi PP1';
+
+    if (lowestMonth === 'all' && lowestYear === 'all') {
+      workDays = 26 * 12 * totalTahunCount;
+      workDaysLabel = 'Standar Hari Kerja Total (Semua Tahun)';
+      workDaysSubLabel = `Basis akumulasi 12 bulan × ${totalTahunCount} tahun (${workDays} hari kerja)`;
+    } else if (lowestMonth === 'all') {
+      workDays = 26 * 12;
+      workDaysLabel = 'Standar Hari Kerja Tahunan (12 Bulan)';
+      workDaysSubLabel = `Basis kalkulasi tahunan 26 hari × 12 bulan (Tahun ${lowestYear})`;
+    } else if (lowestYear === 'all') {
+      workDays = 26 * totalTahunCount;
+      workDaysLabel = `Standar Hari Kerja Bulan ${MONTH_NAMES[lowestMonth - 1]} (Semua Tahun)`;
+      workDaysSubLabel = `Akumulasi bulan ${MONTH_NAMES[lowestMonth - 1]} untuk ${totalTahunCount} tahun`;
+    } else {
+      workDays = 26;
+      workDaysLabel = 'Standar Hari Kerja Bulanan';
+      workDaysSubLabel = `Basis kalkulasi rasio kehadiran resmi PP1 (${MONTH_NAMES[lowestMonth - 1]} ${lowestYear})`;
+    }
     
     // Inisialisasi statistik untuk setiap pekerja
     const workerStatsMap = new Map<string, {
@@ -409,8 +469,8 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       });
     });
 
-    // Hitung seluruh riwayat ketidakhadiran di bulan terpilih
-    presensiList.forEach(r => {
+    // Hitung seluruh riwayat ketidakhadiran sesuai filter bulan & tahun
+    effectivePresensi.forEach(r => {
       if (!r.tanggal || !r.nama) return;
       const cleanName = r.nama.trim().toUpperCase();
       const stats = workerStatsMap.get(cleanName);
@@ -420,9 +480,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       if (!rIso || !rIso.includes('-')) return;
       const [yStr, mStr] = rIso.split('-');
       const m = Number(mStr);
-      const y = Number(yStr);
+      const y = Number(yStr) || 2026;
 
-      if (m === selectedMonth && (y === selectedYear || y === 2026)) {
+      const matchMonth = (lowestMonth === 'all') || (m === lowestMonth);
+      const matchYear = (lowestYear === 'all') || (y === lowestYear);
+
+      if (matchMonth && matchYear) {
         stats.totalLeaves += 1;
         stats.totalMenit += Number(r.durasiMenit) || 0;
         const j = (r.jenisIjin || '').toLowerCase();
@@ -447,7 +510,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       };
     });
 
-    // Urutkan: tingkat kehadiran paling rendah duluan
+    // Urutkan: tingkat kehadiran paling rendah duluan (ascending kehadiran)
     allCalculated.sort((a, b) => {
       if (a.attendanceRate !== b.attendanceRate) {
         return a.attendanceRate - b.attendanceRate; // ascending (paling rendah di atas)
@@ -464,21 +527,18 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       top10,
       workersWithLeavesCount,
       totalAbsentDays,
-      totalWorkers: pekerjaList.length
+      totalWorkers: pekerjaList.length,
+      workDays,
+      workDaysLabel,
+      workDaysSubLabel
     };
-  }, [pekerjaList, presensiList, selectedMonth, selectedYear]);
+  }, [pekerjaList, effectivePresensi, lowestMonth, lowestYear, availableYears]);
 
   // =========================================================================
   // LOGIKA REKAPITULASI DUA GRAFIK BALOK (BULANAN & TAHUNAN PORTAL PUBLIK)
   // =========================================================================
   const UNITS_LIST = ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'];
   const MENIT_TERSEDIA_BULAN = 10440; // 26 hari kerja x 420 menit
-
-  const effectivePresensi = useMemo(() => {
-    return (presensiList && presensiList.length > 0)
-      ? presensiList
-      : INITIAL_PRESENSI_FALLBACK;
-  }, [presensiList]);
 
   // Helper sorting list pekerja
   const sortWorkerList = (
@@ -971,7 +1031,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                   : activeTab === 'rekap'
                   ? `REKAPITULASI PRESENSI BULANAN — ${MONTH_NAMES[selectedMonth - 1]?.toUpperCase()} ${selectedYear}`
                   : activeTab === 'lowest'
-                  ? `10 KEHADIRAN TERENDAH — ${MONTH_NAMES[selectedMonth - 1]?.toUpperCase()} ${selectedYear}`
+                  ? `10 KEHADIRAN TERENDAH — ${lowestPeriodText.toUpperCase()}`
                   : 'LAPORAN REKAPITULASI PRESENSI HARIAN'}
               </h1>
               <p className="text-[10px] text-slate-600 mt-0.5">
@@ -2194,10 +2254,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
               <div className="flex items-center gap-2">
                 <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                  value={lowestMonth}
+                  onChange={(e) => setLowestMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+                  title="Pilih Bulan atau Semua Bulan"
                 >
+                  <option value="all">Semua Bulan</option>
                   {MONTH_NAMES.map((m, idx) => (
                     <option key={m} value={idx + 1}>
                       Bulan {m}
@@ -2206,12 +2268,17 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                 </select>
 
                 <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono"
+                  value={lowestYear}
+                  onChange={(e) => setLowestYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
+                  title="Pilih Tahun atau Semua Tahun"
                 >
-                  <option value={2026}>Tahun 2026</option>
-                  <option value={2025}>Tahun 2025</option>
+                  <option value="all">Semua Tahun</option>
+                  {availableYears.map(yr => (
+                    <option key={yr} value={yr}>
+                      Tahun {yr}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -2246,13 +2313,13 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-xs space-y-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                  Standar Hari Kerja Bulanan
+                  {lowestAttendanceStats.workDaysLabel}
                 </span>
                 <div className="text-2xl font-black text-emerald-400 font-mono">
-                  26 <span className="text-xs font-normal text-slate-400">Hari / Pekerja</span>
+                  {lowestAttendanceStats.workDays} <span className="text-xs font-normal text-slate-400">Hari / Pekerja</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Basis kalkulasi rasio kehadiran resmi PP1
+                  {lowestAttendanceStats.workDaysSubLabel}
                 </p>
               </div>
             </div>
@@ -2263,7 +2330,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-rose-400" />
                   <h4 className="font-bold text-sm text-white">
-                    Grafik Peringkat Kehadiran Terendah — Periode {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                    Grafik Peringkat Kehadiran Terendah — Periode {lowestPeriodText}
                   </h4>
                 </div>
                 <span className="text-[11px] text-slate-400">
@@ -2281,7 +2348,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                     Tingkat Kehadiran 100% Sempurna!
                   </h4>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Pada bulan {MONTH_NAMES[selectedMonth - 1]} {selectedYear}, tidak ada satu pun tenaga kerja yang tercatat izin, sakit, maupun mangkir.
+                    Pada periode {lowestPeriodText}, tidak ada satu pun tenaga kerja yang tercatat izin, sakit, maupun mangkir.
                   </p>
                 </div>
               ) : (
@@ -2364,7 +2431,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
                             <span>0%</span>
-                            <span>Hadir {item.hadirDays} dari 26 hari</span>
+                            <span>Hadir {item.hadirDays} dari {lowestAttendanceStats.workDays} hari</span>
                             <span>100% Target</span>
                           </div>
                         </div>
