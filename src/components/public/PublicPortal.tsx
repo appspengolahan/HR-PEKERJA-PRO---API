@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -28,15 +28,19 @@ import {
   Award,
   AlertTriangle,
   Plus,
-  X
+  X,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { PekerjaData, PresensiIjinRecord } from '../../types';
 import { 
   normalizeDateToIso, 
   normalizeDateToDmy, 
   calculateEffectivePermitMinutes, 
-  getWorkScheduleForDate 
+  getWorkScheduleForDate,
+  getNormalizedPermitMinutes
 } from '../../utils/workHoursUtils';
+import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 
 interface PublicPortalProps {
   pekerjaList: PekerjaData[];
@@ -62,8 +66,45 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   onAddPresensi,
   currentUser
 }) => {
-  // Navigation sub-tabs within public portal: daily, rekap, capacity, lowest (10 Kehadiran Terendah)
-  const [activeTab, setActiveTab] = useState<'daily' | 'rekap' | 'capacity' | 'lowest'>('daily');
+  // Deteksi unit default dari currentUser (jika ada peran yang aktif, misal Mandor Tembakau -> Tembakau)
+  const defaultUnitFromUser = useMemo(() => {
+    if (!currentUser) return 'Cengkeh';
+    const s = `${currentUser.role || ''} ${currentUser.scope || ''} ${(currentUser.units || []).join(' ')}`.toLowerCase();
+    if (s.includes('tembakau')) return 'Tembakau';
+    if (s.includes('blend')) return 'Blend';
+    if (s.includes('krosok')) return 'Krosok';
+    if (s.includes('cengkeh')) return 'Cengkeh';
+    return 'Cengkeh';
+  }, [currentUser]);
+
+  // Navigation sub-tabs within public portal: daily, rekap, yearly (BARU), capacity, lowest
+  const [activeTab, setActiveTab] = useState<'daily' | 'rekap' | 'yearly' | 'capacity' | 'lowest'>('daily');
+
+  // Layout mode for dual bar charts: 'grid' (2 Kolom Bersandingan) or 'stack' (1 Kolom Penuh)
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'stack'>('grid');
+
+  // State: Tab Rekapitulasi Presensi Bulanan (2 Grafik Balok)
+  const [selectedMonthlyUnit, setSelectedMonthlyUnit] = useState<string>(() => defaultUnitFromUser);
+  const [monthlySearchUnit, setMonthlySearchUnit] = useState<string>('');
+  const [monthlySortUnit, setMonthlySortUnit] = useState<'perhatian' | 'tertinggi' | 'nama'>('perhatian');
+  const [monthlySearchAll, setMonthlySearchAll] = useState<string>('');
+  const [monthlySortAll, setMonthlySortAll] = useState<'perhatian' | 'tertinggi' | 'nama'>('perhatian');
+
+  // State: Tab Rekapitulasi Presensi Tahunan (2 Grafik Balok)
+  const [yearlyYear, setYearlyYear] = useState<number>(2026);
+  const [selectedYearlyUnit, setSelectedYearlyUnit] = useState<string>(() => defaultUnitFromUser);
+  const [yearlySearchUnit, setYearlySearchUnit] = useState<string>('');
+  const [yearlySortUnit, setYearlySortUnit] = useState<'perhatian' | 'tertinggi' | 'nama'>('perhatian');
+  const [yearlySearchAll, setYearlySearchAll] = useState<string>('');
+  const [yearlySortAll, setYearlySortAll] = useState<'perhatian' | 'tertinggi' | 'nama'>('perhatian');
+
+  // Sinkronkan unit otomatis jika peran currentUser berubah
+  useEffect(() => {
+    if (defaultUnitFromUser) {
+      setSelectedMonthlyUnit(defaultUnitFromUser);
+      setSelectedYearlyUnit(defaultUnitFromUser);
+    }
+  }, [defaultUnitFromUser]);
 
   // Accordion toggle to hide/show the 63-workers list on daily view (Item 1)
   const [showAllWorkersTable, setShowAllWorkersTable] = useState(false);
@@ -427,6 +468,391 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
     };
   }, [pekerjaList, presensiList, selectedMonth, selectedYear]);
 
+  // =========================================================================
+  // LOGIKA REKAPITULASI DUA GRAFIK BALOK (BULANAN & TAHUNAN PORTAL PUBLIK)
+  // =========================================================================
+  const UNITS_LIST = ['Cengkeh', 'Blend', 'Tembakau', 'Krosok'];
+  const MENIT_TERSEDIA_BULAN = 10440; // 26 hari kerja x 420 menit
+
+  const effectivePresensi = useMemo(() => {
+    return (presensiList && presensiList.length > 0)
+      ? presensiList
+      : INITIAL_PRESENSI_FALLBACK;
+  }, [presensiList]);
+
+  // Helper sorting list pekerja
+  const sortWorkerList = (
+    list: {
+      id: string | number;
+      nip: string;
+      nama: string;
+      unit: string;
+      sekup: string;
+      jabatan: string;
+      totalIjin: number;
+      totalKejadian: number;
+      pctKehadiran: number;
+    }[],
+    sortBy: 'perhatian' | 'tertinggi' | 'nama'
+  ) => {
+    const copy = [...list];
+    if (sortBy === 'perhatian') {
+      return copy.sort((a, b) => a.pctKehadiran - b.pctKehadiran);
+    }
+    if (sortBy === 'tertinggi') {
+      return copy.sort((a, b) => b.pctKehadiran - a.pctKehadiran);
+    }
+    if (sortBy === 'nama') {
+      return copy.sort((a, b) => a.nama.localeCompare(b.nama));
+    }
+    return copy;
+  };
+
+  // 1. DATA REKAP BULANAN PEKERJA (UNTUK BULAN & TAHUN TERPILIH)
+  const monthlyWorkersData = useMemo(() => {
+    return pekerjaList.map(p => {
+      const cleanName = p.nama.trim().toUpperCase();
+      let totalIjinMenit = 0;
+      let totalKejadian = 0;
+
+      effectivePresensi.forEach(r => {
+        if (!r.nama || r.nama.trim().toUpperCase() !== cleanName) return;
+        const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+        if (!rIso || !rIso.includes('-')) return;
+        const [yStr, mStr] = rIso.split('-');
+        const y = Number(yStr);
+        const m = Number(mStr);
+
+        if (m === selectedMonth && (y === selectedYear || (!yStr && selectedYear === 2026))) {
+          const menit = getNormalizedPermitMinutes(
+            r.tanggalIso || r.tanggal,
+            r.jamAwal,
+            r.jamAkhir,
+            r.durasiMenit,
+            r.jenisIjin
+          );
+          totalIjinMenit += menit;
+          totalKejadian += 1;
+        }
+      });
+
+      const totalTersedia = MENIT_TERSEDIA_BULAN;
+      const pctKehadiran = totalTersedia > 0
+        ? Math.max(0, Math.round((100 - (totalIjinMenit / totalTersedia * 100)) * 100) / 100)
+        : 100;
+
+      const rawId = p.id ?? '';
+      const formattedNip = String(rawId).startsWith('BK-')
+        ? String(rawId)
+        : `BK-PP1-${String(rawId).padStart(3, '0')}`;
+
+      return {
+        id: p.id,
+        nip: formattedNip,
+        nama: p.nama,
+        unit: p.unit,
+        sekup: p.sekup,
+        jabatan: p.jabatan || `${p.sekup || ''} ${p.unit || ''}`.trim() || 'Pekerja Operasional',
+        totalIjin: totalIjinMenit,
+        totalKejadian,
+        pctKehadiran
+      };
+    });
+  }, [pekerjaList, effectivePresensi, selectedMonth, selectedYear]);
+
+  // Monthly Unit Workers (Grafik Balok 1 Bulanan: Khusus Unit / Sesuai Peran)
+  const monthlyUnitWorkers = useMemo(() => {
+    let list = monthlyWorkersData.filter(
+      p => p.unit.toLowerCase() === selectedMonthlyUnit.toLowerCase()
+    );
+    if (monthlySearchUnit.trim()) {
+      const q = monthlySearchUnit.trim().toLowerCase();
+      list = list.filter(p =>
+        p.nama.toLowerCase().includes(q) ||
+        p.nip.toLowerCase().includes(q) ||
+        p.sekup.toLowerCase().includes(q)
+      );
+    }
+    return sortWorkerList(list, monthlySortUnit);
+  }, [monthlyWorkersData, selectedMonthlyUnit, monthlySearchUnit, monthlySortUnit]);
+
+  // Monthly All Workers (Grafik Balok 2 Bulanan: Seluruh 63 Pekerja)
+  const monthlyAllWorkers = useMemo(() => {
+    let list = monthlyWorkersData;
+    if (monthlySearchAll.trim()) {
+      const q = monthlySearchAll.trim().toLowerCase();
+      list = list.filter(p =>
+        p.nama.toLowerCase().includes(q) ||
+        p.nip.toLowerCase().includes(q) ||
+        p.unit.toLowerCase().includes(q) ||
+        p.sekup.toLowerCase().includes(q)
+      );
+    }
+    return sortWorkerList(list, monthlySortAll);
+  }, [monthlyWorkersData, monthlySearchAll, monthlySortAll]);
+
+  const monthlyUnitAvg = useMemo(() => {
+    if (monthlyUnitWorkers.length === 0) return '100.00';
+    const sum = monthlyUnitWorkers.reduce((acc, w) => acc + w.pctKehadiran, 0);
+    return (sum / monthlyUnitWorkers.length).toFixed(2);
+  }, [monthlyUnitWorkers]);
+
+  const monthlyAllAvg = useMemo(() => {
+    if (monthlyWorkersData.length === 0) return '100.00';
+    const sum = monthlyWorkersData.reduce((acc, w) => acc + w.pctKehadiran, 0);
+    return (sum / monthlyWorkersData.length).toFixed(2);
+  }, [monthlyWorkersData]);
+
+  // 2. DATA REKAP TAHUNAN PEKERJA (UNTUK TAHUN BERJALAN)
+  const yearlyWorkersData = useMemo(() => {
+    const jmlBulan = 12;
+    const totalTersedia = MENIT_TERSEDIA_BULAN * jmlBulan;
+
+    return pekerjaList.map(p => {
+      const cleanName = p.nama.trim().toUpperCase();
+      let totalIjinMenit = 0;
+      let totalKejadian = 0;
+
+      effectivePresensi.forEach(r => {
+        if (!r.nama || r.nama.trim().toUpperCase() !== cleanName) return;
+        const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+        if (!rIso || !rIso.includes('-')) return;
+        const [yStr] = rIso.split('-');
+        const y = Number(yStr);
+
+        if (y === yearlyYear || (!yStr && yearlyYear === 2026)) {
+          const menit = getNormalizedPermitMinutes(
+            r.tanggalIso || r.tanggal,
+            r.jamAwal,
+            r.jamAkhir,
+            r.durasiMenit,
+            r.jenisIjin
+          );
+          totalIjinMenit += menit;
+          totalKejadian += 1;
+        }
+      });
+
+      const pctKehadiran = totalTersedia > 0
+        ? Math.max(0, Math.round((100 - (totalIjinMenit / totalTersedia * 100)) * 100) / 100)
+        : 100;
+
+      const rawId = p.id ?? '';
+      const formattedNip = String(rawId).startsWith('BK-')
+        ? String(rawId)
+        : `BK-PP1-${String(rawId).padStart(3, '0')}`;
+
+      return {
+        id: p.id,
+        nip: formattedNip,
+        nama: p.nama,
+        unit: p.unit,
+        sekup: p.sekup,
+        jabatan: p.jabatan || `${p.sekup || ''} ${p.unit || ''}`.trim() || 'Pekerja Operasional',
+        totalIjin: totalIjinMenit,
+        totalKejadian,
+        pctKehadiran
+      };
+    });
+  }, [pekerjaList, effectivePresensi, yearlyYear]);
+
+  // Yearly Unit Workers (Grafik Balok 1 Tahunan: Khusus Unit / Sesuai Peran)
+  const yearlyUnitWorkers = useMemo(() => {
+    let list = yearlyWorkersData.filter(
+      p => p.unit.toLowerCase() === selectedYearlyUnit.toLowerCase()
+    );
+    if (yearlySearchUnit.trim()) {
+      const q = yearlySearchUnit.trim().toLowerCase();
+      list = list.filter(p =>
+        p.nama.toLowerCase().includes(q) ||
+        p.nip.toLowerCase().includes(q) ||
+        p.sekup.toLowerCase().includes(q)
+      );
+    }
+    return sortWorkerList(list, yearlySortUnit);
+  }, [yearlyWorkersData, selectedYearlyUnit, yearlySearchUnit, yearlySortUnit]);
+
+  // Yearly All Workers (Grafik Balok 2 Tahunan: Seluruh 63 Pekerja)
+  const yearlyAllWorkers = useMemo(() => {
+    let list = yearlyWorkersData;
+    if (yearlySearchAll.trim()) {
+      const q = yearlySearchAll.trim().toLowerCase();
+      list = list.filter(p =>
+        p.nama.toLowerCase().includes(q) ||
+        p.nip.toLowerCase().includes(q) ||
+        p.unit.toLowerCase().includes(q) ||
+        p.sekup.toLowerCase().includes(q)
+      );
+    }
+    return sortWorkerList(list, yearlySortAll);
+  }, [yearlyWorkersData, yearlySearchAll, yearlySortAll]);
+
+  const yearlyUnitAvg = useMemo(() => {
+    if (yearlyUnitWorkers.length === 0) return '100.00';
+    const sum = yearlyUnitWorkers.reduce((acc, w) => acc + w.pctKehadiran, 0);
+    return (sum / yearlyUnitWorkers.length).toFixed(2);
+  }, [yearlyUnitWorkers]);
+
+  const yearlyAllAvg = useMemo(() => {
+    if (yearlyWorkersData.length === 0) return '100.00';
+    const sum = yearlyWorkersData.reduce((acc, w) => acc + w.pctKehadiran, 0);
+    return (sum / yearlyWorkersData.length).toFixed(2);
+  }, [yearlyWorkersData]);
+
+  // Yearly 4 Units Summary Cards
+  const yearlyUnitStats = useMemo(() => {
+    return UNITS_LIST.map(unitName => {
+      const unitWorkers = pekerjaList.filter(p => p.unit.toLowerCase() === unitName.toLowerCase());
+      const workerNames = new Set(unitWorkers.map(p => p.nama.trim().toUpperCase()));
+      
+      const yearLeaves = effectivePresensi.filter(r => {
+        if (!r.tanggal || !r.nama) return false;
+        if (!workerNames.has(r.nama.trim().toUpperCase())) return false;
+        const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
+        if (!rIso || !rIso.includes('-')) return false;
+        const [yStr] = rIso.split('-');
+        const y = Number(yStr);
+        return y === yearlyYear || (!yStr && yearlyYear === 2026);
+      });
+
+      const totalHeadcount = unitWorkers.length;
+      const totalPossibleMandays = totalHeadcount * 26 * 12;
+      const lostMandays = yearLeaves.length;
+      const actualMandays = Math.max(0, totalPossibleMandays - lostMandays);
+      const percentage = totalPossibleMandays > 0
+        ? ((actualMandays / totalPossibleMandays) * 100).toFixed(1)
+        : '100.0';
+
+      return {
+        unit: unitName,
+        headcount: totalHeadcount,
+        totalLeaves: lostMandays,
+        attendanceRate: Number(percentage)
+      };
+    });
+  }, [pekerjaList, effectivePresensi, yearlyYear]);
+
+  // Helper render kartu baris grafik balok ranking (Bebas slider & ramah cetak/export PDF)
+  const renderRankingBarList = (
+    items: {
+      id: string | number;
+      nip: string;
+      nama: string;
+      unit: string;
+      sekup: string;
+      jabatan: string;
+      totalIjin: number;
+      totalKejadian: number;
+      pctKehadiran: number;
+    }[],
+    emptyMessage: string = 'Tidak ada data pekerja yang cocok dengan kriteria.'
+  ) => {
+    if (items.length === 0) {
+      return (
+        <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/40 rounded-2xl border border-slate-800">
+          {emptyMessage}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-1.5 print:space-y-1 overflow-visible">
+        {items.map((r, idx) => {
+          const isRed = r.pctKehadiran < 95.0;
+          const isBlue = r.pctKehadiran >= 95.0 && r.pctKehadiran < 98.0;
+
+          const rankBg = isRed
+            ? 'bg-red-500'
+            : isBlue
+            ? 'bg-blue-600'
+            : 'bg-emerald-600';
+
+          const barGradient = isRed
+            ? 'bg-gradient-to-r from-red-600 to-red-500'
+            : isBlue
+            ? 'bg-gradient-to-r from-blue-700 to-blue-500'
+            : 'bg-gradient-to-r from-emerald-600 to-emerald-500';
+
+          const badgeClass = isRed
+            ? 'bg-red-500/20 text-red-300 border-red-500/30'
+            : isBlue
+            ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+
+          const badgeText = isRed
+            ? 'Perlu Pembinaan'
+            : isBlue
+            ? 'Memenuhi Baku'
+            : 'Sangat Baik';
+
+          const lostHours = Math.round(r.totalIjin / 60);
+
+          return (
+            <div
+              key={`${r.id}-${idx}`}
+              className="bg-slate-900/90 py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-xl border border-slate-800/90 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 print:bg-white print:border print:border-slate-300 print:text-slate-900 print:py-1 print:px-2.5 print:my-0.5 print:rounded-md print:shadow-none print:flex-row print:items-center break-inside-avoid"
+              style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
+            >
+              {/* Left: Rank Badge + Worker Identity */}
+              <div className="flex items-center gap-2 sm:gap-2.5 sm:min-w-[180px] sm:max-w-[230px] print:min-w-[160px] print:max-w-[190px] print:gap-1.5">
+                <div
+                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${rankBg} text-white font-black text-[10px] sm:text-[11px] flex items-center justify-center shrink-0 shadow-xs font-mono print:w-5 print:h-5 print:text-[9px] print:rounded`}
+                  style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+                >
+                  #{idx + 1}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-xs sm:text-[13px] text-white truncate print:text-slate-900 print:text-[10px] print:leading-tight" title={r.nama}>
+                    {r.nama}
+                  </div>
+                  <div
+                    className="text-[10px] sm:text-[11px] text-slate-400 truncate print:text-slate-600 print:text-[8px] print:leading-tight"
+                    title={`${r.nip} • ${r.unit} (${r.sekup})`}
+                  >
+                    {r.nip} &bull; {r.unit} ({r.sekup})
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle: Horizontal Progress Bar */}
+              <div className="flex-1 sm:mx-2 print:mx-2">
+                <div className="w-full bg-slate-950 h-2 sm:h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-800 print:h-2 print:bg-slate-200 print:border print:border-slate-300">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${barGradient}`}
+                    style={{
+                      width: `${Math.min(100, Math.max(5, r.pctKehadiran))}%`,
+                      WebkitPrintColorAdjust: 'exact',
+                      printColorAdjust: 'exact'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Right: Percentage, Lost Hours, and Status Tag Badge */}
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-0.5 sm:pt-0 border-t border-slate-800/60 sm:border-0 print:border-0 print:pt-0">
+                <div className="text-left sm:text-right print:text-right">
+                  <div className="font-mono font-bold text-xs sm:text-[13px] text-white print:text-slate-900 print:text-[10px]">
+                    {r.pctKehadiran.toFixed(2).replace('.', ',')}%
+                  </div>
+                  <div className="text-[9.5px] sm:text-[10px] text-slate-400 print:text-slate-500 print:text-[8px]">
+                    Izin: {lostHours}j ({r.totalIjin}m)
+                  </div>
+                </div>
+
+                <span
+                  className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[9.5px] font-bold border whitespace-nowrap print:px-1.5 print:py-0 print:text-[8px] ${badgeClass}`}
+                  style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+                >
+                  {badgeText}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       
@@ -532,7 +958,35 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
       {/* 2. HERO / PUBLIC BANNER */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         
-        <div className="bg-gradient-to-r from-blue-950/70 via-slate-900 to-indigo-950/60 p-5 sm:p-6 rounded-3xl border border-blue-900/40 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Kop Resmi Dokumen Cetak / Export PDF (Hanya Muncul Saat Print) */}
+        <div className="hidden print:block pb-3 mb-4 border-b-2 border-slate-800 text-slate-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                PT Batu Karang — Divisi Produksi I
+              </div>
+              <h1 className="text-base font-black text-slate-900 tracking-tight">
+                {activeTab === 'yearly'
+                  ? `REKAPITULASI PRESENSI TAHUNAN — TAHUN ${yearlyYear}`
+                  : activeTab === 'rekap'
+                  ? `REKAPITULASI PRESENSI BULANAN — ${MONTH_NAMES[selectedMonth - 1]?.toUpperCase()} ${selectedYear}`
+                  : activeTab === 'lowest'
+                  ? `10 KEHADIRAN TERENDAH — ${MONTH_NAMES[selectedMonth - 1]?.toUpperCase()} ${selectedYear}`
+                  : 'LAPORAN REKAPITULASI PRESENSI HARIAN'}
+              </h1>
+              <p className="text-[10px] text-slate-600 mt-0.5">
+                Portal Publik Sistem HR &bull; Total {pekerjaList.length} Pekerja Harian &bull; Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="inline-block px-2.5 py-1 bg-slate-100 border border-slate-300 rounded text-[9px] font-bold text-slate-800">
+                Dokumen Resmi HR
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-950/70 via-slate-900 to-indigo-950/60 p-5 sm:p-6 rounded-3xl border border-blue-900/40 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -556,12 +1010,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
           </div>
         </div>
 
-        {/* 3. SEGMENTED TAB BUTTONS (NAVIGATION BAR) - Menambahkan Tab '10 Kehadiran Terendah' (Item 2) */}
+        {/* 3. SEGMENTED TAB BUTTONS (NAVIGATION BAR) */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 gap-2 flex-wrap print:hidden">
           <div className="inline-flex p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-semibold gap-1 flex-wrap">
             <button
               onClick={() => setActiveTab('daily')}
-              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'daily'
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -573,7 +1027,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
             <button
               onClick={() => setActiveTab('rekap')}
-              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'rekap'
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -584,8 +1038,20 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('yearly')}
+              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'yearly'
+                  ? 'bg-blue-600 text-white shadow-xs font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>Rekapitulasi Presensi Tahunan</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('capacity')}
-              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'capacity'
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -597,7 +1063,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
             <button
               onClick={() => setActiveTab('lowest')}
-              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'lowest'
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -951,17 +1417,20 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         {/* ------------------------------------------------------------- */}
         {/* TAB 2: REKAPITULASI PRESENSI BULANAN                          */}
         {/* ------------------------------------------------------------- */}
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 2: REKAPITULASI PRESENSI BULANAN (DENGAN 2 GRAFIK BALOK)  */}
+        {/* ------------------------------------------------------------- */}
         {activeTab === 'rekap' && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-150">
             
-            {/* Filter Bulan Rekapitulasi */}
+            {/* Filter Bulan & Kontrol Cetak */}
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold text-white">Pilih Periode Bulan Rekapitulasi:</span>
+                <span className="text-xs font-bold text-white">Periode Rekapitulasi Presensi Bulanan:</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
@@ -982,57 +1451,599 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                   <option value={2026}>Tahun 2026</option>
                   <option value={2025}>Tahun 2025</option>
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs print:hidden"
+                  title="Cetak seluruh rekapitulasi bulanan atau simpan ke PDF"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Cetak / Export PDF</span>
+                </button>
               </div>
             </div>
 
-            {/* Performance per Unit Cards */}
+            {/* Performance per Unit Cards (Bulanan) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {monthlyUnitStats.map((item) => (
                 <div 
                   key={item.unit}
-                  className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xs"
+                  className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xs print:bg-white print:border-slate-300 print:text-slate-900"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-white">Unit {item.unit}</span>
-                    <span className="text-xs font-mono font-bold text-blue-400">
+                    <span className="font-bold text-sm text-white print:text-slate-900">Unit {item.unit}</span>
+                    <span className="text-xs font-mono font-bold text-blue-400 print:text-blue-700">
                       {item.headcount} Pekerja
                     </span>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">Tingkat Kehadiran:</span>
-                      <strong className={`font-mono ${item.attendanceRate >= 95 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      <span className="text-slate-400 print:text-slate-600">Tingkat Kehadiran:</span>
+                      <strong className={`font-mono ${item.attendanceRate >= 95 ? 'text-emerald-400 print:text-emerald-700' : 'text-amber-400 print:text-amber-700'}`}>
                         {item.attendanceRate}%
                       </strong>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800 print:bg-slate-200 print:border-slate-300">
                       <div 
                         className={`h-full rounded-full transition-all ${
                           item.attendanceRate >= 95 ? 'bg-emerald-500' : 'bg-amber-500'
                         }`}
-                        style={{ width: `${item.attendanceRate}%` }}
+                        style={{ width: `${item.attendanceRate}%`, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
                       />
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+                  <div className="text-[11px] text-slate-400 print:text-slate-600 border-t border-slate-800 print:border-slate-200 pt-2 flex justify-between">
                     <span>Total Izin/Sakit:</span>
-                    <strong className="text-slate-200 font-mono">{item.totalLeaves} Kejadian</strong>
+                    <strong className="text-slate-200 print:text-slate-800 font-mono">{item.totalLeaves} Kejadian</strong>
                   </div>
                 </div>
               ))}
             </div>
 
+            {/* BAGIAN DUA GRAFIK BALOK REKAP BULANAN */}
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                    <BarChart3 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Grafik Balok Peringkat Kehadiran Bulanan ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Grafik 1 khusus unit kerja peran Anda vs Grafik 2 komparasi seluruh 63 pekerja divisi
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 print:hidden">
+                  {/* Layout Mode Toggle */}
+                  <div className="inline-flex p-0.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setLayoutMode('grid')}
+                      className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        layoutMode === 'grid'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tampilan 2 Kolom Bersandingan"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">2 Kolom</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLayoutMode('stack')}
+                      className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        layoutMode === 'stack'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tampilan Bertingkat (1 Kolom Penuh)"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">1 Kolom</span>
+                    </button>
+                  </div>
+
+                  {/* Print Button */}
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    title="Cetak seluruh grafik balok bulanan atau simpan ke PDF"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Cetak / Export PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid 2 Kolom / Stacked */}
+              <div className={layoutMode === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-5' : 'space-y-5'}>
+                
+                {/* GRAFIK BALOK 1: KHUSUS UNIT / SESUAI PERAN */}
+                <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 shadow-xs print:bg-white print:border-slate-300 print:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 print:border-slate-300">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30 print:bg-blue-100 print:text-blue-800">
+                        <Award className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-white print:text-slate-900">
+                            Grafik Peringkat Unit {selectedMonthlyUnit}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 print:bg-blue-50 print:text-blue-800">
+                            {currentUser?.role?.includes(selectedMonthlyUnit) ? 'Peran Anda' : 'Unit Terpilih'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 print:text-slate-600">
+                          {monthlyUnitWorkers.length} Pekerja &bull; Rerata Unit: <strong className="text-white print:text-slate-900 font-mono">{monthlyUnitAvg}%</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 print:hidden">
+                      {/* Unit Switcher */}
+                      <select
+                        value={selectedMonthlyUnit}
+                        onChange={(e) => setSelectedMonthlyUnit(e.target.value)}
+                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500"
+                      >
+                        {UNITS_LIST.map(u => (
+                          <option key={u} value={u}>Unit {u}</option>
+                        ))}
+                      </select>
+
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Cari..."
+                          value={monthlySearchUnit}
+                          onChange={(e) => setMonthlySearchUnit(e.target.value)}
+                          className="pl-8 pr-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs w-28 sm:w-32 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      {/* Sort */}
+                      <select
+                        value={monthlySortUnit}
+                        onChange={(e) => setMonthlySortUnit(e.target.value as any)}
+                        className="px-2 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="perhatian">⇅ Perhatian (Merah → Hijau)</option>
+                        <option value="tertinggi">⇅ Tertinggi (Hijau → Merah)</option>
+                        <option value="nama">🔤 Nama A - Z</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Legend & Total */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-400 pt-0.5 print:text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-red-400 print:text-red-600">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &lt;95%
+                      </span>
+                      <span className="flex items-center gap-1 text-blue-400 print:text-blue-600">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> 95-97.9%
+                      </span>
+                      <span className="flex items-center gap-1 text-emerald-400 print:text-emerald-600">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &ge;98%
+                      </span>
+                    </div>
+                    <span className="text-slate-400 print:text-slate-600">
+                      Total {monthlyUnitWorkers.length} Pekerja (Tanpa Slider)
+                    </span>
+                  </div>
+
+                  {/* List Balok Ranking - Bebas Slider */}
+                  {renderRankingBarList(
+                    monthlyUnitWorkers,
+                    `Tidak ada pekerja di Unit ${selectedMonthlyUnit} yang sesuai filter.`
+                  )}
+                </div>
+
+                {/* GRAFIK BALOK 2: SELURUH PEKERJA DIVISI (63 PEKERJA) */}
+                <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 shadow-xs print:bg-white print:border-slate-300 print:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 print:border-slate-300">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 print:bg-indigo-100 print:text-indigo-800">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-white print:text-slate-900">
+                            Grafik Peringkat Seluruh Pekerja
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 print:bg-indigo-50 print:text-indigo-800">
+                            Lintas 4 Lini
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 print:text-slate-600">
+                          Total {monthlyAllWorkers.length} Pekerja &bull; Rerata Divisi: <strong className="text-white print:text-slate-900 font-mono">{monthlyAllAvg}%</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 print:hidden">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Cari nama / unit..."
+                          value={monthlySearchAll}
+                          onChange={(e) => setMonthlySearchAll(e.target.value)}
+                          className="pl-8 pr-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs w-32 sm:w-40 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <select
+                        value={monthlySortAll}
+                        onChange={(e) => setMonthlySortAll(e.target.value as any)}
+                        className="px-2 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="perhatian">⇅ Perhatian (Merah → Hijau)</option>
+                        <option value="tertinggi">⇅ Tertinggi (Hijau → Merah)</option>
+                        <option value="nama">🔤 Nama A - Z</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-400 pt-0.5 print:text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-red-400 print:text-red-600">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &lt;95%
+                      </span>
+                      <span className="flex items-center gap-1 text-blue-400 print:text-blue-600">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> 95-97.9%
+                      </span>
+                      <span className="flex items-center gap-1 text-emerald-400 print:text-emerald-600">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &ge;98%
+                      </span>
+                    </div>
+                    <span className="text-slate-400 print:text-slate-600">
+                      {monthlyAllWorkers.length} Pekerja Ditampilkan Penuh (Tanpa Slider)
+                    </span>
+                  </div>
+
+                  {renderRankingBarList(
+                    monthlyAllWorkers,
+                    'Tidak ada pekerja yang cocok dengan filter.'
+                  )}
+                </div>
+
+              </div>
+            </div>
+
             {/* Guidance Box for External Viewers */}
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400 flex items-start gap-3">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400 flex items-start gap-3 print:hidden">
               <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-1 leading-relaxed">
-                <span className="font-bold text-white block">Standar Perhitungan Tingkat Kehadiran</span>
+                <span className="font-bold text-white block">Standar Perhitungan Tingkat Kehadiran Bulanan</span>
                 <p>
-                  Persentase dihitung berdasarkan rasio hari hadir kerja terhadap standar 26 hari kerja efektif bulanan per pekerja. Nilai di atas 95% menunjukkan tingkat disiplin operasional yang sangat baik sesuai standar industri pengolahan tembakau &amp; cengkeh PT Batu Karang.
+                  Persentase dihitung berdasarkan rasio jam hadir kerja terhadap standar jam kerja efektif bulanan per pekerja (26 hari x 420 menit). Nilai di atas 95% menunjukkan tingkat disiplin operasional yang sangat baik sesuai standar industri pengolahan tembakau &amp; cengkeh PT Batu Karang.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 3: REKAPITULASI PRESENSI TAHUNAN (TAHUN BERJALAN) - BARU  */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'yearly' && (
+          <div className="space-y-5 animate-in fade-in duration-150">
+            
+            {/* Filter Tahun Rekapitulasi */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <div>
+                  <span className="text-xs font-bold text-white block">
+                    Periode Rekapitulasi Presensi Tahunan (Tahun Berjalan):
+                  </span>
+                  <p className="text-[11px] text-slate-400">
+                    Akumulasi jam kerja dan riwayat izin kumulatif dari Januari s/d Desember {yearlyYear}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={yearlyYear}
+                  onChange={(e) => setYearlyYear(Number(e.target.value))}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono"
+                >
+                  <option value={2026}>Tahun 2026 (Tahun Berjalan)</option>
+                  <option value={2025}>Tahun 2025</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs print:hidden"
+                  title="Cetak seluruh rekapitulasi tahunan atau simpan ke PDF"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Cetak / Export PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Performance per Unit Cards (Tahunan) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {yearlyUnitStats.map((item) => (
+                <div 
+                  key={item.unit}
+                  className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xs print:bg-white print:border-slate-300 print:text-slate-900"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm text-white print:text-slate-900">Unit {item.unit}</span>
+                    <span className="text-xs font-mono font-bold text-blue-400 print:text-blue-700">
+                      {item.headcount} Pekerja
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400 print:text-slate-600">Rerata Tahunan:</span>
+                      <strong className={`font-mono ${item.attendanceRate >= 95 ? 'text-emerald-400 print:text-emerald-700' : 'text-amber-400 print:text-amber-700'}`}>
+                        {item.attendanceRate}%
+                      </strong>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800 print:bg-slate-200 print:border-slate-300">
+                      <div 
+                        className={`h-full rounded-full transition-all ${
+                          item.attendanceRate >= 95 ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${item.attendanceRate}%`, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 print:text-slate-600 border-t border-slate-800 print:border-slate-200 pt-2 flex justify-between">
+                    <span>Total Izin/Sakit:</span>
+                    <strong className="text-slate-200 print:text-slate-800 font-mono">{item.totalLeaves} Kejadian</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* BAGIAN DUA GRAFIK BALOK REKAP TAHUNAN */}
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Grafik Balok Evaluasi Peringkat Kehadiran Tahunan (Tahun {yearlyYear})
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Grafik 1 khusus unit kerja peran Anda vs Grafik 2 komparasi kumulatif seluruh 63 pekerja divisi
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 print:hidden">
+                  {/* Layout Mode Toggle */}
+                  <div className="inline-flex p-0.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setLayoutMode('grid')}
+                      className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        layoutMode === 'grid'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tampilan 2 Kolom Bersandingan"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">2 Kolom</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLayoutMode('stack')}
+                      className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        layoutMode === 'stack'
+                          ? 'bg-blue-600 text-white shadow-xs font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tampilan Bertingkat (1 Kolom Penuh)"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">1 Kolom</span>
+                    </button>
+                  </div>
+
+                  {/* Print Button */}
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    title="Cetak seluruh grafik balok tahunan atau simpan ke PDF"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Cetak / Export PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid 2 Kolom / Stacked Tahunan */}
+              <div className={layoutMode === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-5' : 'space-y-5'}>
+                
+                {/* GRAFIK BALOK 1 TAHUNAN: KHUSUS UNIT / SESUAI PERAN */}
+                <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 shadow-xs print:bg-white print:border-slate-300 print:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 print:border-slate-300">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 print:bg-emerald-100 print:text-emerald-800">
+                        <Award className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-white print:text-slate-900">
+                            Grafik Peringkat Tahunan Unit {selectedYearlyUnit}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 print:bg-emerald-50 print:text-emerald-800">
+                            {currentUser?.role?.includes(selectedYearlyUnit) ? 'Peran Anda' : 'Unit Terpilih'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 print:text-slate-600">
+                          {yearlyUnitWorkers.length} Pekerja &bull; Rerata Tahunan: <strong className="text-white print:text-slate-900 font-mono">{yearlyUnitAvg}%</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 print:hidden">
+                      <select
+                        value={selectedYearlyUnit}
+                        onChange={(e) => setSelectedYearlyUnit(e.target.value)}
+                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-bold focus:outline-none focus:border-blue-500"
+                      >
+                        {UNITS_LIST.map(u => (
+                          <option key={u} value={u}>Unit {u}</option>
+                        ))}
+                      </select>
+
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Cari..."
+                          value={yearlySearchUnit}
+                          onChange={(e) => setYearlySearchUnit(e.target.value)}
+                          className="pl-8 pr-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs w-28 sm:w-32 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <select
+                        value={yearlySortUnit}
+                        onChange={(e) => setYearlySortUnit(e.target.value as any)}
+                        className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="perhatian">⇅ Perhatian (Merah → Hijau)</option>
+                        <option value="tertinggi">⇅ Tertinggi (Hijau → Merah)</option>
+                        <option value="nama">🔤 Nama A - Z</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-400 pt-0.5 print:text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-red-400 print:text-red-600">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &lt;95%
+                      </span>
+                      <span className="flex items-center gap-1 text-blue-400 print:text-blue-600">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> 95-97.9%
+                      </span>
+                      <span className="flex items-center gap-1 text-emerald-400 print:text-emerald-600">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &ge;98%
+                      </span>
+                    </div>
+                    <span className="text-slate-400 print:text-slate-600">
+                      Total {yearlyUnitWorkers.length} Pekerja (Tanpa Slider)
+                    </span>
+                  </div>
+
+                  {renderRankingBarList(
+                    yearlyUnitWorkers,
+                    `Tidak ada pekerja di Unit ${selectedYearlyUnit} yang sesuai filter.`
+                  )}
+                </div>
+
+                {/* GRAFIK BALOK 2 TAHUNAN: SELURUH PEKERJA DIVISI (63 PEKERJA) */}
+                <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 shadow-xs print:bg-white print:border-slate-300 print:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3 print:border-slate-300">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 print:bg-cyan-100 print:text-cyan-800">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-white print:text-slate-900">
+                            Grafik Peringkat Tahunan Seluruh Pekerja
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 print:bg-cyan-50 print:text-cyan-800">
+                            Lintas 4 Lini
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 print:text-slate-600">
+                          Total {yearlyAllWorkers.length} Pekerja &bull; Rerata Divisi: <strong className="text-white print:text-slate-900 font-mono">{yearlyAllAvg}%</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 print:hidden">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Cari nama / unit..."
+                          value={yearlySearchAll}
+                          onChange={(e) => setYearlySearchAll(e.target.value)}
+                          className="pl-8 pr-2.5 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs w-32 sm:w-40 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <select
+                        value={yearlySortAll}
+                        onChange={(e) => setYearlySortAll(e.target.value as any)}
+                        className="px-2 py-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="perhatian">⇅ Perhatian (Merah → Hijau)</option>
+                        <option value="tertinggi">⇅ Tertinggi (Hijau → Merah)</option>
+                        <option value="nama">🔤 Nama A - Z</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold text-slate-400 pt-0.5 print:text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-red-400 print:text-red-600">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &lt;95%
+                      </span>
+                      <span className="flex items-center gap-1 text-blue-400 print:text-blue-600">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> 95-97.9%
+                      </span>
+                      <span className="flex items-center gap-1 text-emerald-400 print:text-emerald-600">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}></span> &ge;98%
+                      </span>
+                    </div>
+                    <span className="text-slate-400 print:text-slate-600">
+                      Total {yearlyAllWorkers.length} Pekerja Ditampilkan Penuh (Tanpa Slider)
+                    </span>
+                  </div>
+
+                  {renderRankingBarList(
+                    yearlyAllWorkers,
+                    'Tidak ada pekerja yang cocok dengan filter.'
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Guidance Box Tahunan */}
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400 flex items-start gap-3 print:hidden">
+              <Info className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 leading-relaxed">
+                <span className="font-bold text-white block">Standar Evaluasi Kehadiran Tahunan</span>
+                <p>
+                  Evaluasi tahunan dihitung secara kumulatif atas total jam kerja resmi tahun berjalan. Standar operasional PT Batu Karang menetapkan batas kehadiran minimal 95% per pekerja. Nilai di bawah 95% ditandai dengan warna merah untuk mempermudah pembinaan ketenagakerjaan dan penilaian perpanjangan kontrak PKWT.
                 </p>
               </div>
             </div>
