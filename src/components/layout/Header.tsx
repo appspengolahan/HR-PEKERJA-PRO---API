@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Globe,
   Menu,
-  Repeat
+  Repeat,
+  QrCode
 } from 'lucide-react';
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
@@ -32,6 +33,7 @@ interface HeaderProps {
   onOpenScopeModal: () => void;
   onOpenHelpModal: () => void;
   onOpenPublicShareModal: () => void;
+  onOpenLoginQr?: () => void;
   onOpenRoleSwitcher?: () => void;
   onOpenMobileMenu?: () => void;
   switchAppUrl: string;
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScopeModal,
   onOpenHelpModal,
   onOpenPublicShareModal,
+  onOpenLoginQr,
   onOpenRoleSwitcher,
   onOpenMobileMenu,
   switchAppUrl,
@@ -242,6 +245,18 @@ export const Header: React.FC<HeaderProps> = ({
             Linktree
           </span>
         </button>
+
+        {/* QR Login Staf Button */}
+        {onOpenLoginQr && (
+          <button
+            onClick={onOpenLoginQr}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 shadow-xs transition-all cursor-pointer select-none"
+            title="Buka QR Code presisi tinggi untuk scan login staf"
+          >
+            <QrCode className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">QR Login</span>
+          </button>
+        )}
 
         {/* Smart Auto-Sync with Circular Progress Ring & Countdown */}
         <button
@@ -466,6 +481,27 @@ export const Header: React.FC<HeaderProps> = ({
                     Buka
                   </span>
                 </button>
+
+                {/* QR Code Login Staf */}
+                {onOpenLoginQr && (
+                  <button
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      onOpenLoginQr();
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <span>QR Code Login Staf</span>
+                    </div>
+                    <span className="text-[10px] text-blue-600 font-bold bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                      Scan
+                    </span>
+                  </button>
+                )}
 
                 {/* SwitchBoard Modal */}
                 <button

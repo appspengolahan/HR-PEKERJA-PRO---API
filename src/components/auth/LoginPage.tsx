@@ -14,10 +14,12 @@ import {
   Eye,
   EyeOff,
   Globe,
-  RefreshCw
+  RefreshCw,
+  QrCode
 } from 'lucide-react';
 import { AuthUser, authService, WHITELIST_INTERNAL } from '../../services/authService';
 import { PekerjaData } from '../../types';
+import { LoginQrModal } from '../modals/LoginQrModal';
 
 interface LoginPageProps {
   pekerjaList: PekerjaData[];
@@ -46,6 +48,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [pekerjaError, setPekerjaError] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showLoginQrModal, setShowLoginQrModal] = useState(false);
   
   // Hidden Developer & Supervisory Gate State
   const [isDevUnlocked, setIsDevUnlocked] = useState<boolean>(() => {
@@ -475,20 +478,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
         </div>
 
-        {/* Guest Public Portal Access Button */}
-        {onOpenPublicPortal && (
-          <div className="pt-0.5">
+        {/* Quick External Actions: Public Portal & QR Code Login */}
+        <div className="pt-0.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {onOpenPublicPortal && (
+              <button
+                type="button"
+                onClick={onOpenPublicPortal}
+                className="py-2.5 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer group"
+              >
+                <Globe className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                <span className="truncate">Portal Publik</span>
+                <span className="text-[10px] text-cyan-400 font-mono">↗</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={onOpenPublicPortal}
-              className="w-full py-2.5 px-4 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer group"
+              onClick={() => setShowLoginQrModal(true)}
+              className="py-2.5 px-3 rounded-2xl bg-blue-950/60 hover:bg-blue-900/70 border border-blue-600/50 hover:border-blue-400 text-blue-200 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer group"
+              title="Tampilkan QR Code Login beresolusi tinggi untuk discan staf"
             >
-              <Globe className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-              <span>Buka Portal Informasi Publik (Linktree / Tamu)</span>
-              <span className="text-[10px] text-cyan-400 font-mono">↗</span>
+              <QrCode className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+              <span className="truncate">Tampilkan QR Login</span>
             </button>
           </div>
-        )}
+        </div>
 
         {/* Developer & Supervision Shortcut Gate (Only visible if unlocked via Master PIN) */}
         {isDevUnlocked && (
@@ -705,6 +720,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* High-Precision QR Login Modal */}
+      <LoginQrModal
+        isOpen={showLoginQrModal}
+        onClose={() => setShowLoginQrModal(false)}
+      />
 
     </div>
   );

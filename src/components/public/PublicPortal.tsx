@@ -2525,7 +2525,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
       {/* 5. MODAL INPUT IZIN PEKERJA LANGSUNG DARI PORTAL PUBLIK */}
       {showInputModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-20 sm:pb-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden my-auto">
             
             {/* Modal Header */}

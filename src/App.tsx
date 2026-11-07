@@ -21,6 +21,7 @@ import { GasCenterModal } from './components/modals/GasCenterModal';
 import { SwitchBoardModal } from './components/modals/SwitchBoardModal';
 import { PublicShareModal } from './components/modals/PublicShareModal';
 import { RoleSwitcherModal } from './components/modals/RoleSwitcherModal';
+import { LoginQrModal } from './components/modals/LoginQrModal';
 import { PublicPortal } from './components/public/PublicPortal';
 
 import { gasClient } from './services/gasClient';
@@ -103,6 +104,7 @@ export default function App() {
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
+  const [isLoginQrModalOpen, setIsLoginQrModalOpen] = useState(false);
   const [suratIjinData, setSuratIjinData] = useState<SuratIjinData | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -908,6 +910,7 @@ export default function App() {
           onOpenScopeModal={() => setIsScopeModalOpen(true)}
           onOpenHelpModal={() => setIsHelpModalOpen(true)}
           onOpenPublicShareModal={() => setIsPublicShareModalOpen(true)}
+          onOpenLoginQr={() => setIsLoginQrModalOpen(true)}
           onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           switchAppUrl={switchAppUrl}
@@ -1110,6 +1113,11 @@ export default function App() {
         isOpen={isPublicShareModalOpen}
         onClose={() => setIsPublicShareModalOpen(false)}
         onOpenPreview={() => setIsPublicMode(true)}
+      />
+
+      <LoginQrModal
+        isOpen={isLoginQrModalOpen}
+        onClose={() => setIsLoginQrModalOpen(false)}
       />
 
       {/* Quick Role Switcher Modal (Terkunci khusus Lead Developer / Super Admin) */}
