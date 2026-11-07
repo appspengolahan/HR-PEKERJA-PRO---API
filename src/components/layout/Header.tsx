@@ -88,17 +88,19 @@ export const Header: React.FC<HeaderProps> = ({
       if (typeof document !== 'undefined' && document.hidden) return;
       if (isRefreshing) return;
 
-      setCountdown(prev => {
-        if (prev <= 1) {
-          onRefreshData();
-          return AUTO_SYNC_INTERVAL;
-        }
-        return prev - 1;
-      });
+      setCountdown(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [isAutoSyncEnabled, isRefreshing, onRefreshData]);
+  }, [isAutoSyncEnabled, isRefreshing]);
+
+  // Trigger sinkronisasi otomatis ketika countdown mencapai 0 (dieksekusi dalam effect yang aman)
+  useEffect(() => {
+    if (countdown === 0 && !isRefreshing && isAutoSyncEnabled) {
+      setCountdown(AUTO_SYNC_INTERVAL);
+      onRefreshData();
+    }
+  }, [countdown, isRefreshing, isAutoSyncEnabled, onRefreshData]);
 
   // Page Visibility & Window Focus: sinkron otomatis saat pengguna membuka kembali tab
   useEffect(() => {
@@ -106,8 +108,8 @@ export const Header: React.FC<HeaderProps> = ({
       if (typeof document !== 'undefined' && !document.hidden && isAutoSyncEnabled) {
         const elapsedSec = Math.floor((Date.now() - lastSyncTime.getTime()) / 1000);
         if (elapsedSec >= AUTO_SYNC_INTERVAL) {
-          onRefreshData();
           setCountdown(AUTO_SYNC_INTERVAL);
+          onRefreshData();
         }
       }
     };
@@ -122,8 +124,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleManualRefresh = () => {
     if (isRefreshing) return;
-    onRefreshData();
     setCountdown(AUTO_SYNC_INTERVAL);
+    onRefreshData();
   };
 
   useEffect(() => {
