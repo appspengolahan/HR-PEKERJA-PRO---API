@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   RefreshCw, 
+  Check,
   Maximize2, 
   Minimize2, 
   Layers, 
@@ -58,6 +59,72 @@ export const Header: React.FC<HeaderProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Smart Auto-Sync State & Countdown (60 detik)
+  const AUTO_SYNC_INTERVAL = 60;
+  const [countdown, setCountdown] = useState<number>(AUTO_SYNC_INTERVAL);
+  const [isAutoSyncEnabled] = useState<boolean>(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [showSyncedSuccess, setShowSyncedSuccess] = useState<boolean>(false);
+  const prevRefreshingRef = useRef<boolean>(isRefreshing);
+
+  // Monitor transisi isRefreshing untuk menampilkan status "Tersinkron"
+  useEffect(() => {
+    if (prevRefreshingRef.current && !isRefreshing) {
+      setLastSyncTime(new Date());
+      setShowSyncedSuccess(true);
+      const timer = setTimeout(() => setShowSyncedSuccess(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    prevRefreshingRef.current = isRefreshing;
+  }, [isRefreshing]);
+
+  // Interval hitung mundur 60 detik otomatis
+  useEffect(() => {
+    if (!isAutoSyncEnabled) return;
+
+    const intervalId = setInterval(() => {
+      // Pause countdown jika tab sedang diminimalkan/hidden atau sedang sync aktif
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (isRefreshing) return;
+
+      setCountdown(prev => {
+        if (prev <= 1) {
+          onRefreshData();
+          return AUTO_SYNC_INTERVAL;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [isAutoSyncEnabled, isRefreshing, onRefreshData]);
+
+  // Page Visibility & Window Focus: sinkron otomatis saat pengguna membuka kembali tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden && isAutoSyncEnabled) {
+        const elapsedSec = Math.floor((Date.now() - lastSyncTime.getTime()) / 1000);
+        if (elapsedSec >= AUTO_SYNC_INTERVAL) {
+          onRefreshData();
+          setCountdown(AUTO_SYNC_INTERVAL);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [lastSyncTime, isAutoSyncEnabled, onRefreshData]);
+
+  const handleManualRefresh = () => {
+    if (isRefreshing) return;
+    onRefreshData();
+    setCountdown(AUTO_SYNC_INTERVAL);
+  };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -174,17 +241,74 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </button>
 
-        {/* Quick Sync / Refresh Button */}
+        {/* Smart Auto-Sync with Circular Progress Ring & Countdown */}
         <button
-          onClick={onRefreshData}
+          onClick={handleManualRefresh}
           disabled={isRefreshing}
-          className="p-2 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-100 transition-all border border-slate-200 shadow-xs relative"
-          title="Segarkan &amp; Tarik Data Langsung dari Google Sheets"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-blue-50/70 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 shadow-xs transition-all cursor-pointer select-none group active:scale-95"
+          title={`Auto-Sync aktif (${countdown}d) • Klik untuk tarik data Google Sheets sekarang • Terakhir: ${lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+          aria-label="Smart Auto Sync"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-          {isRefreshing && (
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-          )}
+          {/* Circular Countdown Ring Container */}
+          <div className="relative w-4 h-4 sm:w-4.5 sm:h-4.5 flex items-center justify-center flex-shrink-0">
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 24 24">
+              {/* Background ring */}
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                fill="none"
+                className="text-slate-200"
+              />
+              {/* Animated Progress ring */}
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                fill="none"
+                strokeDasharray={2 * Math.PI * 9}
+                strokeDashoffset={isRefreshing ? 0 : (2 * Math.PI * 9) * (1 - countdown / AUTO_SYNC_INTERVAL)}
+                strokeLinecap="round"
+                className={`transition-all duration-1000 ease-linear ${
+                  isRefreshing
+                    ? 'text-blue-600 animate-pulse'
+                    : showSyncedSuccess
+                    ? 'text-emerald-500'
+                    : 'text-blue-500'
+                }`}
+              />
+            </svg>
+            
+            {/* Center Icon */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              {showSyncedSuccess && !isRefreshing ? (
+                <Check className="w-2.5 h-2.5 text-emerald-600 animate-in zoom-in-75 duration-200" />
+              ) : (
+                <RefreshCw
+                  className={`w-2.5 h-2.5 text-slate-600 group-hover:text-blue-600 transition-colors ${
+                    isRefreshing ? 'animate-spin text-blue-600' : ''
+                  }`}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Text Status & Countdown Label */}
+          <span className="text-[11px] font-mono font-bold">
+            {isRefreshing ? (
+              <span className="text-blue-600 animate-pulse">Sync...</span>
+            ) : showSyncedSuccess ? (
+              <span className="text-emerald-600 font-semibold text-[10px]">Tersinkron</span>
+            ) : (
+              <span className="text-slate-500 group-hover:text-blue-600 transition-colors">
+                {countdown}s
+              </span>
+            )}
+          </span>
         </button>
 
         {/* Quick Role Switcher Pill in Header (HANYA UNTUK SUPER ADMIN / DEVELOPER) */}
