@@ -604,8 +604,19 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                       <td className="py-3 px-4 text-center font-mono text-[11px]">
                         {jam}
                       </td>
-                      <td className="py-3 px-4 max-w-xs truncate" title={r.keperluan}>
-                        {r.keperluan || '-'}
+                      <td className="py-3 px-4 max-w-xs" title={r.keperluan}>
+                        <div className="truncate font-medium">{r.keperluan || '-'}</div>
+                        {r.lampiran && r.lampiran !== 'Tidak' && (
+                          <div className="mt-0.5">
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              r.lampiran === 'Form Izin Perusahaan'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
+                              {r.lampiran === 'Form Izin Perusahaan' ? '📄 Form Izin Perusahaan' : '📎 Surat Lampiran'}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -834,6 +845,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                   >
                     <option value="Tidak">Tidak Ada</option>
                     <option value="Ya">Ada (Surat Dokter/Keterangan)</option>
+                    <option value="Form Izin Perusahaan">Form Izin Perusahaan</option>
                   </select>
                 </div>
                 <div>
@@ -984,14 +996,15 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Lampiran</label>
+                  <label className="block font-bold text-slate-700 mb-1">Lampiran Surat</label>
                   <select
                     value={editingRecord.lampiran || 'Tidak'}
                     onChange={(e) => setEditingRecord({ ...editingRecord, lampiran: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300"
                   >
                     <option value="Tidak">Tidak Ada</option>
-                    <option value="Ya">Ya (Ada)</option>
+                    <option value="Ya">Ada (Surat Dokter/Keterangan)</option>
+                    <option value="Form Izin Perusahaan">Form Izin Perusahaan</option>
                   </select>
                 </div>
                 <div>

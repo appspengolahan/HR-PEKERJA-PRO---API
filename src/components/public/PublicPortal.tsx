@@ -158,6 +158,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   const [inputJamAwal, setInputJamAwal] = useState('08:00');
   const [inputJamAkhir, setInputJamAkhir] = useState('16:00');
   const [inputKeperluan, setInputKeperluan] = useState('');
+  const [inputLampiran, setInputLampiran] = useState('Tidak');
   const [inputPelapor, setInputPelapor] = useState('Mandor Lapangan');
   const [isSubmittingIjin, setIsSubmittingIjin] = useState(false);
   const [inputStatusMessage, setInputStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -213,7 +214,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         nama: inputNama,
         jenisIjin: inputJenisIjin,
         keperluan: inputKeperluan || 'Izin Lapangan (Portal Publik)',
-        lampiran: 'Tidak',
+        lampiran: inputLampiran || 'Tidak',
         catatan: `Dicatat dari Portal Publik oleh: ${inputPelapor || 'Mandor'}`,
         tanggalList: [{
           tanggal: inputTanggal,
@@ -234,6 +235,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         setShowInputModal(false);
         setInputStatusMessage(null);
         setInputKeperluan('');
+        setInputLampiran('Tidak');
       }, 1500);
     } catch (err) {
       setInputStatusMessage({
@@ -1348,6 +1350,18 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                           <p className="text-[11px] text-slate-300 italic bg-slate-950/60 p-2 rounded-lg border border-slate-800/50">
                             "{item.keperluan}"
                           </p>
+                        )}
+
+                        {item.lampiran && item.lampiran !== 'Tidak' && (
+                          <div className="pt-0.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              item.lampiran === 'Form Izin Perusahaan'
+                                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                            }`}>
+                              {item.lampiran === 'Form Izin Perusahaan' ? '📄 Form Izin Perusahaan' : '📎 Surat Lampiran'}
+                            </span>
+                          </div>
                         )}
                       </div>
                     );
@@ -2682,16 +2696,31 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                 />
               </div>
 
-              {/* Identitas Pelapor */}
-              <div>
-                <label className="block font-bold text-slate-300 mb-1.5">Dicatat / Dilaporkan Oleh</label>
-                <input
-                  type="text"
-                  value={inputPelapor}
-                  onChange={(e) => setInputPelapor(e.target.value)}
-                  placeholder="Nama Mandor / Petugas Lapangan"
-                  className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
-                />
+              {/* Lampiran Surat & Identitas Pelapor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1.5">Lampiran Surat</label>
+                  <select
+                    value={inputLampiran}
+                    onChange={(e) => setInputLampiran(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="Tidak" className="bg-slate-900">Tidak Ada</option>
+                    <option value="Ya" className="bg-slate-900">Ada (Surat Dokter/Keterangan)</option>
+                    <option value="Form Izin Perusahaan" className="bg-slate-900">Form Izin Perusahaan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1.5">Dicatat / Dilaporkan Oleh</label>
+                  <input
+                    type="text"
+                    value={inputPelapor}
+                    onChange={(e) => setInputPelapor(e.target.value)}
+                    placeholder="Nama Mandor / Petugas Lapangan"
+                    className="w-full px-3 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
+                  />
+                </div>
               </div>
 
               {/* Actions */}
