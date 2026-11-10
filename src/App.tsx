@@ -44,7 +44,8 @@ import {
   calculateEffectivePermitMinutes, 
   getWorkScheduleForDate,
   normalizeDateToIso,
-  normalizeDateToDmy 
+  normalizeDateToDmy,
+  sanitizePresensiFaktor 
 } from './utils/workHoursUtils';
 
 // Fallback initial workers if completely offline before first sync
@@ -140,7 +141,9 @@ export default function App() {
   const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>(() => {
     const cached = localStorage.getItem('hr_presensi_cache');
     const raw = cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
-    return deduplicatePresensiList(Array.isArray(raw) ? raw : INITIAL_PRESENSI_FALLBACK);
+    const base = Array.isArray(raw) ? raw : INITIAL_PRESENSI_FALLBACK;
+    const sanitized = base.map(sanitizePresensiFaktor);
+    return deduplicatePresensiList(sanitized);
   });
   const [lemburList, setLemburList] = useState<LemburRecord[]>([]);
   const [jadwalMutasiList, setJadwalMutasiList] = useState<JadwalMutasiRecord[]>(() => {
@@ -237,7 +240,7 @@ export default function App() {
               });
               return !existsInCloud;
             });
-            const merged = deduplicatePresensiList([...missingLocal, ...cloudList]);
+            const merged = deduplicatePresensiList([...missingLocal, ...cloudList].map(sanitizePresensiFaktor));
             localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
             return merged;
           });
@@ -265,7 +268,7 @@ export default function App() {
                 });
                 return !existsInCloud;
               });
-              const merged = deduplicatePresensiList([...missingLocal, ...cloudList]);
+              const merged = deduplicatePresensiList([...missingLocal, ...cloudList].map(sanitizePresensiFaktor));
               localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
               return merged;
             });
@@ -315,14 +318,16 @@ export default function App() {
     keperluan: string;
     lampiran: string;
     catatan: string;
+    faktorPotongan?: number;
     tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
   }) => {
     // Optimistic local add using official schedule and break deduction
     const worker = pekerjaList.find(p => p.nama.trim().toUpperCase() === data.nama.trim().toUpperCase());
     const newRecords: PresensiIjinRecord[] = data.tanggalList.map((t, idx) => {
-      const eff = calculateEffectivePermitMinutes(t.tanggal, t.jamAwal, t.jamAkhir, false, data.jenisIjin);
+      const eff = calculateEffectivePermitMinutes(t.tanggal, t.jamAwal, t.jamAkhir, false, data.jenisIjin, data.faktorPotongan);
       const iso = normalizeDateToIso(t.tanggal);
       const dmy = normalizeDateToDmy(t.tanggal);
+      const finalFaktor = data.faktorPotongan !== undefined ? Number(data.faktorPotongan) : eff.faktorPotongan;
       return {
         rowNum: Date.now() + idx,
         tanggal: dmy,
@@ -337,7 +342,7 @@ export default function App() {
         keperluan: data.keperluan,
         lampiran: data.lampiran,
         catatan: data.catatan,
-        faktorPotongan: eff.faktorPotongan
+        faktorPotongan: finalFaktor
       };
     });
 
@@ -358,7 +363,8 @@ export default function App() {
     });
 
     try {
-      const res = await gasClient.postMutation('addPresensiIjin', data, currentUser?.nama || 'Admin');
+      const finalFaktor = data.faktorPotongan !== undefined ? data.faktorPotongan : (newRecords[0]?.faktorPotongan ?? 0);
+      const res = await gasClient.postMutation('addPresensiIjin', { ...data, faktorPotongan: finalFaktor }, currentUser?.nama || 'Admin');
       if (res.status === 'success') {
         // Refresh live data but preserve local records if not returned yet
         await syncLiveData();
@@ -390,26 +396,28 @@ export default function App() {
     keperluan: string;
     lampiran: string;
     catatan: string;
+    faktorPotongan?: number;
   }) => {
     if (!canRoleEditOrDeletePresensi(currentUser?.role)) {
       console.warn('Akses ditolak: Hanya Developer, Site Engineer, dan Manajer Operasional yang dapat mengubah data presensi.');
       return;
     }
 
-    const eff = calculateEffectivePermitMinutes(data.tanggal, data.jamAwal, data.jamAkhir, false, data.jenisIjin);
+    const eff = calculateEffectivePermitMinutes(data.tanggal, data.jamAwal, data.jamAkhir, false, data.jenisIjin, data.faktorPotongan);
+    const finalFaktor = data.faktorPotongan !== undefined ? Number(data.faktorPotongan) : eff.faktorPotongan;
     setPresensiList(prev => {
       const next = prev.map(r => r.rowNum === data.rowNum ? { 
         ...r, 
         ...data, 
         durasiMenit: eff.durasiMenit, 
-        faktorPotongan: eff.faktorPotongan 
+        faktorPotongan: finalFaktor 
       } : r);
       localStorage.setItem('hr_presensi_cache', JSON.stringify(next));
       return next;
     });
 
     try {
-      const res = await gasClient.postMutation('updatePresensiIjin', data, currentUser?.nama);
+      const res = await gasClient.postMutation('updatePresensiIjin', { ...data, faktorPotongan: finalFaktor }, currentUser?.nama);
       if (res.status === 'success') {
         await syncLiveData();
       }

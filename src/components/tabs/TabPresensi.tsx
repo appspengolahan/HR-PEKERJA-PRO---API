@@ -18,7 +18,8 @@ import {
   calculateEffectivePermitMinutes, 
   getWorkScheduleForDate, 
   formatMinutesToTime,
-  parseTimeToMinutes
+  parseTimeToMinutes,
+  getFaktorPotonganBadgeInfo 
 } from '../../utils/workHoursUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
 
@@ -33,6 +34,7 @@ interface TabPresensiProps {
     keperluan: string;
     lampiran: string;
     catatan: string;
+    faktorPotongan?: number;
     tanggalList: { tanggal: string; jamAwal: string; jamAkhir: string }[];
   }) => Promise<void>;
   onUpdatePresensi: (data: {
@@ -44,6 +46,7 @@ interface TabPresensiProps {
     keperluan: string;
     lampiran: string;
     catatan: string;
+    faktorPotongan?: number;
   }) => Promise<void>;
   onDeletePresensi: (rowNum: number) => Promise<void>;
   onOpenSuratIjin: (record: PresensiIjinRecord) => void;
@@ -124,6 +127,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [addKeperluan, setAddKeperluan] = useState('');
   const [addLampiran, setAddLampiran] = useState('Tidak');
   const [addCatatan, setAddCatatan] = useState('');
+  const [addManualFaktor, setAddManualFaktor] = useState<string>('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Filter pekerja according to user role authorization and current scope
@@ -154,8 +158,9 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
   // Live preview calculation for Add Modal
   const liveAddPermitResult = useMemo(() => {
-    return calculateEffectivePermitMinutes(addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin);
-  }, [addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin]);
+    const override = addManualFaktor === 'auto' ? undefined : Number(addManualFaktor);
+    return calculateEffectivePermitMinutes(addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin, override);
+  }, [addTglAwal, addJamAwal, addJamAkhir, addSehariPenuh, addJenisIjin, addManualFaktor]);
 
   // Live preview calculation for Edit Modal
   const liveEditPermitResult = useMemo(() => {
@@ -165,9 +170,10 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       editingRecord.jamAwal,
       editingRecord.jamAkhir,
       false,
-      editingRecord.jenisIjin
+      editingRecord.jenisIjin,
+      editingRecord.faktorPotongan !== undefined ? Number(editingRecord.faktorPotongan) : undefined
     );
-  }, [editingRecord]);
+  }, [editingRecord?.tanggal, editingRecord?.tanggalIso, editingRecord?.jamAwal, editingRecord?.jamAkhir, editingRecord?.jenisIjin, editingRecord?.faktorPotongan]);
 
   const addTimeLabels = useMemo(() => {
     const j = (addJenisIjin || '').toLowerCase();
@@ -304,12 +310,16 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     setAddKeperluan('');
     setAddLampiran('Tidak');
     setAddCatatan('');
+    setAddManualFaktor('auto');
     setShowAddModal(true);
   };
 
   const handleOpenEdit = (rec: PresensiIjinRecord) => {
     if (!canEditOrDelete) return;
-    setEditingRecord(rec);
+    setEditingRecord({ 
+      ...rec, 
+      faktorPotongan: rec.faktorPotongan !== undefined ? Number(rec.faktorPotongan) : 0 
+    });
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -357,6 +367,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
       return;
     }
 
+    const finalFaktor = addManualFaktor === 'auto' ? liveAddPermitResult.faktorPotongan : Number(addManualFaktor);
     setIsSubmitting(true);
     try {
       await onAddPresensi({
@@ -365,6 +376,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         keperluan: addKeperluan,
         lampiran: addLampiran,
         catatan: addCatatan.trim(),
+        faktorPotongan: finalFaktor,
         tanggalList
       });
       setShowAddModal(false);
@@ -379,6 +391,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     e.preventDefault();
     if (!editingRecord) return;
 
+    const finalFaktor = editingRecord.faktorPotongan !== undefined ? Number(editingRecord.faktorPotongan) : (liveEditPermitResult?.faktorPotongan ?? 0);
     setIsSubmitting(true);
     try {
       await onUpdatePresensi({
@@ -389,7 +402,8 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         jamAkhir: editingRecord.jamAkhir,
         keperluan: editingRecord.keperluan,
         lampiran: editingRecord.lampiran,
-        catatan: (editingRecord.catatan || '').trim()
+        catatan: (editingRecord.catatan || '').trim(),
+        faktorPotongan: finalFaktor
       });
       setEditingRecord(null);
     } catch (err) {
@@ -581,7 +595,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                 </tr>
               ) : (
                 displayedPresensiList.map((r) => {
-                  const faktor = Number(r.faktorPotongan);
+                  const badge = getFaktorPotonganBadgeInfo(r.faktorPotongan);
                   const jam = (r.jamAwal && r.jamAwal !== '-' && r.jamAkhir && r.jamAkhir !== '-') 
                     ? `${r.jamAwal} - ${r.jamAkhir}` : '-';
 
@@ -618,15 +632,9 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                          faktor === 0 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : faktor === 0.5 
-                            ? 'bg-amber-100 text-amber-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {faktor === 0 ? '0 (Dibayar Penuh)' : faktor === 0.5 ? '0,5 (Setengah)' : '1 (Hangus)'}
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold ${badge.className}`}>
+                          {badge.label}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -860,6 +868,43 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                 </div>
               </div>
 
+              {/* Kontrol Faktor Potongan Upah */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Faktor Potongan Upah
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    liveAddPermitResult.faktorPotongan === 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : liveAddPermitResult.faktorPotongan === 0.5
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {liveAddPermitResult.faktorPotongan === 0 ? '0 (Dibayar Penuh)' : liveAddPermitResult.faktorPotongan === 0.5 ? '0,5 (Setengah Hari)' : '1 (Hangus)'}
+                  </span>
+                </div>
+                <select
+                  value={addManualFaktor}
+                  onChange={(e) => setAddManualFaktor(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium text-slate-800 bg-white"
+                >
+                  <option value="auto">
+                    Otomatis Sistem ({liveAddPermitResult.faktorPotongan === 0 ? '0 - Dibayar Penuh (Bebas Potongan)' : liveAddPermitResult.faktorPotongan === 0.5 ? '0,5 - Potong Setengah Hari' : '1 - Hangus'})
+                  </option>
+                  <option value="0">0 (Dibayar Penuh / Tidak Kena Potongan)</option>
+                  <option value="0.5">0,5 (Potong Setengah Hari Kerja)</option>
+                  <option value="1">1 (Hangus / Potong 1 Hari Penuh)</option>
+                </select>
+                <p className="text-[10px] text-slate-500">
+                  {liveAddPermitResult.faktorPotongan === 0
+                    ? '✓ Izin terlambat/normatif/sakit dokter resmi tidak memotong upah harian.'
+                    : liveAddPermitResult.faktorPotongan === 0.5
+                    ? '⚠️ Izin setengah hari kerja memotong upah 0,5 hari.'
+                    : '⚠️ Memotong upah 1 hari kerja penuh (hangus).'}
+                </p>
+              </div>
+
               </div>
 
               {/* Fixed / Docked Action Footer with generous bottom margin & padding */}
@@ -1016,6 +1061,40 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                     className="w-full px-3 py-2 rounded-lg border border-slate-300"
                   />
                 </div>
+              </div>
+
+              {/* Kontrol Faktor Potongan Upah */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Faktor Potongan Upah
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    Number(editingRecord.faktorPotongan) === 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : Number(editingRecord.faktorPotongan) === 0.5
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {Number(editingRecord.faktorPotongan) === 0 ? '0 (Dibayar Penuh)' : Number(editingRecord.faktorPotongan) === 0.5 ? '0,5 (Setengah Hari)' : '1 (Hangus)'}
+                  </span>
+                </div>
+                <select
+                  value={editingRecord.faktorPotongan !== undefined ? String(editingRecord.faktorPotongan) : '0'}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, faktorPotongan: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium text-slate-800 bg-white"
+                >
+                  <option value="0">0 (Dibayar Penuh / Tidak Kena Potongan)</option>
+                  <option value="0.5">0,5 (Potong Setengah Hari Kerja)</option>
+                  <option value="1">1 (Hangus / Potong 1 Hari Penuh)</option>
+                </select>
+                <p className="text-[10px] text-slate-500">
+                  {Number(editingRecord.faktorPotongan) === 0
+                    ? '✓ Izin tidak memotong upah harian pekerja.'
+                    : Number(editingRecord.faktorPotongan) === 0.5
+                    ? '⚠️ Izin setengah hari memotong upah harian 0,5 hari.'
+                    : '⚠️ Memotong upah 1 hari kerja penuh (hangus).'}
+                </p>
               </div>
 
               </div>

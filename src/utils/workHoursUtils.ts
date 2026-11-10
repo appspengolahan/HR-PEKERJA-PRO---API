@@ -234,7 +234,8 @@ export function calculateEffectivePermitMinutes(
   jamAwalInput: string,
   jamAkhirInput: string,
   isFullDayParam?: boolean,
-  jenisIjin?: string
+  jenisIjin?: string,
+  manualFaktorParam?: number | string
 ): EffectivePermitResult {
   const schedule = getWorkScheduleForDate(dateInput);
 
@@ -269,7 +270,12 @@ export function calculateEffectivePermitMinutes(
 
   if (isFullDay) {
     const durasi = schedule.effectiveWorkMinutes;
-    const faktor = isNormatifAtauSakitDokter ? 0 : 1; // 1 hari penuh
+    let faktor = 1;
+    if (manualFaktorParam !== undefined && manualFaktorParam !== null && manualFaktorParam !== '' && !isNaN(Number(manualFaktorParam))) {
+      faktor = Number(manualFaktorParam);
+    } else {
+      faktor = isNormatifAtauSakitDokter ? 0 : 1; // 1 hari penuh
+    }
     return {
       durasiMenit: durasi,
       jamAwal: schedule.workStart,
@@ -329,9 +335,44 @@ export function calculateEffectivePermitMinutes(
   }
 
   const netMinutes = Math.max(0, brutoMenit - potonganIstirahatMenit);
-  const faktor = isNormatifAtauSakitDokter 
-    ? 0 
-    : Math.round((netMinutes / schedule.effectiveWorkMinutes) * 100) / 100;
+  
+  // Penentuan faktor potongan diskret (0 = Dibayar Penuh, 0.5 = Setengah Hari, 1 = Hangus)
+  let faktor = 0;
+  if (manualFaktorParam !== undefined && manualFaktorParam !== null && manualFaktorParam !== '' && !isNaN(Number(manualFaktorParam))) {
+    faktor = Number(manualFaktorParam);
+  } else if (isNormatifAtauSakitDokter) {
+    faktor = 0;
+  } else {
+    const normJenis = (jenisIjin || '').trim();
+    if (normJenis === 'Ijin Terlambat') {
+      // Izin datang terlambat resmi: tidak kena potongan upah jika keterlambatan wajar (<= 210 menit / setengah hari)
+      if (netMinutes <= 210) {
+        faktor = 0;
+      } else if (netMinutes <= 330) {
+        faktor = 0.5;
+      } else {
+        faktor = 1;
+      }
+    } else if (normJenis === 'Ijin Pulang Awal' || normJenis === 'Ijin Keluar Sementara') {
+      // Izin pulang awal / keluar sementara sampai 2 jam (<= 120 menit) tidak memotong upah harian
+      if (netMinutes <= 120) {
+        faktor = 0;
+      } else if (netMinutes <= 240) {
+        faktor = 0.5;
+      } else {
+        faktor = 1;
+      }
+    } else {
+      // Default izin parsial lainnya
+      if (netMinutes <= 120) {
+        faktor = 0;
+      } else if (netMinutes <= 240) {
+        faktor = 0.5;
+      } else {
+        faktor = 1;
+      }
+    }
+  }
 
   return {
     durasiMenit: netMinutes,
@@ -388,4 +429,61 @@ export function getNormalizedPermitMinutes(
   }
 
   return 0;
+}
+
+/**
+ * Mendapatkan label dan styling badge untuk nilai faktorPotongan
+ */
+export function getFaktorPotonganBadgeInfo(faktor: number | string): {
+  label: string;
+  className: string;
+} {
+  const f = Number(faktor);
+  if (f === 0 || isNaN(f)) {
+    return {
+      label: '0 (Dibayar Penuh)',
+      className: 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+    };
+  }
+  if (f === 0.5) {
+    return {
+      label: '0,5 (Setengah)',
+      className: 'bg-amber-100 text-amber-800 border border-amber-200'
+    };
+  }
+  if (f === 1) {
+    return {
+      label: '1 (Hangus)',
+      className: 'bg-red-100 text-red-800 border border-red-200'
+    };
+  }
+  return {
+    label: `${f} (Parsial)`,
+    className: 'bg-amber-100 text-amber-800 border border-amber-200'
+  };
+}
+
+/**
+ * Normalisasi data presensi untuk memastikan faktorPotongan konsisten dengan aturan
+ */
+export function sanitizePresensiFaktor<T extends { jenisIjin?: string; durasiMenit?: number | string; faktorPotongan?: number | string }>(record: T): T {
+  let f = Number(record.faktorPotongan);
+  const jenis = (record.jenisIjin || '').trim();
+  const durasi = Number(record.durasiMenit) || 0;
+
+  if (jenis.startsWith('Sakit (S Dokter)') || jenis === 'Ijin Normatif') {
+    f = 0;
+  } else if (jenis === 'Ijin Terlambat') {
+    if (durasi <= 210 || (f > 0 && f < 0.5)) {
+      f = 0;
+    }
+  } else if (jenis === 'Ijin Pulang Awal' || jenis === 'Ijin Keluar Sementara') {
+    if (durasi <= 120 || (f > 0 && f < 0.5)) {
+      f = 0;
+    }
+  }
+  return {
+    ...record,
+    faktorPotongan: f
+  };
 }

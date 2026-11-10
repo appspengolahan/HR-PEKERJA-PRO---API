@@ -696,7 +696,18 @@ function hitungMenitIjinEfektif_(tglObj, jamAwal, jamAkhir, jenisIjin) {
   }
 
   var netMinutes = Math.max(0, bruto - breakDed);
-  var faktor = isNormatif ? 0 : (Math.round((netMinutes / fullMinutes) * 100) / 100);
+  var faktor = 0;
+  if (isNormatif) {
+    faktor = 0;
+  } else if (jenisIjin === 'Ijin Terlambat') {
+    // Izin Terlambat resmi wajar (<= 210 menit / setengah hari kerja) tidak memotong upah (faktor 0)
+    faktor = (netMinutes <= 210) ? 0 : ((netMinutes <= 330) ? 0.5 : 1);
+  } else if (jenisIjin === 'Ijin Pulang Awal' || jenisIjin === 'Ijin Keluar Sementara') {
+    // Pulang awal atau keluar sementara <= 120 menit tidak memotong upah harian
+    faktor = (netMinutes <= 120) ? 0 : ((netMinutes <= 240) ? 0.5 : 1);
+  } else {
+    faktor = (netMinutes <= 120) ? 0 : ((netMinutes <= 240) ? 0.5 : 1);
+  }
 
   return { durasiMenit: netMinutes, faktorPotongan: faktor };
 }
@@ -779,7 +790,9 @@ function addPresensiIjin_(data, currentUser) {
 
     const calc = hitungMenitIjinEfektif_(tglObj, t.jamAwal, t.jamAkhir, data.jenisIjin);
     const durasiMenit = calc.durasiMenit;
-    const faktorPotongan = calc.faktorPotongan;
+    const faktorPotongan = (data.faktorPotongan !== undefined && data.faktorPotongan !== null && data.faktorPotongan !== '') 
+      ? Number(data.faktorPotongan) 
+      : calc.faktorPotongan;
 
     const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
     const tahun = tglObj ? tglObj.getFullYear() : '';
@@ -926,7 +939,9 @@ function updatePresensiIjin_(data, currentUser) {
   const tglObj = toDateValue_(data.tanggal);
   const calc = hitungMenitIjinEfektif_(tglObj, data.jamAwal, data.jamAkhir, data.jenisIjin);
   const durasiMenit = calc.durasiMenit;
-  const faktorPotongan = calc.faktorPotongan;
+  const faktorPotongan = (data.faktorPotongan !== undefined && data.faktorPotongan !== null && data.faktorPotongan !== '') 
+    ? Number(data.faktorPotongan) 
+    : calc.faktorPotongan;
 
   const bulan = tglObj ? (tglObj.getMonth() + 1) : '';
   const tahun = tglObj ? tglObj.getFullYear() : '';
