@@ -47,6 +47,7 @@ import {
   normalizeDateToDmy,
   sanitizePresensiFaktor 
 } from './utils/workHoursUtils';
+import { getWibTodayDmy } from './utils/dateUtils';
 
 // Fallback initial workers if completely offline before first sync
 const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
@@ -109,10 +110,18 @@ export default function App() {
   const [suratIjinData, setSuratIjinData] = useState<SuratIjinData | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Data Store
+  // Data Store (dilindungi try/catch agar JSON cache korup tidak menyebabkan layar putih)
   const [pekerjaList, setPekerjaList] = useState<PekerjaData[]>(() => {
-    const cached = localStorage.getItem('hr_pekerja_master');
-    return cached ? JSON.parse(cached) : INITIAL_PEKERJA_FALLBACK;
+    try {
+      const cached = localStorage.getItem('hr_pekerja_master');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      localStorage.removeItem('hr_pekerja_master');
+    }
+    return INITIAL_PEKERJA_FALLBACK;
   });
   const [unitSekupList, setUnitSekupList] = useState<string[]>([
     'Persediaan Blend', 'Persediaan Tembakau', 'Proses Blend', 'Proses Cengkeh', 'Proses Krosok', 'Proses Tembakau'
@@ -139,9 +148,16 @@ export default function App() {
 
   const [switchAppUrl, setSwitchAppUrl] = useState('https://appspengolahan.github.io/HR-Karyawan-PP1/');
   const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>(() => {
-    const cached = localStorage.getItem('hr_presensi_cache');
-    const raw = cached ? JSON.parse(cached) : INITIAL_PRESENSI_FALLBACK;
-    const base = Array.isArray(raw) ? raw : INITIAL_PRESENSI_FALLBACK;
+    let base: PresensiIjinRecord[] = INITIAL_PRESENSI_FALLBACK;
+    try {
+      const cached = localStorage.getItem('hr_presensi_cache');
+      if (cached) {
+        const raw = JSON.parse(cached);
+        if (Array.isArray(raw)) base = raw;
+      }
+    } catch {
+      localStorage.removeItem('hr_presensi_cache');
+    }
     const sanitized = base.map(sanitizePresensiFaktor);
     return deduplicatePresensiList(sanitized);
   });
@@ -770,7 +786,7 @@ export default function App() {
           unitSekup: `${data.sekup || targetCalon.sekup} ${data.unit || targetCalon.unit}`,
           jabatan: 'Harian',
           status: data.statusKepegawaian || 'PKWT 1',
-          awalPKWT: data.awalPKWT || new Date().toLocaleDateString('id-ID'),
+          awalPKWT: data.awalPKWT || getWibTodayDmy(),
           akhirPKWT: '-',
           statusPKWT: 'PKWT Berjalan',
           upahHarian: data.upahHarian || 146264,

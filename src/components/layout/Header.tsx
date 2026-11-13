@@ -21,6 +21,7 @@ import {
 import { MainTabType, UserScope } from '../../types';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 import { AuthUser, canUserSwitchRole } from '../../services/authService';
+import { formatWibTime } from '../../utils/dateUtils';
 
 interface HeaderProps {
   activeTab: MainTabType;
@@ -263,7 +264,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={handleManualRefresh}
           disabled={isRefreshing}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-blue-50/70 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 shadow-xs transition-all cursor-pointer select-none group active:scale-95"
-          title={`Auto-Sync aktif (${countdown}d) • Klik untuk tarik data Google Sheets sekarang • Terakhir: ${lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+          title={`Auto-Sync aktif (${countdown}d) • Klik untuk tarik data Google Sheets sekarang • Terakhir: ${formatWibTime(lastSyncTime)}`}
           aria-label="Smart Auto Sync"
         >
           {/* Circular Countdown Ring Container */}

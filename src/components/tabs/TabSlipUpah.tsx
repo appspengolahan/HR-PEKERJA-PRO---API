@@ -15,6 +15,7 @@ import {
 import { PekerjaData, SlipUpahData } from '../../types';
 import { gasClient } from '../../services/gasClient';
 import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
+import { getWibDateParts } from '../../utils/dateUtils';
 
 interface TabSlipUpahProps {
   pekerjaList: PekerjaData[];
@@ -33,13 +34,14 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
   const [rekapFilterUnit, setRekapFilterUnit] = useState<string>('Semua');
   const [rekapSearch, setRekapSearch] = useState<string>('');
 
+  const wibToday = getWibDateParts();
   const [mode, setMode] = useState<'bulan' | 'rentang'>('bulan');
   const [selectedNama, setSelectedNama] = useState(lockedNama || pekerjaList[0]?.nama || '');
-  const [bulan, setBulan] = useState(String(new Date().getMonth() + 1));
-  const [tahun, setTahun] = useState(String(new Date().getFullYear()));
+  const [bulan, setBulan] = useState(String(wibToday.month));
+  const [tahun, setTahun] = useState(String(wibToday.year));
   
-  const [tglAwal, setTglAwal] = useState(new Date().toISOString().slice(0, 10));
-  const [tglAkhir, setTglAkhir] = useState(new Date().toISOString().slice(0, 10));
+  const [tglAwal, setTglAwal] = useState(wibToday.iso);
+  const [tglAkhir, setTglAkhir] = useState(wibToday.iso);
   
   const [slipData, setSlipData] = useState<SlipUpahData | null>(null);
   const [isLoading, setIsLoading] = useState(false);

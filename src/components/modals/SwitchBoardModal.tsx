@@ -114,7 +114,7 @@ export const SwitchBoardModal: React.FC<SwitchBoardModalProps> = ({
                       {app.kategori}
                     </span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      app.statusBadge === 'Live Vercel'
+                      app.statusBadge === 'Live Cloud' || app.statusBadge === 'Live Vercel'
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : app.statusBadge === 'Aktif'
                         ? 'bg-blue-100 text-blue-800 border border-blue-300'
@@ -151,7 +151,7 @@ export const SwitchBoardModal: React.FC<SwitchBoardModalProps> = ({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors"
                     >
-                      Buka di Vercel
+                      Buka Modul Cloud
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   ) : (
@@ -179,7 +179,7 @@ export const SwitchBoardModal: React.FC<SwitchBoardModalProps> = ({
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-blue-600" />
-            Terhubung CI/CD GitHub & Vercel Production Environment
+            Terhubung CI/CD GitHub &amp; Cloudflare Workers Production Environment
           </span>
           <button
             onClick={onClose}

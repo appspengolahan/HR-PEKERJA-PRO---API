@@ -21,6 +21,7 @@ import {
   parseTimeToMinutes,
   getFaktorPotonganBadgeInfo 
 } from '../../utils/workHoursUtils';
+import { getWibDateParts, getWibTodayIso } from '../../utils/dateUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
 
 interface TabPresensiProps {
@@ -70,8 +71,8 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   currentUser,
   onRealignPresensi
 }) => {
-  const [selectedBulan, setSelectedBulan] = useState(String(new Date().getMonth() + 1));
-  const [selectedTahun, setSelectedTahun] = useState(String(new Date().getFullYear()));
+  const [selectedBulan, setSelectedBulan] = useState(() => String(getWibDateParts().month));
+  const [selectedTahun, setSelectedTahun] = useState(() => String(getWibDateParts().year));
   const [selectedNama, setSelectedNama] = useState('');
   
   const [showAddModal, setShowAddModal] = useState(false);
@@ -118,7 +119,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
   // Form Add State
   const [addNama, setAddNama] = useState('');
-  const [addTglAwal, setAddTglAwal] = useState(new Date().toISOString().slice(0, 10));
+  const [addTglAwal, setAddTglAwal] = useState(() => getWibTodayIso());
   const [addTglAkhir, setAddTglAkhir] = useState('');
   const [addJenisIjin, setAddJenisIjin] = useState(jenisIjinList[0] || 'Ijin Terlambat');
   const [addSehariPenuh, setAddSehariPenuh] = useState(false);
@@ -292,7 +293,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     if (filteredPekerja.length > 0) {
       setAddNama(filteredPekerja[0].nama);
     }
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getWibTodayIso();
     const sched = getWorkScheduleForDate(todayStr);
     setAddTglAwal(todayStr);
     setAddTglAkhir('');
@@ -421,9 +422,9 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   ];
 
   const handleOpenBlankOrSelectedSuratIjin = () => {
-    const today = new Date();
-    const dStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-    const isoStr = today.toISOString().slice(0, 10);
+    const p = getWibDateParts();
+    const dStr = p.dmy;
+    const isoStr = p.iso;
     const worker = selectedNama ? filteredPekerja.find(p => p.nama === selectedNama) : filteredPekerja[0];
     
     const todaySched = getWorkScheduleForDate(isoStr);

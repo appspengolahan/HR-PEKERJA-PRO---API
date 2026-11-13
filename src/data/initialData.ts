@@ -675,10 +675,10 @@ export const SWITCHBOARD_APPS: SwitchBoardApp[] = [
     id: 'mod-1',
     nama: '1. Monitoring Stock PP1',
     kategori: 'Supply Chain',
-    deskripsi: 'Data stok Cengkeh, Tembakau, Krosok & Silo Blend terhubung live ke cloud Vercel.',
+    deskripsi: 'Data stok Cengkeh, Tembakau, Krosok & Silo Blend terhubung live ke cloud.',
     url: 'https://monitoring-stock-pp-1-pro-api.vercel.app',
     isExternal: true,
-    statusBadge: 'Live Vercel'
+    statusBadge: 'Live Cloud'
   },
   {
     nomor: 2,

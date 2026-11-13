@@ -18,6 +18,7 @@ import {
 import { GasConfig } from '../../types';
 import { GAS_CODE_TEMPLATE, TARGET_SPREADSHEET_ID } from '../../services/gasService';
 import { gasClient } from '../../services/gasClient';
+import { formatWibTime } from '../../utils/dateUtils';
 
 interface GasCenterModalProps {
   isOpen: boolean;
@@ -168,7 +169,7 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
 
       setAuditResult({
         status: 'SEHAT',
-        timestamp: new Date().toLocaleTimeString('id-ID'),
+        timestamp: formatWibTime(),
         latencyMs: latency,
         items
       });

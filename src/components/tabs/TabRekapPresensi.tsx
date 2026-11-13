@@ -16,6 +16,7 @@ import { exportRekapPresensiToCSV } from '../../utils/exportUtils';
 import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 import { getNormalizedPermitMinutes } from '../../utils/workHoursUtils';
+import { formatIndoDateLong } from '../../utils/dateUtils';
 
 interface TabRekapPresensiProps {
   pekerjaList: PekerjaData[];
@@ -349,7 +350,7 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
               REKAPITULASI PRESENSI &amp; EVALUASI PERINGKAT KEHADIRAN PEKERJA
             </h1>
             <p className="text-[10px] text-slate-600 mt-0.5">
-              Periode Evaluasi: <strong>Januari – Desember {tahun}</strong> &bull; Unit: <strong>{rankingUnit}</strong> &bull; Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              Periode Evaluasi: <strong>Januari – Desember {tahun}</strong> &bull; Unit: <strong>{rankingUnit}</strong> &bull; Dicetak: {formatIndoDateLong()}
             </p>
           </div>
           <div className="text-right">

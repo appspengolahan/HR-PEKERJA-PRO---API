@@ -178,7 +178,7 @@ export interface SwitchBoardApp {
   url?: string;
   isExternal: boolean;
   isCurrentApp?: boolean;
-  statusBadge: 'Live Vercel' | 'Aktif' | 'Maintenance' | 'Roadmap';
+  statusBadge: 'Live Cloud' | 'Live Vercel' | 'Aktif' | 'Maintenance' | 'Roadmap';
 }
 
 // -------------------------------------------------------------

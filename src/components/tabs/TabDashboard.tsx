@@ -21,6 +21,7 @@ import { PekerjaData, MainTabType, PresensiIjinRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { gasClient } from '../../services/gasClient';
 import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
+import { getWibDateParts, formatWibTime } from '../../utils/dateUtils';
 
 interface TabDashboardProps {
   pekerjaList: PekerjaData[];
@@ -37,8 +38,8 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
   onNavigateTab,
   currentUser
 }) => {
-  const [selectedBulan, setSelectedBulan] = useState(String(new Date().getMonth() + 1));
-  const [selectedTahun, setSelectedTahun] = useState(String(new Date().getFullYear()));
+  const [selectedBulan, setSelectedBulan] = useState(() => String(getWibDateParts().month));
+  const [selectedTahun, setSelectedTahun] = useState(() => String(getWibDateParts().year));
   
   const [summaryPresensi, setSummaryPresensi] = useState<PresensiIjinRecord[]>(presensiList);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
@@ -85,7 +86,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
       const res = await gasClient.getPresensi(b, t, '', currentScope);
       if (res.status === 'success' && Array.isArray(res.data)) {
         setSummaryPresensi(res.data as PresensiIjinRecord[]);
-        setLastLoadedAt(new Date().toLocaleTimeString('id-ID'));
+        setLastLoadedAt(formatWibTime());
       }
     } catch (err) {
       console.error('Gagal mengambil data ringkasan:', err);

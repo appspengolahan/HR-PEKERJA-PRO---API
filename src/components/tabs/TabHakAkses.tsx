@@ -43,6 +43,7 @@ import {
   CheckSquare,
   FileCode
 } from 'lucide-react';
+import { getWibTodayDmy } from '../../utils/dateUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
 import { MainTabType, PekerjaData } from '../../types';
 import { 
@@ -280,7 +281,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
   // Salin seluruh 20 akun internal ke format tabel (TSV) agar bisa langsung di-paste ke Google Sheets
   const handleCopyAllAccountsTSV = () => {
-    const now = new Date().toLocaleDateString('id-ID');
+    const now = getWibTodayDmy();
     const rows = accounts.map((acc, idx) => {
       const unitsStr = Array.isArray(acc.units) ? acc.units.join(', ') : (acc.units || acc.scope || 'ALL');
       const tabsStr = Array.isArray(acc.allowedTabs) ? acc.allowedTabs.join(', ') : 'dashboard, presensi';

@@ -26,6 +26,8 @@
  *   sehingga waktu yang dicatat dan dibebankan hanya jam kerja efektif resmi.
  */
 
+import { parseDateToMetaFast, getWibDateParts } from './dateUtils';
+
 export interface WorkScheduleConfig {
   dayOfWeek: number; // 0: Sun, 1: Mon, ..., 6: Sat
   dayName: string;
@@ -57,162 +59,107 @@ export function formatMinutesToTime(minutes: number): string {
 }
 
 export function parseDateSafe(dateInput: string | Date | null | undefined): Date {
-  if (!dateInput) return new Date();
-  if (dateInput instanceof Date) return dateInput;
-  
-  const str = String(dateInput).trim();
-  // Format DD/MM/YYYY
-  if (str.includes('/')) {
-    const parts = str.split('/');
-    if (parts.length === 3) {
-      const d = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const y = parseInt(parts[2], 10);
-      return new Date(y, m, d);
-    }
+  const meta = parseDateToMetaFast(dateInput);
+  if (meta) {
+    return new Date(meta.year, meta.month - 1, meta.day);
   }
-  
-  // Format YYYY-MM-DD
-  if (str.includes('-')) {
-    const parts = str.split('-');
-    if (parts.length === 3) {
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const d = parseInt(parts[2], 10);
-      return new Date(y, m, d);
-    }
-  }
-
-  const parsed = new Date(str);
-  return isNaN(parsed.getTime()) ? new Date() : parsed;
+  const p = getWibDateParts();
+  return new Date(p.year, p.month - 1, p.day);
 }
 
 /**
  * Normalisasi string tanggal apapun (DD/MM/YYYY, D/M/YYYY, ISO YYYY-MM-DD, atau Date object)
- * ke format ISO standar: YYYY-MM-DD
+ * ke format ISO standar: YYYY-MM-DD (menggunakan cache & aritmatika WIB permanen)
  */
 export function normalizeDateToIso(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return '';
-  if (dateInput instanceof Date) {
-    const y = dateInput.getFullYear();
-    const m = String(dateInput.getMonth() + 1).padStart(2, '0');
-    const d = String(dateInput.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  const s = String(dateInput).trim();
-  if (s.includes('T')) return s.split('T')[0];
-  
-  if (s.includes('-')) {
-    const parts = s.split('-');
-    if (parts.length === 3) {
-      if (parts[0].length === 4) {
-        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      } else {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-  }
-  
-  if (s.includes('/')) {
-    const parts = s.split('/');
-    if (parts.length === 3) {
-      const d = parts[0].padStart(2, '0');
-      const m = parts[1].padStart(2, '0');
-      const y = parts[2];
-      return `${y}-${m}-${d}`;
-    }
-  }
-
-  return s;
+  const meta = parseDateToMetaFast(dateInput);
+  if (meta) return meta.iso;
+  return String(dateInput).trim();
 }
 
 /**
  * Normalisasi string tanggal apapun ke format DD/MM/YYYY
  */
 export function normalizeDateToDmy(dateInput: string | Date | null | undefined): string {
-  const iso = normalizeDateToIso(dateInput);
-  if (!iso || !iso.includes('-')) return String(dateInput || '');
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  if (!dateInput) return '';
+  const meta = parseDateToMetaFast(dateInput);
+  if (meta) return meta.dmy;
+  return String(dateInput || '');
 }
 
-/**
- * Mendapatkan konfigurasi jadwal resmi berdasarkan tanggal
- */
-export function getWorkScheduleForDate(dateInput: string | Date): WorkScheduleConfig {
-  const date = parseDateSafe(dateInput);
-  const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+const DAY_NAMES_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-  if (day === 0) {
-    // Minggu: Libur
-    return {
-      dayOfWeek: 0,
-      dayName: 'Minggu',
-      isWorkDay: false,
-      workStart: '00:00',
-      workEnd: '00:00',
-      workStartMin: 0,
-      workEndMin: 0,
-      breakStart: null,
-      breakEnd: null,
-      breakStartMin: 0,
-      breakEndMin: 0,
-      effectiveWorkMinutes: 0
-    };
+// Singleton cache untuk 7 hari jadwal kerja agar tidak mengalokasikan objek baru di dalam loop
+const WORK_SCHEDULE_BY_DAY: Record<number, WorkScheduleConfig> = {
+  0: {
+    dayOfWeek: 0,
+    dayName: 'Minggu',
+    isWorkDay: false,
+    workStart: '00:00',
+    workEnd: '00:00',
+    workStartMin: 0,
+    workEndMin: 0,
+    breakStart: null,
+    breakEnd: null,
+    breakStartMin: 0,
+    breakEndMin: 0,
+    effectiveWorkMinutes: 0
+  },
+  5: {
+    dayOfWeek: 5,
+    dayName: 'Jumat',
+    isWorkDay: true,
+    workStart: '08:00',
+    workEnd: '16:30',
+    workStartMin: 480,
+    workEndMin: 990,
+    breakStart: '11:00',
+    breakEnd: '12:30',
+    breakStartMin: 660,
+    breakEndMin: 750,
+    effectiveWorkMinutes: 420
+  },
+  6: {
+    dayOfWeek: 6,
+    dayName: 'Sabtu',
+    isWorkDay: true,
+    workStart: '08:00',
+    workEnd: '13:00',
+    workStartMin: 480,
+    workEndMin: 780,
+    breakStart: null,
+    breakEnd: null,
+    breakStartMin: 0,
+    breakEndMin: 0,
+    effectiveWorkMinutes: 300
   }
+};
 
-  if (day === 6) {
-    // Sabtu: 08:00 - 13:00 tanpa istirahat
-    return {
-      dayOfWeek: 6,
-      dayName: 'Sabtu',
-      isWorkDay: true,
-      workStart: '08:00',
-      workEnd: '13:00',
-      workStartMin: 8 * 60,       // 480
-      workEndMin: 13 * 60,       // 780
-      breakStart: null,
-      breakEnd: null,
-      breakStartMin: 0,
-      breakEndMin: 0,
-      effectiveWorkMinutes: 300   // 5 jam
-    };
-  }
-
-  if (day === 5) {
-    // Jumat: 08:00 - 16:30, istirahat 11:00 - 12:30 (90 menit)
-    return {
-      dayOfWeek: 5,
-      dayName: 'Jumat',
-      isWorkDay: true,
-      workStart: '08:00',
-      workEnd: '16:30',
-      workStartMin: 8 * 60,       // 480
-      workEndMin: 16 * 60 + 30,  // 990
-      breakStart: '11:00',
-      breakEnd: '12:30',
-      breakStartMin: 11 * 60,     // 660
-      breakEndMin: 12 * 60 + 30, // 750
-      effectiveWorkMinutes: 420   // (990 - 480) - 90 = 420 menit (7 jam)
-    };
-  }
-
-  // Senin - Kamis: 08:00 - 16:00, istirahat 11:30 - 12:30 (60 menit)
-  const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  return {
-    dayOfWeek: day,
-    dayName: dayNames[day],
+for (let d = 1; d <= 4; d++) {
+  WORK_SCHEDULE_BY_DAY[d] = {
+    dayOfWeek: d,
+    dayName: DAY_NAMES_ID[d],
     isWorkDay: true,
     workStart: '08:00',
     workEnd: '16:00',
-    workStartMin: 8 * 60,       // 480
-    workEndMin: 16 * 60,       // 960
+    workStartMin: 480,
+    workEndMin: 960,
     breakStart: '11:30',
     breakEnd: '12:30',
-    breakStartMin: 11 * 60 + 30, // 690
-    breakEndMin: 12 * 60 + 30,  // 750
-    effectiveWorkMinutes: 420   // (960 - 480) - 60 = 420 menit (7 jam)
+    breakStartMin: 690,
+    breakEndMin: 750,
+    effectiveWorkMinutes: 420
   };
+}
+
+/**
+ * Mendapatkan konfigurasi jadwal resmi berdasarkan tanggal (O(1) cached lookup)
+ */
+export function getWorkScheduleForDate(dateInput: string | Date): WorkScheduleConfig {
+  const meta = parseDateToMetaFast(dateInput);
+  const day = meta ? meta.dayOfWeek : getWibDateParts().dayOfWeek;
+  return WORK_SCHEDULE_BY_DAY[day] || WORK_SCHEDULE_BY_DAY[1];
 }
 
 export interface EffectivePermitResult {

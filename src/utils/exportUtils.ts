@@ -1,4 +1,5 @@
 import { PekerjaData, LemburRecord } from '../types';
+import { getWibTodayIso } from './dateUtils';
 
 export function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
   const sanitize = (val: string | number | undefined | null) => {
@@ -16,7 +17,7 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
+  a.setAttribute('download', `${filename}_${getWibTodayIso()}.csv`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

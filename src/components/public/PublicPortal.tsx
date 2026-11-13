@@ -40,6 +40,11 @@ import {
   getWorkScheduleForDate,
   getNormalizedPermitMinutes
 } from '../../utils/workHoursUtils';
+import {
+  getWibDateParts,
+  getWibIsoOffsetDays,
+  formatIndoDateLong
+} from '../../utils/dateUtils';
 import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 
 interface PublicPortalProps {
@@ -109,14 +114,10 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   // Accordion toggle to hide/show the 63-workers list on daily view (Item 1)
   const [showAllWorkersTable, setShowAllWorkersTable] = useState(false);
 
-  // Format Helper: Get today in YYYY-MM-DD and DD/MM/YYYY
-  const todayDateObj = new Date();
-  const formatIsoDate = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // Format Helper: Get today in YYYY-MM-DD and DD/MM/YYYY using permanent WIB (UTC+7)
+  const wibToday = useMemo(() => getWibDateParts(), []);
+  const todayIso = wibToday.iso;
+  const yesterdayIso = useMemo(() => getWibIsoOffsetDays(-1), []);
 
   const isoToDmy = (isoStr: string) => {
     if (!isoStr || !isoStr.includes('-')) return isoStr;
@@ -124,14 +125,8 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
     return `${d}/${m}/${y}`;
   };
 
-  const dmyToIso = (dmyStr: string) => {
-    if (!dmyStr || !dmyStr.includes('/')) return formatIsoDate(todayDateObj);
-    const [d, m, y] = dmyStr.split('/');
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-  };
-
   // State: Selected Date for daily attendance
-  const [selectedIsoDate, setSelectedIsoDate] = useState<string>(() => formatIsoDate(todayDateObj));
+  const [selectedIsoDate, setSelectedIsoDate] = useState<string>(() => todayIso);
   const selectedDmyDate = useMemo(() => isoToDmy(selectedIsoDate), [selectedIsoDate]);
 
   // State: Filters
@@ -139,12 +134,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // State: Rekap tab month & year filter
-  const [selectedMonth, setSelectedMonth] = useState<number>(todayDateObj.getMonth() + 1); // 1-12
-  const [selectedYear, setSelectedYear] = useState<number>(todayDateObj.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(wibToday.month); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(wibToday.year);
 
   // State: Tab 10 Kehadiran Terendah filter (mendukung "Semua Bulan" dan "Semua Tahun")
-  const [lowestMonth, setLowestMonth] = useState<number | 'all'>(todayDateObj.getMonth() + 1);
-  const [lowestYear, setLowestYear] = useState<number | 'all'>(todayDateObj.getFullYear());
+  const [lowestMonth, setLowestMonth] = useState<number | 'all'>(wibToday.month);
+  const [lowestYear, setLowestYear] = useState<number | 'all'>(wibToday.year);
 
   // Copy Link State
   const [isCopied, setIsCopied] = useState(false);
@@ -152,7 +147,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   // Input Ijin Modal State (fitur input ijin langsung dari portal publik)
   const [showInputModal, setShowInputModal] = useState(false);
   const [inputNama, setInputNama] = useState(pekerjaList[0]?.nama || '');
-  const [inputTanggal, setInputTanggal] = useState(() => formatIsoDate(todayDateObj));
+  const [inputTanggal, setInputTanggal] = useState(() => todayIso);
   const [inputJenisIjin, setInputJenisIjin] = useState('Ijin Terlambat');
   const [inputSehariPenuh, setInputSehariPenuh] = useState(false);
   const [inputJamAwal, setInputJamAwal] = useState('08:00');
@@ -256,27 +251,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   };
 
   // Quick Date Selectors
-  const setDateToday = () => setSelectedIsoDate(formatIsoDate(todayDateObj));
-  const setDateYesterday = () => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    setSelectedIsoDate(formatIsoDate(y));
-  };
+  const setDateToday = () => setSelectedIsoDate(todayIso);
+  const setDateYesterday = () => setSelectedIsoDate(yesterdayIso);
 
-  // Human-readable date label in Indonesian
+  // Human-readable date label in Indonesian (tanpa Intl.DateTimeFormat berulang)
   const formattedIndonesianDate = useMemo(() => {
-    try {
-      const [y, m, d] = selectedIsoDate.split('-').map(Number);
-      const dt = new Date(y, m - 1, d);
-      return dt.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-    } catch {
-      return selectedDmyDate;
-    }
+    return formatIndoDateLong(selectedIsoDate) || selectedDmyDate;
   }, [selectedIsoDate, selectedDmyDate]);
 
   // 1. Filtered Workers based on unit & search
@@ -570,17 +550,35 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
     return copy;
   };
 
+  // Index presensi per pekerja satu kali (O(P)) agar tidak terjadi nested loop O(W*P)
+  const presensiByWorkerMap = useMemo(() => {
+    const map = new Map<string, PresensiIjinRecord[]>();
+    for (let i = 0; i < effectivePresensi.length; i++) {
+      const r = effectivePresensi[i];
+      if (!r.nama) continue;
+      const key = r.nama.trim().toUpperCase();
+      let arr = map.get(key);
+      if (!arr) {
+        arr = [];
+        map.set(key, arr);
+      }
+      arr.push(r);
+    }
+    return map;
+  }, [effectivePresensi]);
+
   // 1. DATA REKAP BULANAN PEKERJA (UNTUK BULAN & TAHUN TERPILIH)
   const monthlyWorkersData = useMemo(() => {
     return pekerjaList.map(p => {
       const cleanName = p.nama.trim().toUpperCase();
+      const workerRecords = presensiByWorkerMap.get(cleanName) || [];
       let totalIjinMenit = 0;
       let totalKejadian = 0;
 
-      effectivePresensi.forEach(r => {
-        if (!r.nama || r.nama.trim().toUpperCase() !== cleanName) return;
+      for (let i = 0; i < workerRecords.length; i++) {
+        const r = workerRecords[i];
         const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
-        if (!rIso || !rIso.includes('-')) return;
+        if (!rIso || !rIso.includes('-')) continue;
         const [yStr, mStr] = rIso.split('-');
         const y = Number(yStr);
         const m = Number(mStr);
@@ -596,7 +594,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
           totalIjinMenit += menit;
           totalKejadian += 1;
         }
-      });
+      }
 
       const totalTersedia = MENIT_TERSEDIA_BULAN;
       const pctKehadiran = totalTersedia > 0
@@ -620,7 +618,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         pctKehadiran
       };
     });
-  }, [pekerjaList, effectivePresensi, selectedMonth, selectedYear]);
+  }, [pekerjaList, presensiByWorkerMap, selectedMonth, selectedYear]);
 
   // Monthly Unit Workers (Grafik Balok 1 Bulanan: Khusus Unit / Sesuai Peran)
   const monthlyUnitWorkers = useMemo(() => {
@@ -672,13 +670,14 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
     return pekerjaList.map(p => {
       const cleanName = p.nama.trim().toUpperCase();
+      const workerRecords = presensiByWorkerMap.get(cleanName) || [];
       let totalIjinMenit = 0;
       let totalKejadian = 0;
 
-      effectivePresensi.forEach(r => {
-        if (!r.nama || r.nama.trim().toUpperCase() !== cleanName) return;
+      for (let i = 0; i < workerRecords.length; i++) {
+        const r = workerRecords[i];
         const rIso = normalizeDateToIso(r.tanggalIso || r.tanggal);
-        if (!rIso || !rIso.includes('-')) return;
+        if (!rIso || !rIso.includes('-')) continue;
         const [yStr] = rIso.split('-');
         const y = Number(yStr);
 
@@ -693,7 +692,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
           totalIjinMenit += menit;
           totalKejadian += 1;
         }
-      });
+      }
 
       const pctKehadiran = totalTersedia > 0
         ? Math.max(0, Math.round((100 - (totalIjinMenit / totalTersedia * 100)) * 100) / 100)
@@ -716,7 +715,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
         pctKehadiran
       };
     });
-  }, [pekerjaList, effectivePresensi, yearlyYear]);
+  }, [pekerjaList, presensiByWorkerMap, yearlyYear]);
 
   // Yearly Unit Workers (Grafik Balok 1 Tahunan: Khusus Unit / Sesuai Peran)
   const yearlyUnitWorkers = useMemo(() => {
@@ -1037,7 +1036,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                   : 'LAPORAN REKAPITULASI PRESENSI HARIAN'}
               </h1>
               <p className="text-[10px] text-slate-600 mt-0.5">
-                Portal Publik Sistem HR &bull; Total {pekerjaList.length} Pekerja Harian &bull; Dicetak: {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                Portal Publik Sistem HR &bull; Total {pekerjaList.length} Pekerja Harian &bull; Dicetak: {formatIndoDateLong()}
               </p>
             </div>
             <div className="text-right">
@@ -1164,7 +1163,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                     type="button"
                     onClick={setDateToday}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                      selectedIsoDate === formatIsoDate(todayDateObj)
+                      selectedIsoDate === todayIso
                         ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
                     }`}
@@ -1176,9 +1175,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                     type="button"
                     onClick={setDateYesterday}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                      selectedIsoDate !== formatIsoDate(todayDateObj) && selectedIsoDate === (() => {
-                        const y = new Date(); y.setDate(y.getDate() - 1); return formatIsoDate(y);
-                      })()
+                      selectedIsoDate === yesterdayIso
                         ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
                     }`}
