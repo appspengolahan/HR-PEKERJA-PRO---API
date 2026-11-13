@@ -15,6 +15,7 @@ import {
 import { PekerjaData, LinkArsipRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { formatRupiah } from '../../utils/dateUtils';
 
 interface TabProfilPekerjaProps {
   pekerjaList: PekerjaData[];
@@ -133,7 +134,7 @@ export const TabProfilPekerja: React.FC<TabProfilPekerjaProps> = ({
               <div className="p-3 bg-slate-50 rounded-xl">
                 <span className="text-slate-400 block text-[11px]">Upah Harian</span>
                 <span className="font-bold text-emerald-700 text-sm font-mono">
-                  Rp {Math.round(currentPekerja.upahHarian).toLocaleString('id-ID')}
+                  {formatRupiah(currentPekerja.upahHarian)}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">

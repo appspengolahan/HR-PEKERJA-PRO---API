@@ -437,16 +437,17 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
 
       {/* Modal Add Calon - Always Centered */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90dvh] overflow-y-auto text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Pendaftaran Calon Pekerja Baru</h3>
                 <p className="text-[11px] text-slate-400">Pencatatan awal masa pelatihan &amp; orientasi</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-11 h-11 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center flex-shrink-0"
+                aria-label="Tutup modal"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -549,16 +550,17 @@ export const TabCalonPekerja: React.FC<TabCalonPekerjaProps> = ({
 
       {/* Modal Evaluasi Kelulusan - Always Centered */}
       {updatingCalon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90dvh] overflow-y-auto text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Evaluasi Kelulusan Calon Pekerja</h3>
                 <p className="text-[11px] text-slate-400">Tentukan status akhir masa pelatihan</p>
               </div>
               <button 
                 onClick={() => setUpdatingCalon(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-11 h-11 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center flex-shrink-0"
+                aria-label="Tutup modal"
               >
                 <X className="w-4 h-4" />
               </button>

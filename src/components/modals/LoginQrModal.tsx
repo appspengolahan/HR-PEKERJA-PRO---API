@@ -80,14 +80,14 @@ export const LoginQrModal: React.FC<LoginQrModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 lg:backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
       
       {/* Modal Container */}
       <div 
         className={`relative m-auto bg-white rounded-3xl shadow-2xl border border-slate-200 text-slate-800 transition-all duration-300 flex flex-col overflow-hidden ${
           isExpanded 
-            ? 'w-full max-w-2xl max-h-[95vh]' 
-            : 'w-full max-w-md max-h-[90vh]'
+            ? 'w-full max-w-2xl max-h-[95dvh]' 
+            : 'w-full max-w-md max-h-[90dvh]'
         }`}
       >
         {/* Modal Header */}
@@ -116,7 +116,7 @@ export const LoginQrModal: React.FC<LoginQrModalProps> = ({
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
               title={isExpanded ? 'Kecilkan Tampilan' : 'Perbesar Tampilan (Layar Penuh)'}
             >
               {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}

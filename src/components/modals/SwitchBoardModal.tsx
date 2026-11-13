@@ -36,11 +36,11 @@ export const SwitchBoardModal: React.FC<SwitchBoardModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden">
         
         {/* Modal Header */}
-        <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="p-4 sm:p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
               <Layers className="w-5 h-5" />
@@ -59,7 +59,8 @@ export const SwitchBoardModal: React.FC<SwitchBoardModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
+            aria-label="Tutup modal"
           >
             <X className="w-4 h-4" />
           </button>

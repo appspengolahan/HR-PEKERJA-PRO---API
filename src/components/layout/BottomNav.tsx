@@ -54,7 +54,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 z-50 flex items-center justify-around px-1 lg:hidden shadow-[0_-4px_25px_rgba(0,0,0,0.35)] select-none"
+      className="fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-slate-950 border-t border-slate-800 z-50 flex items-center justify-around px-1 lg:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.3)] select-none"
       aria-label="Navigasi Bawah Seluler"
       style={{
         position: 'fixed',
@@ -63,8 +63,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         right: 0,
         zIndex: 50,
         transform: 'translate3d(0, 0, 0)',
-        WebkitTransform: 'translate3d(0, 0, 0)',
-        willChange: 'transform'
+        WebkitTransform: 'translate3d(0, 0, 0)'
       }}
     >
       <div className="w-full max-w-md md:max-w-lg mx-auto flex items-center justify-around h-full">
@@ -78,7 +77,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 setActiveTab(tab.id);
                 window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
-              className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
+              className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
                 isActive 
                   ? 'text-blue-400 font-bold scale-105' 
                   : 'text-slate-400 hover:text-slate-200'
@@ -98,7 +97,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         {/* Menu / Lainnya Drawer Trigger */}
         <button
           onClick={onOpenMobileMenu}
-          className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
+          className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] py-1 text-[10px] font-semibold transition-all cursor-pointer relative ${
             isMobileMenuOpen || isCurrentTabInExtendedMenu 
               ? 'text-blue-400 font-bold scale-105' 
               : 'text-slate-400 hover:text-slate-200'

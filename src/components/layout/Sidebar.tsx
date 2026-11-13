@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
     <aside 
-      className={`fixed top-0 left-0 h-screen z-30 hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 select-none print:hidden ${
+      className={`fixed top-0 left-0 h-[100dvh] z-30 hidden lg:flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 select-none print:hidden ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
@@ -242,14 +242,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="fixed inset-0 z-50 lg:hidden flex print:hidden">
         {/* Backdrop Overlay */}
         <div 
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-950/75 transition-opacity animate-in fade-in duration-200"
           onClick={onCloseMobile}
           aria-hidden="true"
         />
         
         {/* Slide-out Drawer Panel */}
         <aside 
-          className="relative w-72 max-w-[85vw] h-full bg-slate-900 border-r border-slate-800 text-slate-300 shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200 select-none"
+          className="relative w-72 max-w-[85vw] h-[100dvh] bg-slate-900 border-r border-slate-800 text-slate-300 shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200 select-none pb-[env(safe-area-inset-bottom,0px)]"
           role="dialog"
           aria-modal="true"
           aria-label="Menu Navigasi Mobile"
@@ -275,7 +275,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             
             <button
               onClick={onCloseMobile}
-              className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               title="Tutup Menu"
               aria-label="Tutup Menu"
             >
@@ -334,7 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setActiveTab(item.id);
                     onCloseMobile?.();
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  className={`w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     isActive 
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30 font-bold' 
                       : 'hover:bg-slate-800 text-slate-300 hover:text-white'
@@ -362,7 +362,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onCloseMobile?.();
                   onOpenPublicShareModal();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-indigo-950/50 border border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50 transition-colors cursor-pointer"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-indigo-950/50 border border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50 transition-colors cursor-pointer"
               >
                 <Globe className="w-4 h-4 text-indigo-400" />
                 <span>Portal Publik (Linktree)</span>
@@ -375,7 +375,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onCloseMobile?.();
                   onOpenGasCenter();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-950/50 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/50 transition-colors cursor-pointer"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold bg-emerald-950/50 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/50 transition-colors cursor-pointer"
               >
                 <Database className="w-4 h-4 text-emerald-400" />
                 <span>Headless GAS Hub</span>
@@ -388,7 +388,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onCloseMobile?.();
                   onOpenRoleSwitcher();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-amber-950/50 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 transition-colors cursor-pointer"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-amber-950/50 border border-amber-700/50 text-amber-300 hover:bg-amber-900/50 transition-colors cursor-pointer"
               >
                 <Repeat className="w-4 h-4 text-amber-400" />
                 <span>Ganti Peran (Switch Role)</span>
@@ -400,7 +400,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onCloseMobile?.();
                 onLogout();
               }}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-red-950/50 border border-red-800/50 text-red-400 hover:bg-red-900/50 transition-colors cursor-pointer"
+              className="w-full min-h-[44px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold bg-red-950/50 border border-red-800/50 text-red-400 hover:bg-red-900/50 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4 text-red-400" />
               <span>Keluar Akun</span>

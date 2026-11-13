@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Users, 
   Search, 
@@ -10,14 +10,16 @@ import {
   Clock, 
   X,
   FileSpreadsheet,
-  Printer
+  Printer,
+  Download
 } from 'lucide-react';
 import { PekerjaData, JadwalMutasiRecord } from '../../types';
 import { exportPekerjaToCSV } from '../../utils/exportUtils';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
-import { Download } from 'lucide-react';
+import { formatRupiah } from '../../utils/dateUtils';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 import { useSystemDialog } from '../../context/SystemDialogContext';
+import { TablePagination } from '../common/TablePagination';
 
 interface TabDatabasePekerjaProps {
   pekerjaList: PekerjaData[];
@@ -166,25 +168,40 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
     return pekerjaList.filter(p => scheduledMutasiMap.has(p.nama?.trim().toUpperCase())).length;
   }, [pekerjaList, scheduledMutasiMap]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // PKWT Alerts: Akhir PKWT expiring in <= 26 days (synchronized)
-  const pkwtAlerts = pekerjaList.filter(p => {
-    return getPKWTStatusInfo(p.status, p.akhirPKWT).isUrgent;
-  });
+  const pkwtAlerts = useMemo(() => {
+    return pekerjaList.filter(p => getPKWTStatusInfo(p.status, p.akhirPKWT).isUrgent);
+  }, [pekerjaList]);
 
-  const expiredAlerts = pekerjaList.filter(p => {
-    return getPKWTStatusInfo(p.status, p.akhirPKWT).isExpired;
-  });
+  const expiredAlerts = useMemo(() => {
+    return pekerjaList.filter(p => getPKWTStatusInfo(p.status, p.akhirPKWT).isExpired);
+  }, [pekerjaList]);
 
-  const filtered = pekerjaList.filter(p => {
-    const matchScope = isWorkerInUserScope(p, currentUser || null, currentScope);
-    const matchUnit = selectedUnit === 'Semua' || p.unit === selectedUnit;
-    const matchSearch = !search || 
-      p.nama.toLowerCase().includes(search.toLowerCase()) || 
-      p.jabatan.toLowerCase().includes(search.toLowerCase()) ||
-      String(p.id).includes(search);
-    const matchMutasi = !filterMutasiOnly || scheduledMutasiMap.has(p.nama?.trim().toUpperCase());
-    return matchScope && matchUnit && matchSearch && matchMutasi;
-  });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pekerjaList.filter(p => {
+      const matchScope = isWorkerInUserScope(p, currentUser || null, currentScope);
+      const matchUnit = selectedUnit === 'Semua' || p.unit === selectedUnit;
+      const matchSearch = !q || 
+        p.nama.toLowerCase().includes(q) || 
+        p.jabatan.toLowerCase().includes(q) ||
+        String(p.id).includes(q);
+      const matchMutasi = !filterMutasiOnly || scheduledMutasiMap.has(p.nama?.trim().toUpperCase());
+      return matchScope && matchUnit && matchSearch && matchMutasi;
+    });
+  }, [pekerjaList, currentUser, currentScope, selectedUnit, search, filterMutasiOnly, scheduledMutasiMap]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedUnit, filterMutasiOnly, currentScope, filtered.length]);
+
+  const paginatedPekerja = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,7 +344,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
           <select
             value={selectedUnit}
             onChange={(e) => setSelectedUnit(e.target.value)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none"
+            className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none"
           >
             <option value="Semua">Semua Unit</option>
             <option value="Cengkeh">Cengkeh</option>
@@ -341,7 +358,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
             <button
               type="button"
               onClick={() => setFilterMutasiOnly(!filterMutasiOnly)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 filterMutasiOnly
                   ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-200'
                   : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
@@ -356,7 +373,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
           <button
             onClick={() => exportPekerjaToCSV(filtered)}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors"
+            className="min-h-[44px] px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
             title="Unduh seluruh data pekerja ini ke file Excel / CSV"
           >
             <Download className="w-4 h-4 text-slate-600" />
@@ -366,7 +383,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
           {canManagePekerja && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               + Pekerja Baru
@@ -393,23 +410,23 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
           <div className="flex items-center gap-2">
             {/* View Switcher for Mobile / Tablet */}
-            <div className="md:hidden flex items-center bg-slate-200/80 p-0.5 rounded-xl border border-slate-300">
+            <div className="md:hidden flex items-center bg-slate-200/80 p-1 rounded-xl border border-slate-300">
               <button
                 type="button"
                 onClick={() => setMobileViewMode('cards')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   mobileViewMode === 'cards' 
                     ? 'bg-white text-blue-700 shadow-xs' 
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <ArrowRightLeft className="w-3 h-3 text-blue-600" />
+                <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
                 <span>Kartu Geser</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMobileViewMode('table')}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                className={`min-h-[40px] px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   mobileViewMode === 'table' 
                     ? 'bg-white text-blue-700 shadow-xs' 
                     : 'text-slate-600 hover:text-slate-900'
@@ -442,12 +459,12 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {paginatedPekerja.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-xs">
               Tidak ada pekerja yang sesuai dengan filter pencarian.
             </div>
           ) : (
-            filtered.map(p => {
+            paginatedPekerja.map(p => {
               const pkwtInfo = getPKWTStatusInfo(p.status, p.akhirPKWT);
               const activeMutasi = scheduledMutasiMap.get(p.nama?.trim().toUpperCase());
               const isSwiped = swipedId === p.id;
@@ -573,7 +590,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                       <div className="text-right">
                         <span className="text-[10px] text-slate-400 block mb-0.5">Upah Harian:</span>
                         <span className="font-mono font-bold text-slate-900 text-xs block">
-                          Rp {Math.round(p.upahHarian).toLocaleString('id-ID')}
+                          {formatRupiah(p.upahHarian)}
                         </span>
                         <span className="text-[10px] text-slate-400 block mt-0.5">
                           Akhir PKWT: <strong className={pkwtInfo.isUrgent ? 'text-amber-700' : pkwtInfo.isExpired ? 'text-red-600' : 'text-slate-700'}>{p.status === 'TETAP' ? 'TETAP' : p.akhirPKWT}</strong>
@@ -588,12 +605,12 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                         <span>Geser ‹ Mutasi / Hapus</span>
                       </span>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         {canManagePekerja && (
                           <button
                             type="button"
                             onClick={() => setEditingPekerja(p)}
-                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold cursor-pointer"
+                            className="min-h-[44px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
                           >
                             Edit
                           </button>
@@ -606,9 +623,9 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                               setMutasiJenis('Unit');
                               setMutasiNilaiBaru('Blend');
                             }}
-                            className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10.5px] font-semibold flex items-center gap-1 cursor-pointer"
+                            className="min-h-[44px] px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
                           >
-                            <ArrowRightLeft className="w-3 h-3 text-indigo-600" />
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Mutasi</span>
                           </button>
                         )}
@@ -638,7 +655,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filtered.map(p => {
+              {paginatedPekerja.map(p => {
                 const pkwtInfo = getPKWTStatusInfo(p.status, p.akhirPKWT);
                 const activeMutasi = scheduledMutasiMap.get(p.nama?.trim().toUpperCase());
 
@@ -673,7 +690,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                      Rp {Math.round(p.upahHarian).toLocaleString('id-ID')}
+                      {formatRupiah(p.upahHarian)}
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {p.status === 'TETAP' ? (
@@ -713,11 +730,11 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                       {p.pendidikanTerakhir || '-'}
                     </td>
                     <td className="py-2.5 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1.5">
                         {canManagePekerja && (
                           <button
                             onClick={() => setEditingPekerja(p)}
-                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer"
                           >
                             Edit
                           </button>
@@ -729,7 +746,7 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                               setMutasiJenis('Unit');
                               setMutasiNilaiBaru('Blend');
                             }}
-                            className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold cursor-pointer"
                           >
                             Mutasi
                           </button>
@@ -746,10 +763,11 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                                 onDeletePekerja(p.rowNum, p.nama);
                               }
                             }}
-                            className="p-1 rounded bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-700 cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-700 flex items-center justify-center cursor-pointer"
                             title="Hapus Pekerja (Arsip)"
+                            aria-label="Hapus Pekerja"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -761,22 +779,36 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
           </table>
         </div>
 
+        <TablePagination
+          totalItems={filtered.length}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          itemLabel="pekerja"
+        />
+
       </div>
 
       {/* Modal Add Pekerja - Always Centered */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/75 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Tambah Pekerja Baru</h3>
                 <p className="text-[11px] text-slate-400">ID nomor urut dihitung otomatis</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Tutup Modal Tambah"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -887,18 +919,18 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  className="min-h-[44px] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm"
+                  className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm cursor-pointer"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan Pekerja'}
                 </button>
@@ -910,18 +942,20 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       {/* Modal Edit Pekerja - Always Centered */}
       {editingPekerja && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/75 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Pekerja: {editingPekerja.nama}</h3>
                 <p className="text-[11px] text-slate-400">ID #{editingPekerja.id} • Baris ke-{editingPekerja.rowNum}</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setEditingPekerja(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Tutup Modal Edit"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1033,18 +1067,18 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditingPekerja(null)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  className="min-h-[44px] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-sm"
+                  className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm cursor-pointer"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
@@ -1056,18 +1090,20 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
 
       {/* Modal Mutasi Pekerja - Always Centered */}
       {mutasiTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/75 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Mutasi / Rotasi: {mutasiTarget.nama}</h3>
                 <p className="text-[11px] text-slate-400">Efektif hari ini &rarr; langsung diterapkan; Masa depan &rarr; terjadwal</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setMutasiTarget(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Tutup Modal Mutasi"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1174,18 +1210,18 @@ export const TabDatabasePekerja: React.FC<TabDatabasePekerjaProps> = ({
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setMutasiTarget(null)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                  className="min-h-[44px] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-sm"
+                  className="min-h-[44px] px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm cursor-pointer"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan Mutasi'}
                 </button>

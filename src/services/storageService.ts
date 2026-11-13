@@ -42,11 +42,24 @@ const KEYS = {
   SIDEBAR_COLLAPSED: 'bk_pp1_sidebar_collapsed'
 };
 
+const storageMemoryCache = new Map<string, unknown>();
+const storageRawCache = new Map<string, string | null>();
+
 function getFromStorage<T>(key: string, fallback: T): T {
   try {
     const item = localStorage.getItem(key);
-    if (!item) return fallback;
-    return JSON.parse(item) as T;
+    if (storageRawCache.has(key) && storageRawCache.get(key) === item) {
+      return storageMemoryCache.get(key) as T;
+    }
+    if (!item) {
+      storageRawCache.set(key, null);
+      storageMemoryCache.set(key, fallback);
+      return fallback;
+    }
+    const parsed = JSON.parse(item) as T;
+    storageRawCache.set(key, item);
+    storageMemoryCache.set(key, parsed);
+    return parsed;
   } catch (e) {
     console.warn(`Error reading key ${key} from localStorage, using fallback:`, e);
     return fallback;
@@ -55,7 +68,10 @@ function getFromStorage<T>(key: string, fallback: T): T {
 
 function saveToStorage<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(key, serialized);
+    storageRawCache.set(key, serialized);
+    storageMemoryCache.set(key, data);
   } catch (e) {
     console.error(`Error saving key ${key} to localStorage:`, e);
   }
@@ -115,6 +131,8 @@ export const storageService = {
   // Reset to Factory Default
   resetAllData: () => {
     Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+    storageMemoryCache.clear();
+    storageRawCache.clear();
   },
 
   // Export full JSON backup

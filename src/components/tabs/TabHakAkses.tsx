@@ -1949,8 +1949,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
       {/* MODAL TAMBAH / EDIT AKUN INTERNAL - Always Centered */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 lg:backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-5 sm:p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90dvh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
@@ -2260,8 +2260,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
       {/* MODAL TAMBAH PERAN BARU - Always Centered */}
       {isAddRoleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 lg:backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-5 sm:p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90dvh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2545,8 +2545,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
       {/* MODAL EDIT DEFINISI PERAN - Always Centered */}
       {isEditRoleModalOpen && editingRole && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90vh] overflow-y-auto border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 lg:backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto w-full max-w-xl rounded-2xl bg-white p-5 sm:p-6 shadow-2xl text-slate-800 space-y-4 max-h-[90dvh] overflow-y-auto border border-slate-200">
             
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2840,8 +2840,8 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
 
       {/* MODAL PANDUAN INTEGRASI GOOGLE SHEET & CODE.GS - Always Centered */}
       {isShowGasGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden text-slate-800">
             
             {/* Modal Header */}
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">

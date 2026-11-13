@@ -17,6 +17,7 @@ import { INITIAL_PRESENSI_FALLBACK } from '../../data/initialPresensi';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
 import { getNormalizedPermitMinutes } from '../../utils/workHoursUtils';
 import { formatIndoDateLong } from '../../utils/dateUtils';
+import { TablePagination } from '../common/TablePagination';
 
 interface TabRekapPresensiProps {
   pekerjaList: PekerjaData[];
@@ -38,6 +39,8 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
   const [bulanAwal, setBulanAwal] = useState('1');
   const [bulanAkhir, setBulanAkhir] = useState('12');
   const [sortBy, setSortBy] = useState<'default' | 'totalIjin' | 'kehadiran' | 'nama'>('default');
+  const [rekapPage, setRekapPage] = useState(1);
+  const [rekapPageSize, setRekapPageSize] = useState(25);
 
   const filteredPekerja = useMemo(() => {
     return pekerjaList.filter(p => {
@@ -921,8 +924,10 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {rekapRows.map((r, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
+              {rekapRows
+                .slice((rekapPage - 1) * rekapPageSize, rekapPage * rekapPageSize)
+                .map((r, idx) => (
+                <tr key={`${r.id}-${idx}`} className="hover:bg-slate-50">
                   <td className="py-2 px-3 font-bold text-slate-900">{r.nama}</td>
                   <td className="py-2 px-3 text-slate-500 text-[11px]">{r.unit} • {r.sekup}</td>
                   {r.bulanan.map((m, mIdx) => (
@@ -949,6 +954,16 @@ export const TabRekapPresensi: React.FC<TabRekapPresensiProps> = ({
             </tbody>
           </table>
         </div>
+        <TablePagination
+          totalItems={rekapRows.length}
+          currentPage={Math.min(rekapPage, Math.max(1, Math.ceil(rekapRows.length / rekapPageSize)))}
+          pageSize={rekapPageSize}
+          onPageChange={setRekapPage}
+          onPageSizeChange={(size) => {
+            setRekapPageSize(size);
+            setRekapPage(1);
+          }}
+        />
       </div>
 
     </div>

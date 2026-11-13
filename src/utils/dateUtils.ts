@@ -32,6 +32,30 @@ const timeIdSingleton = new Intl.DateTimeFormat('id-ID', {
   hour12: false
 });
 
+const numberIdSingleton = new Intl.NumberFormat('id-ID');
+const numberDecimalIdSingleton = new Intl.NumberFormat('id-ID', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+export function formatNumberId(value: number): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+  return numberIdSingleton.format(num);
+}
+
+export function formatRupiah(value: number): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 'Rp 0';
+  return `Rp ${numberIdSingleton.format(Math.round(num))}`;
+}
+
+export function formatRupiahDecimal(value: number): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 'Rp 0,00';
+  return `Rp ${numberDecimalIdSingleton.format(num)}`;
+}
+
 export interface WibDateParts {
   year: number;
   month: number; // 1-12

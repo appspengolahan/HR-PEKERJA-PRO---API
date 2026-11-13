@@ -23,8 +23,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative m-auto w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-800">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="relative m-auto w-full max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 text-slate-800">
         
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
@@ -55,14 +55,14 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+              className="px-4 py-2.5 min-h-[44px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
             >
               Batal
             </button>
             <button
               type="button"
               onClick={onConfirm}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm ${
+              className={`px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-colors shadow-sm ${
                 isDanger
                   ? 'bg-red-600 hover:bg-red-700 text-white'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'

@@ -241,11 +241,11 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
               <Database className="w-5 h-5" />
@@ -264,7 +264,8 @@ export const GasCenterModal: React.FC<GasCenterModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-11 h-11 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
+            aria-label="Tutup modal"
           >
             <X className="w-4 h-4" />
           </button>

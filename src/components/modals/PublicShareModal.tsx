@@ -40,8 +40,8 @@ export const PublicShareModal: React.FC<PublicShareModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
-      <div className="relative m-auto w-full max-w-lg rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200 text-slate-800 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+      <div className="relative m-auto w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200 text-slate-800 space-y-4">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -60,7 +60,8 @@ export const PublicShareModal: React.FC<PublicShareModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors"
+            className="w-11 h-11 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors flex-shrink-0"
+            aria-label="Tutup modal"
           >
             <X className="w-4 h-4" />
           </button>

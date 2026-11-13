@@ -226,7 +226,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100">
+    <div className="min-h-[100dvh] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-100">
       
       {/* Background Decor */}
       <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-10 pointer-events-none" />
@@ -256,7 +256,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         </div>
 
         {/* Card Box */}
-        <div className="bg-slate-900/90 backdrop-blur-md rounded-3xl border border-slate-800 shadow-2xl p-6 sm:p-7 space-y-6">
+        <div className="bg-slate-900 lg:bg-slate-900/90 lg:backdrop-blur-md rounded-3xl border border-slate-800 shadow-2xl p-5 sm:p-7 space-y-6">
           
           {/* Two Gates Tab Switcher */}
           <div className="grid grid-cols-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs font-bold">
@@ -267,7 +267,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 setInternalError('');
                 setPekerjaError('');
               }}
-              className={`py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 ${
+              className={`min-h-[44px] py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'internal'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200'

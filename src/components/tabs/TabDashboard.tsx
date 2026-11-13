@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Users, 
   ShieldCheck, 
@@ -21,7 +21,7 @@ import { PekerjaData, MainTabType, PresensiIjinRecord } from '../../types';
 import { getPKWTStatusInfo } from '../../utils/pkwtUtils';
 import { gasClient } from '../../services/gasClient';
 import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
-import { getWibDateParts, formatWibTime } from '../../utils/dateUtils';
+import { getWibDateParts, formatWibTime, formatRupiah, formatRupiahDecimal, parseDateToMetaFast } from '../../utils/dateUtils';
 
 interface TabDashboardProps {
   pekerjaList: PekerjaData[];
@@ -45,42 +45,72 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
+  const inFlightKeyRef = useRef<string | null>(null);
 
   // Cek apakah peran akun ini diizinkan melihat Ringkasan Beban Upah Harian Periode Ini
   const userRole = currentUser?.role || 'Super Admin';
   const showWageSummary = authService.canRoleViewWageSummary(userRole);
 
-  const filteredPekerja = pekerjaList.filter(p => {
-    return isWorkerInUserScope(p, currentUser || null, currentScope);
-  });
+  const filteredPekerja = useMemo(() => {
+    return pekerjaList.filter(p => isWorkerInUserScope(p, currentUser || null, currentScope));
+  }, [pekerjaList, currentUser, currentScope]);
 
-  // Sinkronisasi status PKWT dengan tanggal akhir nyata
-  const enrichedPekerja = filteredPekerja.map(p => ({
-    ...p,
-    pkwtInfo: getPKWTStatusInfo(p.status, p.akhirPKWT)
-  }));
+  // Sinkronisasi status PKWT dengan tanggal akhir nyata (pakai memo + cache)
+  const enrichedPekerja = useMemo(() => {
+    return filteredPekerja.map(p => ({
+      ...p,
+      pkwtInfo: getPKWTStatusInfo(p.status, p.akhirPKWT)
+    }));
+  }, [filteredPekerja]);
 
-  const totalPekerja = enrichedPekerja.length;
-  const tetapCount = enrichedPekerja.filter(p => p.status === 'TETAP').length;
-  const pkwtCount = totalPekerja - tetapCount;
-  
-  // 1. Segera Berakhir (0 <= sisaHari <= 26)
-  const segeraBerakhirAlerts = enrichedPekerja.filter(p => p.pkwtInfo.isUrgent);
-  
-  // 2. Sudah Berakhir / Kadaluarsa (sisaHari < 0 dan bukan TETAP)
-  const expiredAlerts = enrichedPekerja.filter(p => p.pkwtInfo.isExpired);
+  const { totalPekerja, tetapCount, pkwtCount, segeraBerakhirAlerts, expiredAlerts } = useMemo(() => {
+    let tetap = 0;
+    const segera: typeof enrichedPekerja = [];
+    const expired: typeof enrichedPekerja = [];
+    for (const p of enrichedPekerja) {
+      if (p.status === 'TETAP') tetap++;
+      if (p.pkwtInfo.isUrgent) segera.push(p);
+      if (p.pkwtInfo.isExpired) expired.push(p);
+    }
+    return {
+      totalPekerja: enrichedPekerja.length,
+      tetapCount: tetap,
+      pkwtCount: enrichedPekerja.length - tetap,
+      segeraBerakhirAlerts: segera,
+      expiredAlerts: expired
+    };
+  }, [enrichedPekerja]);
 
-  // Map upah harian pekerja
-  const workerWageMap = new Map<string, number>();
-  filteredPekerja.forEach(p => {
-    workerWageMap.set(p.nama.trim().toUpperCase(), Number(p.upahHarian) || 146675.96);
-  });
+  // Map upah harian & set nama pekerja yang diizinkan untuk isolasi perhitungan dashboard
+  const { workerWageMap, allowedWorkerNames, totalKetentuan } = useMemo(() => {
+    const wageMap = new Map<string, number>();
+    const names = new Set<string>();
+    const HARI_KERJA_TERSEDIA = 26;
+    let ketentuan = 0;
+    for (const p of filteredPekerja) {
+      const upper = p.nama.trim().toUpperCase();
+      wageMap.set(upper, Number(p.upahHarian) || 146675.96);
+      names.add(upper);
+      ketentuan += p.upahHarian * HARI_KERJA_TERSEDIA;
+    }
+    return { workerWageMap: wageMap, allowedWorkerNames: names, totalKetentuan: ketentuan };
+  }, [filteredPekerja]);
 
-  // Set nama pekerja yang diizinkan untuk isolasi perhitungan dashboard
-  const allowedWorkerNames = new Set(filteredPekerja.map(p => p.nama.trim().toUpperCase()));
+  // Filter presensi lokal berdasarkan bulan & tahun terpilih agar mount tidak selalu menembak GAS berulang
+  const localMatchingPresensi = useMemo(() => {
+    const bNum = Number(selectedBulan);
+    const tNum = Number(selectedTahun);
+    return presensiList.filter(r => {
+      const meta = parseDateToMetaFast(r.tanggal);
+      return meta && meta.month === bNum && meta.year === tNum;
+    });
+  }, [presensiList, selectedBulan, selectedTahun]);
 
-  // Fungsi memuat data ringkasan asli dari Google Sheets
-  const loadRingkasanData = useCallback(async (b = selectedBulan, t = selectedTahun) => {
+  // Fungsi memuat data ringkasan asli dari Google Sheets (dengan guard anti request menumpuk)
+  const loadRingkasanData = useCallback(async (b = selectedBulan, t = selectedTahun, force = false) => {
+    const key = `${b}-${t}-${currentScope}`;
+    if (!force && inFlightKeyRef.current === key) return;
+    inFlightKeyRef.current = key;
     setIsLoadingSummary(true);
     try {
       const res = await gasClient.getPresensi(b, t, '', currentScope);
@@ -91,60 +121,82 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     } catch (err) {
       console.error('Gagal mengambil data ringkasan:', err);
     } finally {
+      if (inFlightKeyRef.current === key) {
+        inFlightKeyRef.current = null;
+      }
       setIsLoadingSummary(false);
     }
   }, [selectedBulan, selectedTahun, currentScope]);
 
-  // Load awal saat komponen aktif
+  // Sinkronkan dari prop presensiList jika sudah tersedia untuk periode aktif; hanya fetch otomatis jika belum ada data lokal
   useEffect(() => {
-    loadRingkasanData(selectedBulan, selectedTahun);
-  }, [loadRingkasanData]);
+    if (localMatchingPresensi.length > 0) {
+      setSummaryPresensi(localMatchingPresensi);
+      return;
+    }
+    if (presensiList.length === 0) {
+      loadRingkasanData(selectedBulan, selectedTahun);
+    } else {
+      setSummaryPresensi([]);
+    }
+  }, [localMatchingPresensi, presensiList.length, loadRingkasanData, selectedBulan, selectedTahun]);
 
-  // Filter presensi yang menyebabkan potongan upah (faktorPotongan > 0) dan di dalam lingkup pekerja peran ini
-  const deductionRecords = summaryPresensi.filter(r => {
-    const f = Number(r.faktorPotongan);
-    const isAllowed = allowedWorkerNames.has((r.nama || '').trim().toUpperCase());
-    return !isNaN(f) && f > 0 && isAllowed;
-  });
-
-  let totalPotonganNominal = 0;
-  let totalHariPotong = 0;
-  const deductionDetailList: Array<{
-    tanggal: string;
-    nama: string;
-    unit: string;
-    sekup: string;
-    jenisIjin: string;
-    keperluan: string;
-    upahHarian: number;
-    faktor: number;
-    subtotal: number;
-  }> = [];
-
-  deductionRecords.forEach(r => {
-    const f = Number(r.faktorPotongan) || 0;
-    const upah = workerWageMap.get(r.nama.trim().toUpperCase()) || 146263.92;
-    const sub = upah * f;
-    totalPotonganNominal += sub;
-    totalHariPotong += f;
-
-    deductionDetailList.push({
-      tanggal: r.tanggal,
-      nama: r.nama,
-      unit: r.unit,
-      sekup: r.sekup,
-      jenisIjin: r.jenisIjin,
-      keperluan: r.keperluan,
-      upahHarian: upah,
-      faktor: f,
-      subtotal: sub
+  // Hitung potongan upah secara memoized
+  const {
+    deductionRecords,
+    deductionDetailList,
+    totalPotonganNominal,
+    totalHariPotong,
+    totalSetelahPotongan
+  } = useMemo(() => {
+    const records = summaryPresensi.filter(r => {
+      const f = Number(r.faktorPotongan);
+      const isAllowed = allowedWorkerNames.has((r.nama || '').trim().toUpperCase());
+      return !isNaN(f) && f > 0 && isAllowed;
     });
-  });
 
-  // Total Beban Upah calculation (Standard 26 hari kerja/bulan)
-  const HARI_KERJA_TERSEDIA = 26;
-  const totalKetentuan = filteredPekerja.reduce((acc, p) => acc + (p.upahHarian * HARI_KERJA_TERSEDIA), 0);
-  const totalSetelahPotongan = totalKetentuan - totalPotonganNominal;
+    let nominal = 0;
+    let hari = 0;
+    const details: Array<{
+      tanggal: string;
+      nama: string;
+      unit: string;
+      sekup: string;
+      jenisIjin: string;
+      keperluan: string;
+      upahHarian: number;
+      faktor: number;
+      subtotal: number;
+    }> = [];
+
+    for (const r of records) {
+      const f = Number(r.faktorPotongan) || 0;
+      const upah = workerWageMap.get(r.nama.trim().toUpperCase()) || 146263.92;
+      const sub = upah * f;
+      nominal += sub;
+      hari += f;
+
+      details.push({
+        tanggal: r.tanggal,
+        nama: r.nama,
+        unit: r.unit,
+        sekup: r.sekup,
+        jenisIjin: r.jenisIjin,
+        keperluan: r.keperluan,
+        upahHarian: upah,
+        faktor: f,
+        subtotal: sub
+      });
+    }
+
+    return {
+      deductionRecords: records,
+      deductionDetailList: details,
+      totalPotonganNominal: nominal,
+      totalHariPotong: hari,
+      totalSetelahPotongan: totalKetentuan - nominal
+    };
+  }, [summaryPresensi, allowedWorkerNames, workerWageMap, totalKetentuan]);
 
   const bulanOptions = [
     { val: '1', label: 'Januari' }, { val: '2', label: 'Februari' }, { val: '3', label: 'Maret' },
@@ -175,17 +227,17 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onNavigateTab('presensi')}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+            className="px-3.5 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
           >
             <CalendarCheck className="w-4 h-4" />
             + Catat Ijin
           </button>
           <button
             onClick={() => window.print()}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
+            className="px-3.5 py-2.5 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5"
           >
             <Printer className="w-4 h-4" />
             Cetak Ringkasan
@@ -405,9 +457,9 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
                 onChange={(e) => {
                   const b = e.target.value;
                   setSelectedBulan(b);
-                  loadRingkasanData(b, selectedTahun);
+                  loadRingkasanData(b, selectedTahun, true);
                 }}
-                className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
+                className="px-2.5 py-2 min-h-[44px] rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
               >
                 {bulanOptions.map(b => (
                   <option key={b.val} value={b.val}>{b.label}</option>
@@ -419,9 +471,9 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
                 onChange={(e) => {
                   const t = e.target.value;
                   setSelectedTahun(t);
-                  loadRingkasanData(selectedBulan, t);
+                  loadRingkasanData(selectedBulan, t, true);
                 }}
-                className="px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
+                className="px-2.5 py-2 min-h-[44px] rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-800 focus:outline-none"
               >
                 <option value="2025">2025</option>
                 <option value="2026">2026</option>
@@ -430,9 +482,9 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
 
               {/* TOMBOL MEMUAT DATA RINGKASAN */}
               <button
-                onClick={() => loadRingkasanData(selectedBulan, selectedTahun)}
+                onClick={() => loadRingkasanData(selectedBulan, selectedTahun, true)}
                 disabled={isLoadingSummary}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                className="px-3.5 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
                 title="Tarik &amp; hitung ulang data presensi dari Google Sheets asli"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSummary ? 'animate-spin' : ''}`} />
@@ -445,8 +497,8 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <span className="text-xs font-bold text-slate-500 block mb-1">Ketentuan Upah Standar</span>
-              <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
-                Rp {totalKetentuan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono tracking-tight">
+                {formatRupiahDecimal(totalKetentuan)}
               </div>
               <span className="text-[11px] text-slate-400 mt-0.5 block">
                 {totalPekerja} pekerja &times; 26 hari kerja ({namaBulanTerpilih} {selectedTahun})
@@ -460,8 +512,8 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
                   {totalHariPotong} Hari Terpotong
                 </span>
               </div>
-              <div className="text-2xl font-black text-red-700 font-mono tracking-tight">
-                - Rp {totalPotonganNominal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="text-xl sm:text-2xl font-black text-red-700 font-mono tracking-tight">
+                - {formatRupiahDecimal(totalPotonganNominal)}
               </div>
               <span className="text-[11px] text-red-600 mt-0.5 block">
                 Berdasarkan {deductionRecords.length} entri potongan ijin di spreadsheet
@@ -470,8 +522,8 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
 
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
               <span className="text-xs font-bold text-emerald-800 block mb-1">Total Estimasi Dibayarkan</span>
-              <div className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
-                Rp {totalSetelahPotongan.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono tracking-tight">
+                {formatRupiahDecimal(totalSetelahPotongan)}
               </div>
               <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">
                 Belum termasuk tambahan lembur
@@ -493,7 +545,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
 
             <button
               onClick={() => setIsBreakdownOpen(!isBreakdownOpen)}
-              className="font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1 transition-colors self-start sm:self-auto"
+              className="font-bold text-blue-700 hover:text-blue-800 flex items-center gap-1 min-h-[44px] py-2 transition-colors self-start sm:self-auto"
             >
               <Receipt className="w-3.5 h-3.5" />
               <span>{isBreakdownOpen ? 'Tutup Rincian Potongan' : `Lihat Rincian Potongan (${totalHariPotong} Hari)`}</span>
@@ -544,10 +596,10 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
                             </span>
                           </td>
                           <td className="p-2 text-slate-500 italic max-w-[150px] truncate">{item.keperluan}</td>
-                          <td className="p-2 text-right font-mono">Rp {Math.round(item.upahHarian).toLocaleString('id-ID')}</td>
+                          <td className="p-2 text-right font-mono">{formatRupiah(item.upahHarian)}</td>
                           <td className="p-2 text-center font-mono font-bold">{item.faktor}</td>
                           <td className="p-2 text-right font-mono font-bold text-red-600">
-                            - Rp {Math.round(item.subtotal).toLocaleString('id-ID')}
+                            - {formatRupiah(item.subtotal)}
                           </td>
                         </tr>
                       ))}
@@ -557,7 +609,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
                         <td colSpan={6} className="p-2 text-right">Total Keseluruhan Potongan:</td>
                         <td className="p-2 text-center font-mono">{totalHariPotong} Hari</td>
                         <td className="p-2 text-right font-mono text-red-700">
-                          - Rp {Math.round(totalPotonganNominal).toLocaleString('id-ID')}
+                          - {formatRupiah(totalPotonganNominal)}
                         </td>
                       </tr>
                     </tfoot>

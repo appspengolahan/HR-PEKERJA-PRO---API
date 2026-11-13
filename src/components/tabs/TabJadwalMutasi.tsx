@@ -317,16 +317,17 @@ export const TabJadwalMutasi: React.FC<TabJadwalMutasiProps> = ({
 
       {/* Edit Mutasi Modal - Always Centered */}
       {editingMutasi && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden text-xs">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90dvh] overflow-y-auto text-xs">
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold">Edit Mutasi: {editingMutasi.nama}</h3>
                 <p className="text-[11px] text-slate-400">Jenis: {editingMutasi.jenisMutasi}</p>
               </div>
               <button 
                 onClick={() => setEditingMutasi(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer flex-shrink-0"
+                aria-label="Tutup modal"
               >
                 <X className="w-4 h-4" />
               </button>

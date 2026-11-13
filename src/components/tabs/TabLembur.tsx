@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Clock, 
   Plus, 
@@ -8,12 +8,14 @@ import {
   Filter, 
   CheckSquare, 
   Square,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
 import { LemburRecord, PekerjaData } from '../../types';
 import { exportLemburToCSV } from '../../utils/exportUtils';
-import { Download } from 'lucide-react';
 import { AuthUser, isWorkerInUserScope } from '../../services/authService';
+import { formatRupiah } from '../../utils/dateUtils';
+import { TablePagination } from '../common/TablePagination';
 
 interface TabLemburProps {
   lemburList: LemburRecord[];
@@ -59,18 +61,24 @@ export const TabLembur: React.FC<TabLemburProps> = ({
   const [rekapUnit, setRekapUnit] = useState('Semua');
   const [rekapSekup, setRekapSekup] = useState('Semua');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Filter workers available according to role authorization and current scope
-  const availableWorkers = pekerjaList.filter(p => {
-    return isWorkerInUserScope(p, currentUser || null, currentScope);
-  });
+  const availableWorkers = useMemo(() => {
+    return pekerjaList.filter(p => isWorkerInUserScope(p, currentUser || null, currentScope));
+  }, [pekerjaList, currentUser, currentScope]);
 
   // Filtered workers for display in the checklist
-  const displayedWorkers = availableWorkers.filter(p => {
-    const matchUnit = filterUnit === 'Semua' || p.unit === filterUnit;
-    const matchSekup = filterSekup === 'Semua' || p.sekup === filterSekup;
-    const matchSearch = !searchName || p.nama.toLowerCase().includes(searchName.toLowerCase());
-    return matchUnit && matchSekup && matchSearch;
-  });
+  const displayedWorkers = useMemo(() => {
+    const q = searchName.trim().toLowerCase();
+    return availableWorkers.filter(p => {
+      const matchUnit = filterUnit === 'Semua' || p.unit === filterUnit;
+      const matchSekup = filterSekup === 'Semua' || p.sekup === filterSekup;
+      const matchSearch = !q || p.nama.toLowerCase().includes(q);
+      return matchUnit && matchSekup && matchSearch;
+    });
+  }, [availableWorkers, filterUnit, filterSekup, searchName]);
 
   const toggleCheck = (nama: string) => {
     setCheckedSet(prev => {
@@ -125,10 +133,22 @@ export const TabLembur: React.FC<TabLemburProps> = ({
   };
 
   const handleApplyRekapFilter = () => {
+    setCurrentPage(1);
     onFilterRekap(rekapTglAwal, rekapTglAkhir, rekapUnit, rekapSekup);
   };
 
-  const totalNominal = lemburList.reduce((acc, c) => acc + (Number(c.nominal) || 0), 0);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [lemburList.length, currentScope]);
+
+  const totalNominal = useMemo(() => {
+    return lemburList.reduce((acc, c) => acc + (Number(c.nominal) || 0), 0);
+  }, [lemburList]);
+
+  const paginatedLembur = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return lemburList.slice(start, start + pageSize);
+  }, [lemburList, currentPage, pageSize]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -263,10 +283,11 @@ export const TabLembur: React.FC<TabLemburProps> = ({
               {displayedWorkers.map(p => {
                 const isChecked = checkedSet.has(p.nama);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={p.id}
                     onClick={() => toggleCheck(p.nama)}
-                    className={`p-2 rounded-lg border flex items-center gap-2 cursor-pointer transition-colors ${
+                    className={`min-h-[44px] w-full p-2.5 rounded-lg border flex items-center gap-2 cursor-pointer transition-colors text-left ${
                       isChecked 
                         ? 'bg-blue-50 border-blue-400 text-blue-900 font-semibold' 
                         : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
@@ -281,7 +302,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
                     <span className="text-[10px] text-slate-400 font-mono ml-auto flex-shrink-0">
                       {p.unit.slice(0, 3)}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -292,7 +313,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || checkedSet.size === 0}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+              className="min-h-[44px] px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               {isSubmitting ? 'Menyimpan...' : `Simpan Lembur (${checkedSet.size} Pekerja)`}
@@ -315,7 +336,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => exportLemburToCSV(lemburList)}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200"
+              className="min-h-[44px] px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 cursor-pointer"
               title="Unduh riwayat lembur ke CSV"
             >
               <Download className="w-3.5 h-3.5" />
@@ -323,7 +344,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
             </button>
             <button
               onClick={() => window.print()}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200"
+              className="min-h-[44px] px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               Cetak Rekap
@@ -380,7 +401,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
             <button
               onClick={handleApplyRekapFilter}
               disabled={isLoading}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5"
+              className="w-full min-h-[44px] py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Search className="w-4 h-4" />
               {isLoading ? 'Memuat...' : 'Tampilkan'}
@@ -389,7 +410,7 @@ export const TabLembur: React.FC<TabLemburProps> = ({
         </div>
 
         {/* Summary Card */}
-        <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
           <div>
             <span className="text-[11px] font-bold text-slate-500 uppercase">Jumlah Kejadian Lembur:</span>
             <div className="text-xl font-black text-slate-900 font-mono">{lemburList.length} Entri</div>
@@ -397,13 +418,13 @@ export const TabLembur: React.FC<TabLemburProps> = ({
           <div>
             <span className="text-[11px] font-bold text-slate-500 uppercase">Total Akumulasi Nominal:</span>
             <div className="text-xl font-black text-emerald-700 font-mono">
-              Rp {totalNominal.toLocaleString('id-ID')}
+              {formatRupiah(totalNominal)}
             </div>
           </div>
         </div>
 
         {/* Lembur Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <tr>
@@ -417,14 +438,14 @@ export const TabLembur: React.FC<TabLemburProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {lemburList.length === 0 ? (
+              {paginatedLembur.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-6 text-center text-slate-400 italic">
                     Belum ada riwayat lembur pada filter yang dipilih.
                   </td>
                 </tr>
               ) : (
-                lemburList.map(r => (
+                paginatedLembur.map(r => (
                   <tr key={r.rowNum} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-mono font-medium whitespace-nowrap">{r.tanggal}</td>
                     <td className="py-2.5 px-3 font-bold text-slate-900">{r.nama}</td>
@@ -433,13 +454,24 @@ export const TabLembur: React.FC<TabLemburProps> = ({
                     <td className="py-2.5 px-3 text-center font-mono text-[11px]">{r.jamMulai} - {r.jamSelesai}</td>
                     <td className="py-2.5 px-3 text-center font-bold font-mono">{r.jmlJam} Jam</td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
-                      Rp {(Number(r.nominal) || 0).toLocaleString('id-ID')}
+                      {formatRupiah(Number(r.nominal) || 0)}
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          <TablePagination
+            totalItems={lemburList.length}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            itemLabel="entri lembur"
+          />
         </div>
 
       </div>

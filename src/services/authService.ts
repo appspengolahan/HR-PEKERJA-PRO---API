@@ -416,12 +416,28 @@ const WAGE_SUMMARY_CONFIG_STORAGE_KEY = 'bk_pp1_wage_summary_visibility_per_role
 const DELETED_ACCOUNTS_STORAGE_KEY = 'bk_pp1_deleted_accounts';
 const DELETED_ROLES_STORAGE_KEY = 'bk_pp1_deleted_roles';
 
+const authMemoryCache: {
+  deletedAccounts?: { raw: string | null; value: string[] };
+  deletedRoles?: { raw: string | null; value: string[] };
+  roleDefinitions?: { key: string; value: RoleDefinition[] };
+  wageSummaryConfig?: { raw: string | null; value: WageSummaryRoleConfig };
+  internalAccounts?: { key: string; value: InternalAccount[] };
+  currentUser?: { raw: string | null; value: AuthUser | null };
+  roleMatrix?: { raw: string | null; value: RoleMatrix };
+} = {};
+
 export const authService = {
   // Mendapatkan daftar email akun yang telah dihapus sengaja oleh pengguna
   getDeletedAccountEmails: (): string[] => {
     try {
       const raw = localStorage.getItem(DELETED_ACCOUNTS_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      if (authMemoryCache.deletedAccounts && authMemoryCache.deletedAccounts.raw === raw) {
+        return authMemoryCache.deletedAccounts.value;
+      }
+      const parsed = raw ? JSON.parse(raw) : [];
+      const value = Array.isArray(parsed) ? parsed : [];
+      authMemoryCache.deletedAccounts = { raw, value };
+      return value;
     } catch {
       return [];
     }
@@ -429,11 +445,14 @@ export const authService = {
 
   // Tandai email akun sebagai dihapus agar tidak muncul kembali saat refresh atau sinkronisasi
   addDeletedAccountEmail: (email: string): void => {
-    const list = authService.getDeletedAccountEmails();
+    const list = [...authService.getDeletedAccountEmails()];
     const clean = (email || '').toLowerCase().trim();
     if (clean && !list.includes(clean)) {
       list.push(clean);
-      localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, JSON.stringify(list));
+      const raw = JSON.stringify(list);
+      localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, raw);
+      authMemoryCache.deletedAccounts = { raw, value: list };
+      authMemoryCache.internalAccounts = undefined;
     }
   },
 
@@ -441,14 +460,23 @@ export const authService = {
   removeDeletedAccountEmail: (email: string): void => {
     const clean = (email || '').toLowerCase().trim();
     const list = authService.getDeletedAccountEmails().filter(e => e !== clean);
-    localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, JSON.stringify(list));
+    const raw = JSON.stringify(list);
+    localStorage.setItem(DELETED_ACCOUNTS_STORAGE_KEY, raw);
+    authMemoryCache.deletedAccounts = { raw, value: list };
+    authMemoryCache.internalAccounts = undefined;
   },
 
   // Mendapatkan daftar peran yang telah dihapus
   getDeletedRoles: (): string[] => {
     try {
       const raw = localStorage.getItem(DELETED_ROLES_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      if (authMemoryCache.deletedRoles && authMemoryCache.deletedRoles.raw === raw) {
+        return authMemoryCache.deletedRoles.value;
+      }
+      const parsed = raw ? JSON.parse(raw) : [];
+      const value = Array.isArray(parsed) ? parsed : [];
+      authMemoryCache.deletedRoles = { raw, value };
+      return value;
     } catch {
       return [];
     }
@@ -456,40 +484,57 @@ export const authService = {
 
   // Tandai peran sebagai dihapus
   addDeletedRole: (role: string): void => {
-    const list = authService.getDeletedRoles();
+    const list = [...authService.getDeletedRoles()];
     const clean = (role || '').trim();
     if (clean && !list.includes(clean)) {
       list.push(clean);
-      localStorage.setItem(DELETED_ROLES_STORAGE_KEY, JSON.stringify(list));
+      const raw = JSON.stringify(list);
+      localStorage.setItem(DELETED_ROLES_STORAGE_KEY, raw);
+      authMemoryCache.deletedRoles = { raw, value: list };
+      authMemoryCache.roleDefinitions = undefined;
     }
   },
 
   // Mendapatkan daftar peran terdaftar (bawaan + peran baru, minus peran yang telah dihapus)
   getRoleDefinitions: (): RoleDefinition[] => {
+    const rawDefs = localStorage.getItem(ROLE_DEFINITIONS_STORAGE_KEY);
+    const rawDeleted = localStorage.getItem(DELETED_ROLES_STORAGE_KEY);
+    const cacheKey = `${rawDefs || ''}|${rawDeleted || ''}`;
+    if (authMemoryCache.roleDefinitions && authMemoryCache.roleDefinitions.key === cacheKey) {
+      return authMemoryCache.roleDefinitions.value;
+    }
+
     const deletedRoles = authService.getDeletedRoles();
+    let result: RoleDefinition[] | null = null;
     try {
-      const raw = localStorage.getItem(ROLE_DEFINITIONS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
+      if (rawDefs) {
+        const parsed = JSON.parse(rawDefs);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return (parsed as RoleDefinition[]).filter(r => !deletedRoles.includes(r.role));
+          result = (parsed as RoleDefinition[]).filter(r => !deletedRoles.includes(r.role));
         }
       }
     } catch {
       // fallback
     }
-    return DEFAULT_ROLE_DEFINITIONS.filter(r => !deletedRoles.includes(r.role));
+    if (!result) {
+      result = DEFAULT_ROLE_DEFINITIONS.filter(r => !deletedRoles.includes(r.role));
+    }
+    authMemoryCache.roleDefinitions = { key: cacheKey, value: result };
+    return result;
   },
 
   // Menyimpan daftar definisi peran
   saveRoleDefinitions: (definitions: RoleDefinition[]): void => {
     localStorage.setItem(ROLE_DEFINITIONS_STORAGE_KEY, JSON.stringify(definitions));
+    authMemoryCache.roleDefinitions = undefined;
   },
 
   // Reset daftar peran ke bawaan
   resetRoleDefinitions: (): RoleDefinition[] => {
     localStorage.removeItem(ROLE_DEFINITIONS_STORAGE_KEY);
     localStorage.removeItem(DELETED_ROLES_STORAGE_KEY);
+    authMemoryCache.deletedRoles = undefined;
+    authMemoryCache.roleDefinitions = undefined;
     return DEFAULT_ROLE_DEFINITIONS;
   },
 
@@ -497,12 +542,18 @@ export const authService = {
   getWageSummaryConfig: (): WageSummaryRoleConfig => {
     try {
       const raw = localStorage.getItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY);
+      if (authMemoryCache.wageSummaryConfig && authMemoryCache.wageSummaryConfig.raw === raw) {
+        return authMemoryCache.wageSummaryConfig.value;
+      }
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          return { ...DEFAULT_WAGE_SUMMARY_CONFIG, ...parsed };
+          const val = { ...DEFAULT_WAGE_SUMMARY_CONFIG, ...parsed };
+          authMemoryCache.wageSummaryConfig = { raw, value: val };
+          return val;
         }
       }
+      authMemoryCache.wageSummaryConfig = { raw, value: DEFAULT_WAGE_SUMMARY_CONFIG };
     } catch {
       // fallback
     }
@@ -511,7 +562,9 @@ export const authService = {
 
   // Menyimpan konfigurasi visibilitas Ringkasan Beban Upah per peran
   saveWageSummaryConfig: (config: WageSummaryRoleConfig): void => {
-    localStorage.setItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY, JSON.stringify(config));
+    const raw = JSON.stringify(config);
+    localStorage.setItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY, raw);
+    authMemoryCache.wageSummaryConfig = { raw, value: { ...DEFAULT_WAGE_SUMMARY_CONFIG, ...config } };
   },
 
   // Memeriksa apakah suatu peran berhak melihat Ringkasan Beban Upah
@@ -526,11 +579,18 @@ export const authService = {
 
   // Mendapatkan daftar akun internal (dari localStorage jika ada, mengabaikan akun yang telah dihapus)
   getInternalAccounts: (): InternalAccount[] => {
+    const rawAccs = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+    const rawDeleted = localStorage.getItem(DELETED_ACCOUNTS_STORAGE_KEY);
+    const cacheKey = `${rawAccs || ''}|${rawDeleted || ''}`;
+    if (authMemoryCache.internalAccounts && authMemoryCache.internalAccounts.key === cacheKey) {
+      return authMemoryCache.internalAccounts.value;
+    }
+
     const deletedEmails = authService.getDeletedAccountEmails();
+    let result: InternalAccount[] | null = null;
     try {
-      const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
+      if (rawAccs) {
+        const parsed = JSON.parse(rawAccs);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Filter akun yang telah dihapus
           const filtered = (parsed as InternalAccount[]).filter(
@@ -543,46 +603,65 @@ export const authService = {
             const defaultDev = WHITELIST_INTERNAL.find(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
             if (defaultDev) filtered.unshift(defaultDev);
           }
-          return filtered;
+          result = filtered;
         }
       }
     } catch {
       // fallback
     }
 
-    return WHITELIST_INTERNAL.filter(acc => !deletedEmails.includes(acc.email.toLowerCase().trim()));
+    if (!result) {
+      result = WHITELIST_INTERNAL.filter(acc => !deletedEmails.includes(acc.email.toLowerCase().trim()));
+    }
+    authMemoryCache.internalAccounts = { key: cacheKey, value: result };
+    return result;
   },
 
   // Menyimpan daftar akun internal ke localStorage
   saveInternalAccounts: (accounts: InternalAccount[]): void => {
     localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+    authMemoryCache.internalAccounts = undefined;
   },
 
   // Reset daftar akun ke bawaan pabrik
   resetToDefaultAccounts: (): InternalAccount[] => {
     localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
     localStorage.removeItem(DELETED_ACCOUNTS_STORAGE_KEY);
+    authMemoryCache.deletedAccounts = undefined;
+    authMemoryCache.internalAccounts = undefined;
     return WHITELIST_INTERNAL;
   },
 
   // Memperbarui sesi akun aktif jika data akunnya diubah
   updateCurrentUserSession: (updatedUser: AuthUser): void => {
-    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    const raw = JSON.stringify(updatedUser);
+    sessionStorage.setItem(AUTH_STORAGE_KEY, raw);
+    localStorage.setItem(AUTH_STORAGE_KEY, raw);
+    authMemoryCache.currentUser = { raw, value: updatedUser };
   },
 
   // Mendapatkan sesi login aktif (TIDAK ADA auto-login fallback)
   getCurrentUser: (): AuthUser | null => {
     try {
       const data = sessionStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!data) return null;
+      if (authMemoryCache.currentUser && authMemoryCache.currentUser.raw === data) {
+        return authMemoryCache.currentUser.value;
+      }
+      if (!data) {
+        authMemoryCache.currentUser = { raw: null, value: null };
+        return null;
+      }
       const user = JSON.parse(data) as AuthUser;
       // Auto-migrate Super Admin & HR Admin to include 'hakakses' if missing
       if ((user.role === 'Super Admin' || user.role === 'HR Admin') && Array.isArray(user.allowedTabs) && !user.allowedTabs.includes('hakakses')) {
         user.allowedTabs.push('hakakses');
-        sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        const updatedRaw = JSON.stringify(user);
+        sessionStorage.setItem(AUTH_STORAGE_KEY, updatedRaw);
+        localStorage.setItem(AUTH_STORAGE_KEY, updatedRaw);
+        authMemoryCache.currentUser = { raw: updatedRaw, value: user };
+        return user;
       }
+      authMemoryCache.currentUser = { raw: data, value: user };
       return user;
     } catch {
       return null;
@@ -823,12 +902,18 @@ export const authService = {
   getRoleMatrix: (): RoleMatrix => {
     try {
       const raw = localStorage.getItem(ROLE_MATRIX_STORAGE_KEY);
+      if (authMemoryCache.roleMatrix && authMemoryCache.roleMatrix.raw === raw) {
+        return authMemoryCache.roleMatrix.value;
+      }
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          return { ...DEFAULT_ROLE_MATRIX, ...parsed };
+          const val = { ...DEFAULT_ROLE_MATRIX, ...parsed };
+          authMemoryCache.roleMatrix = { raw, value: val };
+          return val;
         }
       }
+      authMemoryCache.roleMatrix = { raw, value: DEFAULT_ROLE_MATRIX };
     } catch {
       // fallback
     }
@@ -837,7 +922,9 @@ export const authService = {
 
   // Menyimpan matriks hak akses peran dinamis
   saveRoleMatrix: (matrix: RoleMatrix): void => {
-    localStorage.setItem(ROLE_MATRIX_STORAGE_KEY, JSON.stringify(matrix));
+    const raw = JSON.stringify(matrix);
+    localStorage.setItem(ROLE_MATRIX_STORAGE_KEY, raw);
+    authMemoryCache.roleMatrix = { raw, value: { ...DEFAULT_ROLE_MATRIX, ...matrix } };
   },
 
   // Reset matriks hak akses peran ke bawaan
@@ -845,6 +932,9 @@ export const authService = {
     localStorage.removeItem(ROLE_MATRIX_STORAGE_KEY);
     localStorage.removeItem(WAGE_SUMMARY_CONFIG_STORAGE_KEY);
     localStorage.removeItem(ROLE_DEFINITIONS_STORAGE_KEY);
+    authMemoryCache.roleMatrix = undefined;
+    authMemoryCache.wageSummaryConfig = undefined;
+    authMemoryCache.roleDefinitions = undefined;
     return DEFAULT_ROLE_MATRIX;
   },
 
@@ -855,6 +945,7 @@ export const authService = {
     sessionStorage.removeItem('bk_supervisor_session');
     sessionStorage.removeItem('bk_supervisor_user');
     sessionStorage.removeItem('bk_dev_sim_unlocked');
+    authMemoryCache.currentUser = { raw: null, value: null };
   }
 };
 

@@ -915,14 +915,14 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-[100dvh] pb-[env(safe-area-inset-bottom,0px)] bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       
       {/* 1. TOP NAVBAR / BRAND HEADER */}
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5 shadow-sm print:hidden">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <header className="sticky top-0 z-30 bg-slate-950 lg:bg-slate-950/90 lg:backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-3 shadow-sm print:hidden">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
           
           {/* Logo & Application Title */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-900/30">
               <Building2 className="w-5 h-5" />
             </div>
@@ -942,12 +942,12 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             
             {/* Copy Public Link */}
             <button
               onClick={handleCopyLink}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+              className={`px-3 py-2 min-h-[44px] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border ${
                 isCopied 
                   ? 'bg-emerald-600 text-white border-emerald-500' 
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
@@ -961,7 +961,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
             {/* Print / Save PDF */}
             <button
               onClick={() => window.print()}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
+              className="px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
               title="Cetak ringkasan halaman ini"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -979,7 +979,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                     setInputNama(filteredWorkers[0].nama);
                   }
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                className="px-3.5 py-2 min-h-[44px] rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
                 title="Input atau laporkan ketidakhadiran / izin pekerja hari ini"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -991,7 +991,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
             {onSwitchToLogin && (
               <button
                 onClick={onSwitchToLogin}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                className="px-3.5 py-2 min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
                 title="Buka gerbang login khusus tim internal"
               >
                 <Lock className="w-3.5 h-3.5" />
@@ -1003,7 +1003,7 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
             {onExitPublic && (
               <button
                 onClick={onExitPublic}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                className="px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
                 title="Tutup mode portal publik"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -2536,11 +2536,11 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
 
       {/* 5. MODAL INPUT IZIN PEKERJA LANGSUNG DARI PORTAL PUBLIK */}
       {showInputModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-20 sm:pb-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden my-auto">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/85 lg:backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden my-auto">
             
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 flex-shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
                   <CalendarCheck className="w-4 h-4" />
@@ -2556,14 +2556,15 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
                   setShowInputModal(false);
                   setInputStatusMessage(null);
                 }}
-                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                className="w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
+                aria-label="Tutup modal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body / Form */}
-            <form onSubmit={handleAddIjinSubmit} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleAddIjinSubmit} className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
               
               {inputStatusMessage && (
                 <div className={`p-3 rounded-xl border flex items-start gap-2.5 ${
@@ -2721,18 +2722,18 @@ export const PublicPortal: React.FC<PublicPortalProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+              <div className="pt-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] flex items-center justify-end gap-2 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowInputModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
+                  className="px-4 py-2.5 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingIjin}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-blue-900/30 transition-all disabled:opacity-50"
+                  className="px-5 py-2.5 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-blue-900/30 transition-all disabled:opacity-50"
                 >
                   {isSubmittingIjin ? (
                     <>

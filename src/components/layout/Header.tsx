@@ -141,16 +141,18 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
       }
     };
     if (isDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside, { passive: true });
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isDropdownOpen]);
 
@@ -191,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header 
-      className={`fixed top-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 z-20 transition-all duration-300 flex items-center justify-between px-3 sm:px-4 lg:px-6 shadow-xs max-w-full overflow-hidden print:hidden ${
+      className={`fixed top-0 right-0 h-16 bg-white lg:bg-white/95 lg:backdrop-blur-md border-b border-slate-200/90 z-20 transition-all duration-300 flex items-center justify-between px-3 sm:px-4 lg:px-6 shadow-xs max-w-full print:hidden ${
         collapsed ? 'lg:left-[68px] left-0' : 'lg:left-64 left-0'
       }`}
     >
@@ -201,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="lg:hidden p-2 -ml-1 rounded-xl text-slate-700 hover:text-blue-600 hover:bg-slate-100 transition-colors flex-shrink-0 cursor-pointer"
+          className="lg:hidden min-h-[44px] min-w-[44px] p-2 -ml-1 rounded-xl text-slate-700 hover:text-blue-600 hover:bg-slate-100 transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer"
           title="Buka Menu Navigasi"
           aria-label="Buka Menu Navigasi"
         >
@@ -237,7 +239,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Portal Publik (Linktree) Button */}
         <button
           onClick={onOpenPublicShareModal}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-slate-200 shadow-xs transition-all cursor-pointer"
+          className="hidden sm:flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-slate-200 shadow-xs transition-all cursor-pointer"
           title="Tautan Portal Publik untuk Linktree"
         >
           <Globe className="w-3.5 h-3.5 text-indigo-600" />
@@ -251,10 +253,10 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenLoginQr && (
           <button
             onClick={onOpenLoginQr}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 shadow-xs transition-all cursor-pointer select-none"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 shadow-xs transition-all cursor-pointer select-none"
             title="Buka QR Code presisi tinggi untuk scan login staf"
           >
-            <QrCode className="w-3.5 h-3.5 text-blue-600" />
+            <QrCode className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-blue-600" />
             <span className="hidden sm:inline">QR Login</span>
           </button>
         )}
@@ -263,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={handleManualRefresh}
           disabled={isRefreshing}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-blue-50/70 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 shadow-xs transition-all cursor-pointer select-none group active:scale-95"
+          className="flex min-h-[44px] items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-blue-50/70 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 shadow-xs transition-all cursor-pointer select-none group active:scale-95"
           title={`Auto-Sync aktif (${countdown}d) • Klik untuk tarik data Google Sheets sekarang • Terakhir: ${formatWibTime(lastSyncTime)}`}
           aria-label="Smart Auto Sync"
         >
@@ -333,11 +335,11 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenRoleSwitcher && canSwitch && (
           <button
             onClick={onOpenRoleSwitcher}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-xs transition-all text-xs font-bold cursor-pointer active:scale-95"
+            className="flex min-h-[44px] items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 border border-amber-300 shadow-xs transition-all text-xs font-bold cursor-pointer active:scale-95"
             title="Ganti peran jabatan cepat (Khusus Developer / Super Admin)"
           >
             <Repeat className="w-3.5 h-3.5 text-amber-700" />
-            <span className="inline text-[11px] font-bold">Ganti Peran</span>
+            <span className="hidden xs:inline text-[11px] font-bold">Ganti Peran</span>
           </button>
         )}
 
@@ -345,7 +347,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={`flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border transition-all text-xs shadow-xs select-none active:scale-98 cursor-pointer ${
+            className={`flex min-h-[44px] items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border transition-all text-xs shadow-xs select-none active:scale-98 cursor-pointer ${
               isDropdownOpen 
                 ? 'bg-blue-50 border-blue-300 text-blue-900 ring-2 ring-blue-500/20' 
                 : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
@@ -371,7 +373,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Unified Dynamic Dropdown Menu Popover */}
           {isDropdownOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] max-h-[80dvh] overflow-y-auto bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-150">
               
               {/* User Identity Card */}
               <div className="p-3 bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-xl space-y-1.5 shadow-sm">

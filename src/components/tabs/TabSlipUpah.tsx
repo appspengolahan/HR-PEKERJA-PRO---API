@@ -15,7 +15,7 @@ import {
 import { PekerjaData, SlipUpahData } from '../../types';
 import { gasClient } from '../../services/gasClient';
 import { AuthUser, authService, isWorkerInUserScope } from '../../services/authService';
-import { getWibDateParts } from '../../utils/dateUtils';
+import { getWibDateParts, formatNumberId, formatRupiah } from '../../utils/dateUtils';
 
 interface TabSlipUpahProps {
   pekerjaList: PekerjaData[];
@@ -207,7 +207,7 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
   const fmtRupiah = (val: number | string) => {
     const num = Number(val);
     if (isNaN(num)) return String(val);
-    return `Rp ${Math.round(num).toLocaleString('id-ID')}`;
+    return formatRupiah(num);
   };
 
   const bulanOptions = [
@@ -542,7 +542,7 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Hari Kerja Kolektif</span>
               <div className="text-2xl font-black text-blue-700 mt-1 flex items-baseline gap-1.5">
-                {rekapSummary.totalHariKerja.toLocaleString('id-ID')} <span className="text-xs font-normal text-slate-500">hari</span>
+                {formatNumberId(rekapSummary.totalHariKerja)} <span className="text-xs font-normal text-slate-500">hari</span>
               </div>
               <span className="text-[10px] text-slate-500 mt-1 block">26 hari kerja per orang</span>
             </div>
@@ -632,7 +632,7 @@ export const TabSlipUpah: React.FC<TabSlipUpahProps> = ({
                       GRAND TOTAL BEBAN UPAH ({rekapWorkers.length} PEKERJA):
                     </td>
                     <td className="py-3 px-3 text-center font-mono">
-                      {rekapSummary.totalHariKerja.toLocaleString('id-ID')} hr
+                      {formatNumberId(rekapSummary.totalHariKerja)} hr
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-emerald-800 text-sm font-black">
                       {fmtRupiah(rekapSummary.totalUpahPokok)}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CalendarCheck, 
   Plus, 
@@ -23,6 +23,7 @@ import {
 } from '../../utils/workHoursUtils';
 import { getWibDateParts, getWibTodayIso } from '../../utils/dateUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
+import { TablePagination } from '../common/TablePagination';
 
 interface TabPresensiProps {
   presensiList: PresensiIjinRecord[];
@@ -131,10 +132,13 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [addManualFaktor, setAddManualFaktor] = useState<string>('auto');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Filter pekerja according to user role authorization and current scope
-  const filteredPekerja = pekerjaList.filter(p => {
-    return isWorkerInUserScope(p, currentUser || null, currentScope);
-  });
+  const filteredPekerja = useMemo(() => {
+    return pekerjaList.filter(p => isWorkerInUserScope(p, currentUser || null, currentScope));
+  }, [pekerjaList, currentUser, currentScope]);
 
   // Set nama pekerja yang diizinkan untuk menyaring riwayat presensi tabel
   const allowedWorkerNames = useMemo(() => {
@@ -153,7 +157,17 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     });
   }, [presensiList, allowedWorkerNames, currentUser, currentScope]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentScope, selectedBulan, selectedTahun, selectedNama, displayedPresensiList.length]);
+
+  const paginatedPresensiList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return displayedPresensiList.slice(start, start + pageSize);
+  }, [displayedPresensiList, currentPage, pageSize]);
+
   const handleApplyFilter = () => {
+    setCurrentPage(1);
     onFilterChange(selectedBulan, selectedTahun, selectedNama);
   };
 
@@ -468,14 +482,14 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleOpenAdd}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+              className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Tambah Ijin
             </button>
             <button
               onClick={handleOpenBlankOrSelectedSuratIjin}
-              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-indigo-200 transition-colors"
+              className="min-h-[44px] px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-indigo-200 transition-colors cursor-pointer"
               title="Buka / Cetak Formulir Fisik Resmi (Standar Kertas 20,5 × 16 cm - GAS Lama)"
             >
               <FileText className="w-4 h-4 text-indigo-600" />
@@ -483,7 +497,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             </button>
             <button
               onClick={() => window.print()}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors"
+              className="min-h-[44px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-600" />
               Export PDF
@@ -492,7 +506,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               <button
                 onClick={handleTriggerRealign}
                 disabled={isRealigning}
-                className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-amber-200 transition-colors cursor-pointer"
+                className="min-h-[44px] px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-amber-200 transition-colors cursor-pointer"
                 title="Menata ulang baris spreadsheet tepat di bawah baris 381 Rudiono & membersihkan duplikasi tanggal pekerja"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${isRealigning ? 'animate-spin' : ''}`} />
@@ -503,13 +517,13 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         </div>
 
         {/* Filter Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div>
             <label className="block text-slate-500 font-bold mb-1">Bulan</label>
             <select
               value={selectedBulan}
               onChange={(e) => setSelectedBulan(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
             >
               {bulanOptions.map(b => (
                 <option key={b.val} value={b.val}>{b.label}</option>
@@ -522,7 +536,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             <select
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
             >
               <option value="2025">2025</option>
               <option value="2026">2026</option>
@@ -534,7 +548,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             <select
               value={selectedNama}
               onChange={(e) => setSelectedNama(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
             >
               <option value="">-- Semua Pekerja di Tim --</option>
               {filteredPekerja.map(p => (
@@ -547,7 +561,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             <button
               onClick={handleApplyFilter}
               disabled={isLoading}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full min-h-[44px] py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Search className="w-4 h-4" />
               {isLoading ? 'Memuat...' : 'Tampilkan Data'}
@@ -588,14 +602,14 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {displayedPresensiList.length === 0 ? (
+              {paginatedPresensiList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 italic">
                     {isLoading ? 'Sedang memuat data langsung dari spreadsheet...' : 'Belum ada data ijin tercatat pada filter ini.'}
                   </td>
                 </tr>
               ) : (
-                displayedPresensiList.map((r) => {
+                paginatedPresensiList.map((r) => {
                   const badge = getFaktorPotonganBadgeInfo(r.faktorPotongan);
                   const jam = (r.jamAwal && r.jamAwal !== '-' && r.jamAkhir && r.jamAkhir !== '-') 
                     ? `${r.jamAwal} - ${r.jamAkhir}` : '-';
@@ -642,19 +656,21 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onOpenSuratIjin(r)}
-                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 flex items-center justify-center transition-colors cursor-pointer"
                             title="Buka &amp; Cetak Surat Permohonan Ijin"
+                            aria-label="Cetak Surat Ijin"
                           >
-                            <FileText className="w-3.5 h-3.5" />
+                            <FileText className="w-4 h-4" />
                           </button>
                           {canEditOrDelete && (
                             <>
                               <button
                                 onClick={() => handleOpenEdit(r)}
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+                                className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
                                 title="Edit Data Ijin"
+                                aria-label="Edit Data Ijin"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Edit3 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={async () => {
@@ -667,10 +683,11 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
                                     onDeletePresensi(r.rowNum);
                                   }
                                 }}
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-700 transition-colors cursor-pointer"
+                                className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-700 flex items-center justify-center transition-colors cursor-pointer"
                                 title="Hapus Data Ijin"
+                                aria-label="Hapus Data Ijin"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </>
                           )}
@@ -684,22 +701,36 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
           </table>
         </div>
 
+        <TablePagination
+          totalItems={displayedPresensiList.length}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          itemLabel="entri presensi"
+        />
+
       </div>
 
       {/* Modal Add Ijin - Always Centered with Docked Footer & Safe Bottom Margin */}
       {showAddModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-24 sm:pb-6 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Catat Ijin / Ketidakhadiran Pekerja</h3>
                 <p className="text-[11px] text-slate-400">Faktor potongan otomatis terhitung di backend</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setShowAddModal(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Tutup Modal"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -909,18 +940,18 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               </div>
 
               {/* Fixed / Docked Action Footer with generous bottom margin & padding */}
-              <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
+              <div className="p-3.5 sm:p-4 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-xs"
+                  className="min-h-[44px] px-4 py-2.5 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-xs"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer text-xs flex items-center gap-1.5"
+                  className="min-h-[44px] px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer text-xs flex items-center gap-1.5"
                 >
                   {isSubmitting ? (
                     <>
@@ -940,18 +971,20 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
       {/* Modal Edit Ijin - Always Centered with Docked Footer & Safe Bottom Margin */}
       {editingRecord && canEditOrDelete && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-24 sm:pb-6 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-          <div className="relative m-auto bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 bg-slate-950/80 lg:backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="relative m-auto bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden text-xs">
             <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold">Edit Ijin: {editingRecord.nama}</h3>
                 <p className="text-[11px] text-slate-400">Baris ke-{editingRecord.rowNum} di LOG_PRESENSI_IJIN</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setEditingRecord(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                className="min-w-[44px] min-h-[44px] rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                aria-label="Tutup Modal Edit"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1101,18 +1134,18 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               </div>
 
               {/* Fixed / Docked Action Footer with generous bottom margin & padding */}
-              <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
+              <div className="p-3.5 sm:p-4 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
                 <button
                   type="button"
                   onClick={() => setEditingRecord(null)}
-                  className="px-4 py-2.5 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-xs"
+                  className="min-h-[44px] px-4 py-2.5 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-xs"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer text-xs flex items-center gap-1.5"
+                  className="min-h-[44px] px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer text-xs flex items-center gap-1.5"
                 >
                   {isSubmitting ? (
                     <>

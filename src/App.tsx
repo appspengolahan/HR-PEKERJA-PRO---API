@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
@@ -202,8 +202,12 @@ export default function App() {
   ]);
   const [gasConfig, setGasConfig] = useState<GasConfig>(() => storageService.getGasConfig());
 
+  const syncInFlightRef = useRef(false);
+
   // Background fetch live data directly from Google Sheets (Consolidated Single Request)
   const syncLiveData = useCallback(async () => {
+    if (syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
     setIsRefreshing(true);
     try {
       // Sinkronkan akun internal dari CONFIG_USER_LOGIN secara proaktif
@@ -296,6 +300,7 @@ export default function App() {
     } catch (err) {
       console.warn('Sync live data fallback:', err);
     } finally {
+      syncInFlightRef.current = false;
       setIsRefreshing(false);
     }
   }, []);
@@ -897,7 +902,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden relative print:bg-white print:overflow-visible">
+    <div className="min-h-[100dvh] bg-slate-50 text-slate-900 font-sans antialiased flex flex-col lg:flex-row w-full max-w-full overflow-x-hidden relative print:bg-white print:overflow-visible">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -917,7 +922,7 @@ export default function App() {
 
       {/* Main Workspace Area */}
       <div 
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pb-28 lg:pb-12 min-w-0 w-full max-w-full overflow-x-hidden print:ml-0 print:p-0 print:min-h-0 print:overflow-visible ${
+        className={`flex-1 flex flex-col min-h-[100dvh] transition-all duration-300 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] lg:pb-12 min-w-0 w-full max-w-full overflow-x-hidden print:ml-0 print:p-0 print:min-h-0 print:overflow-visible ${
           collapsed ? 'lg:ml-[68px] ml-0' : 'lg:ml-64 ml-0'
         }`}
       >
