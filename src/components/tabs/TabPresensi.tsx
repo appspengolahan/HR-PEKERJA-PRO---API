@@ -21,7 +21,7 @@ import {
   parseTimeToMinutes,
   getFaktorPotonganBadgeInfo 
 } from '../../utils/workHoursUtils';
-import { getWibDateParts, getWibTodayIso } from '../../utils/dateUtils';
+import { getWibDateParts, getWibTodayIso, parseDateToMetaFast } from '../../utils/dateUtils';
 import { useSystemDialog } from '../../context/SystemDialogContext';
 import { TablePagination } from '../common/TablePagination';
 
@@ -75,6 +75,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
   const [selectedBulan, setSelectedBulan] = useState(() => String(getWibDateParts().month));
   const [selectedTahun, setSelectedTahun] = useState(() => String(getWibDateParts().year));
   const [selectedNama, setSelectedNama] = useState('');
+  const [activeFilter, setActiveFilter] = useState<{ bulan: string; tahun: string; nama: string } | null>(null);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PresensiIjinRecord | null>(null);
@@ -145,21 +146,39 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
     return new Set(filteredPekerja.map(p => p.nama.trim().toUpperCase()));
   }, [filteredPekerja]);
 
-  // Daftar presensi yang ditampilkan disaring sesuai otoritas peran
+  // Daftar presensi yang ditampilkan disaring sesuai otoritas peran dan filter aktif
   const displayedPresensiList = useMemo(() => {
-    if (currentUser?.role === 'Super Admin' && currentScope === 'ALL') {
-      return presensiList;
-    }
-    return presensiList.filter(r => {
-      if (allowedWorkerNames.has((r.nama || '').trim().toUpperCase())) return true;
-      const rUnitSekup = `${r.sekup || ''} ${r.unit || ''}`.trim();
-      return isWorkerInUserScope({ nama: r.nama, unit: r.unit, sekup: r.sekup, unitSekup: rUnitSekup } as any, currentUser || null, currentScope);
+    const scopedList = (currentUser?.role === 'Super Admin' && currentScope === 'ALL')
+      ? presensiList
+      : presensiList.filter(r => {
+          if (allowedWorkerNames.has((r.nama || '').trim().toUpperCase())) return true;
+          const rUnitSekup = `${r.sekup || ''} ${r.unit || ''}`.trim();
+          return isWorkerInUserScope({ nama: r.nama, unit: r.unit, sekup: r.sekup, unitSekup: rUnitSekup } as any, currentUser || null, currentScope);
+        });
+
+    if (!activeFilter) return scopedList;
+
+    const targetMonth = activeFilter.bulan ? Number(activeFilter.bulan) : 0;
+    const targetYear = activeFilter.tahun ? Number(activeFilter.tahun) : 0;
+    const targetNama = (activeFilter.nama || '').trim().toUpperCase();
+
+    return scopedList.filter(r => {
+      if (targetNama && (r.nama || '').trim().toUpperCase() !== targetNama) {
+        return false;
+      }
+      if (targetMonth > 0 || targetYear > 0) {
+        const meta = parseDateToMetaFast(r.tanggalIso || r.tanggal);
+        if (!meta) return false;
+        if (targetMonth > 0 && meta.month !== targetMonth) return false;
+        if (targetYear > 0 && meta.year !== targetYear) return false;
+      }
+      return true;
     });
-  }, [presensiList, allowedWorkerNames, currentUser, currentScope]);
+  }, [presensiList, allowedWorkerNames, currentUser, currentScope, activeFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [currentScope, selectedBulan, selectedTahun, selectedNama, displayedPresensiList.length]);
+  }, [currentScope, activeFilter, displayedPresensiList.length]);
 
   const paginatedPresensiList = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -168,7 +187,17 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
 
   const handleApplyFilter = () => {
     setCurrentPage(1);
+    setActiveFilter({
+      bulan: selectedBulan,
+      tahun: selectedTahun,
+      nama: selectedNama
+    });
     onFilterChange(selectedBulan, selectedTahun, selectedNama);
+  };
+
+  const handleResetFilter = () => {
+    setCurrentPage(1);
+    setActiveFilter(null);
   };
 
   // Live preview calculation for Add Modal
@@ -525,6 +554,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               onChange={(e) => setSelectedBulan(e.target.value)}
               className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
             >
+              <option value="">-- Semua Bulan --</option>
               {bulanOptions.map(b => (
                 <option key={b.val} value={b.val}>{b.label}</option>
               ))}
@@ -538,8 +568,10 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
               onChange={(e) => setSelectedTahun(e.target.value)}
               className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
             >
+              <option value="">-- Semua Tahun --</option>
               <option value="2025">2025</option>
               <option value="2026">2026</option>
+              <option value="2027">2027</option>
             </select>
           </div>
 
@@ -557,15 +589,25 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
             </select>
           </div>
 
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <button
               onClick={handleApplyFilter}
               disabled={isLoading}
-              className="w-full min-h-[44px] py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              className="flex-1 min-h-[44px] py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Search className="w-4 h-4" />
               {isLoading ? 'Memuat...' : 'Tampilkan Data'}
             </button>
+            {activeFilter && (
+              <button
+                type="button"
+                onClick={handleResetFilter}
+                className="min-h-[44px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold border border-slate-200 transition-colors cursor-pointer whitespace-nowrap"
+                title="Tampilkan semua periode yang tersinkron"
+              >
+                Semua
+              </button>
+            )}
           </div>
         </div>
 
@@ -577,7 +619,7 @@ export const TabPresensi: React.FC<TabPresensiProps> = ({
         <div className="p-3 sm:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-800">
-              Daftar Ijin / Ketidakhadiran Tercatat ({presensiList.length} Entri)
+              Daftar Ijin / Ketidakhadiran Tercatat ({displayedPresensiList.length} Entri)
             </span>
             <span className="sm:hidden px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
               Geser Tabel ↔

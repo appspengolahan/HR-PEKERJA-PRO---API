@@ -47,7 +47,7 @@ import {
   normalizeDateToDmy,
   sanitizePresensiFaktor 
 } from './utils/workHoursUtils';
-import { getWibTodayDmy } from './utils/dateUtils';
+import { getWibTodayDmy, getWibDateParts } from './utils/dateUtils';
 
 // Fallback initial workers if completely offline before first sync
 const INITIAL_PEKERJA_FALLBACK: PekerjaData[] = [
@@ -146,6 +146,25 @@ export default function App() {
     return clean;
   };
 
+  const mergePresensiRecords = useCallback((prev: PresensiIjinRecord[], cloudList: PresensiIjinRecord[]): PresensiIjinRecord[] => {
+    if (!Array.isArray(cloudList) || cloudList.length === 0) return prev;
+    const missingLocal = prev.filter(localItem => {
+      const localIso = normalizeDateToIso(localItem.tanggalIso || localItem.tanggal);
+      const localNama = (localItem.nama || '').trim().toUpperCase();
+      return !cloudList.some(cItem => {
+        const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
+        return cIso === localIso && (cItem.nama || '').trim().toUpperCase() === localNama;
+      });
+    });
+    const merged = deduplicatePresensiList([...missingLocal, ...cloudList].map(sanitizePresensiFaktor));
+    try {
+      localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
+    } catch {
+      // ignore quota error
+    }
+    return merged;
+  }, []);
+
   const [switchAppUrl, setSwitchAppUrl] = useState('https://appspengolahan.github.io/HR-Karyawan-PP1/');
   const [presensiList, setPresensiList] = useState<PresensiIjinRecord[]>(() => {
     let base: PresensiIjinRecord[] = INITIAL_PRESENSI_FALLBACK;
@@ -241,57 +260,31 @@ export default function App() {
         if (d.switchAppUrl) {
           setSwitchAppUrl(d.switchAppUrl);
         }
-        if (d.jadwalMutasi) {
+        if (Array.isArray(d.jadwalMutasi) && d.jadwalMutasi.length > 0) {
           setJadwalMutasiList(d.jadwalMutasi);
           localStorage.setItem('hr_jadwal_mutasi_cache', JSON.stringify(d.jadwalMutasi));
         }
-        if (d.calonPekerja) {
+        if (Array.isArray(d.calonPekerja) && d.calonPekerja.length > 0) {
           setCalonList(d.calonPekerja);
         }
         if (d.presensi && Array.isArray(d.presensi) && d.presensi.length > 0) {
-          setPresensiList(prev => {
-            const cloudList = d.presensi as PresensiIjinRecord[];
-            const missingLocal = prev.filter(localItem => {
-              const localIso = normalizeDateToIso(localItem.tanggalIso || localItem.tanggal);
-              const existsInCloud = cloudList.some(cItem => {
-                const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
-                return cIso === localIso && 
-                  (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase();
-              });
-              return !existsInCloud;
-            });
-            const merged = deduplicatePresensiList([...missingLocal, ...cloudList].map(sanitizePresensiFaktor));
-            localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
-            return merged;
-          });
+          setPresensiList(prev => mergePresensiRecords(prev, d.presensi as PresensiIjinRecord[]));
         }
         if (d.lembur) {
-          if (Array.isArray(d.lembur)) {
-            setLemburList(d.lembur);
-          } else if (d.lembur.rows && Array.isArray(d.lembur.rows)) {
-            setLemburList(d.lembur.rows);
+          const lemburRows = Array.isArray(d.lembur)
+            ? d.lembur
+            : (Array.isArray(d.lembur.rows) ? d.lembur.rows : []);
+          if (lemburRows.length > 0) {
+            setLemburList(lemburRows);
           }
         }
 
         // Fetch complete annual presensi history to guarantee full 12-month rekap accuracy
         try {
-          const presensiHistory = await gasClient.getPresensi('', '2026', '', 'ALL');
+          const currentWibYear = String(getWibDateParts().year);
+          const presensiHistory = await gasClient.getPresensi('', currentWibYear, '', 'ALL');
           if (presensiHistory.status === 'success' && Array.isArray(presensiHistory.data) && presensiHistory.data.length > 0) {
-            setPresensiList(prev => {
-              const cloudList = presensiHistory.data as PresensiIjinRecord[];
-              const missingLocal = prev.filter(localItem => {
-                const localIso = normalizeDateToIso(localItem.tanggalIso || localItem.tanggal);
-                const existsInCloud = cloudList.some(cItem => {
-                  const cIso = normalizeDateToIso(cItem.tanggalIso || cItem.tanggal);
-                  return cIso === localIso && 
-                    (cItem.nama || '').trim().toUpperCase() === (localItem.nama || '').trim().toUpperCase();
-                });
-                return !existsInCloud;
-              });
-              const merged = deduplicatePresensiList([...missingLocal, ...cloudList].map(sanitizePresensiFaktor));
-              localStorage.setItem('hr_presensi_cache', JSON.stringify(merged));
-              return merged;
-            });
+            setPresensiList(prev => mergePresensiRecords(prev, presensiHistory.data as PresensiIjinRecord[]));
           }
         } catch (e) {
           console.warn('Presensi history fetch note:', e);
@@ -303,7 +296,7 @@ export default function App() {
       syncInFlightRef.current = false;
       setIsRefreshing(false);
     }
-  }, []);
+  }, [mergePresensiRecords]);
 
   // Initial load
   useEffect(() => {
@@ -320,13 +313,13 @@ export default function App() {
     storageService.saveSidebarCollapsed(val);
   };
 
-  // Presensi Handlers
+  // Presensi Handlers (gabungkan hasil filter live ke master presensiList tanpa menghapus data bulan lain)
   const handleFilterPresensi = async (bulan: string, tahun: string, nama: string) => {
     setIsRefreshing(true);
     try {
       const res = await gasClient.getPresensi(bulan, tahun, nama, currentScope);
-      if (res.status === 'success' && Array.isArray(res.data)) {
-        setPresensiList(res.data as PresensiIjinRecord[]);
+      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+        setPresensiList(prev => mergePresensiRecords(prev, res.data as PresensiIjinRecord[]));
       }
     } finally {
       setIsRefreshing(false);

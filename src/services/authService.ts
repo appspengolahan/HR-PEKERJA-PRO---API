@@ -787,53 +787,72 @@ export const authService = {
   },
 
   // Sinkronisasi data akun dari Google Sheets (CONFIG_USER_LOGIN) ke penyimpanan lokal
-  syncFromCloud: async (): Promise<InternalAccount[]> => {
-    const deletedEmails = authService.getDeletedAccountEmails();
-    try {
-      const res = await gasClient.getUserLogins();
-      if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-        // Ambil akun dari Google Sheet dan filter akun yang telah sengaja dihapus
-        const cloudAccounts: InternalAccount[] = res.data
-          .map(item => ({
-            email: String(item.email || '').trim().toLowerCase(),
-            password: String(item.password || '').trim(),
-            nama: String(item.nama || item.email || '').trim(),
-            role: item.role || 'Foreman / Mandor',
-            scope: item.scope || 'ALL',
-            units: Array.isArray(item.units) ? item.units : [item.scope || 'ALL'],
-            allowedTabs: Array.isArray(item.allowedTabs) ? item.allowedTabs : ['dashboard', 'presensi', 'lembur', 'rekap']
-          }))
-          .filter(acc => !deletedEmails.includes(acc.email));
+  // Dilengkapi cooldown 5 menit & deduplikasi in-flight agar tidak menembak GAS tiap 60 detik saat auto-sync
+  syncFromCloud: (() => {
+    let inFlight: Promise<InternalAccount[]> | null = null;
+    let lastSyncedAt = 0;
+    const COOLDOWN_MS = 5 * 60 * 1000;
 
-        const merged: InternalAccount[] = [...cloudAccounts];
-        
-        // Ambil akun lokal yang belum tersimpan di sheet namun belum dihapus
-        const existingLocal = authService.getInternalAccounts();
-        existingLocal.forEach(locAcc => {
-          const locEmail = locAcc.email.toLowerCase().trim();
-          if (!deletedEmails.includes(locEmail)) {
-            const idx = merged.findIndex(a => a.email.toLowerCase().trim() === locEmail);
-            if (idx === -1) {
-              merged.push(locAcc);
-            }
-          }
-        });
-
-        // Pastikan akun utama Lead Developer selalu ada
-        const hasDev = merged.some(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
-        if (!hasDev) {
-          const devAcc = WHITELIST_INTERNAL.find(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
-          if (devAcc) merged.unshift(devAcc);
-        }
-
-        authService.saveInternalAccounts(merged);
-        return merged;
+    return async (force = false): Promise<InternalAccount[]> => {
+      if (inFlight) return inFlight;
+      if (!force && lastSyncedAt > 0 && Date.now() - lastSyncedAt < COOLDOWN_MS) {
+        return authService.getInternalAccounts();
       }
-    } catch (e) {
-      console.warn('Sync accounts from cloud failed/offline:', e);
-    }
-    return authService.getInternalAccounts();
-  },
+
+      const deletedEmails = authService.getDeletedAccountEmails();
+      inFlight = (async () => {
+        try {
+          const res = await gasClient.getUserLogins();
+          if (res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+            // Ambil akun dari Google Sheet dan filter akun yang telah sengaja dihapus
+            const cloudAccounts: InternalAccount[] = res.data
+              .map(item => ({
+                email: String(item.email || '').trim().toLowerCase(),
+                password: String(item.password || '').trim(),
+                nama: String(item.nama || item.email || '').trim(),
+                role: item.role || 'Foreman / Mandor',
+                scope: item.scope || 'ALL',
+                units: Array.isArray(item.units) ? item.units : [item.scope || 'ALL'],
+                allowedTabs: Array.isArray(item.allowedTabs) ? item.allowedTabs : ['dashboard', 'presensi', 'lembur', 'rekap']
+              }))
+              .filter(acc => !deletedEmails.includes(acc.email));
+
+            const merged: InternalAccount[] = [...cloudAccounts];
+            
+            // Ambil akun lokal yang belum tersimpan di sheet namun belum dihapus
+            const existingLocal = authService.getInternalAccounts();
+            existingLocal.forEach(locAcc => {
+              const locEmail = locAcc.email.toLowerCase().trim();
+              if (!deletedEmails.includes(locEmail)) {
+                const idx = merged.findIndex(a => a.email.toLowerCase().trim() === locEmail);
+                if (idx === -1) {
+                  merged.push(locAcc);
+                }
+              }
+            });
+
+            // Pastikan akun utama Lead Developer selalu ada
+            const hasDev = merged.some(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+            if (!hasDev) {
+              const devAcc = WHITELIST_INTERNAL.find(a => a.email.toLowerCase().trim() === 'appspengolahan@gmail.com');
+              if (devAcc) merged.unshift(devAcc);
+            }
+
+            authService.saveInternalAccounts(merged);
+            lastSyncedAt = Date.now();
+            return merged;
+          }
+        } catch (e) {
+          console.warn('Sync accounts from cloud failed/offline:', e);
+        } finally {
+          inFlight = null;
+        }
+        return authService.getInternalAccounts();
+      })();
+
+      return inFlight;
+    };
+  })(),
 
   // Login Internal Asinkron (Cek lokal terlebih dahulu, jika gagal otomatis fetch dari Cloud Google Sheets)
   loginInternalAsync: async (identifier: string, password: string): Promise<{ success: boolean; user?: AuthUser; message?: string }> => {
@@ -843,7 +862,7 @@ export const authService = {
     }
 
     try {
-      await authService.syncFromCloud();
+      await authService.syncFromCloud(true);
       const retryRes = authService.loginInternal(identifier, password);
       if (retryRes.success) {
         return retryRes;

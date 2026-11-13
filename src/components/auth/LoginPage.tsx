@@ -113,7 +113,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsSyncingCloud(true);
     setSyncNotice('');
     try {
-      const accounts = await authService.syncFromCloud();
+      const accounts = await authService.syncFromCloud(true);
       setSyncNotice(`✅ Sukses! ${accounts.length} akun berhasil disinkronkan dari Google Sheets.`);
       setTimeout(() => setSyncNotice(''), 5000);
     } catch {

@@ -362,7 +362,7 @@ export const TabHakAkses: React.FC<TabHakAksesProps> = ({
   const handleFetchFromCloud = async () => {
     setIsFetchingCloud(true);
     try {
-      const cloudAccounts = await authService.syncFromCloud();
+      const cloudAccounts = await authService.syncFromCloud(true);
       setAccounts(cloudAccounts);
       setIsGasDeploymentOutdated(false);
       showNotification('success', `✅ Berhasil! Mengambil ${cloudAccounts.length} akun terbaru dari Google Sheet "${USER_LOGIN_SHEET_NAME}".`);

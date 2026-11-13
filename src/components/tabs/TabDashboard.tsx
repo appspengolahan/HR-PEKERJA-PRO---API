@@ -46,6 +46,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
   const inFlightKeyRef = useRef<string | null>(null);
+  const lastFetchedPeriodRef = useRef<string | null>(null);
 
   // Cek apakah peran akun ini diizinkan melihat Ringkasan Beban Upah Harian Periode Ini
   const userRole = currentUser?.role || 'Super Admin';
@@ -101,7 +102,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     const bNum = Number(selectedBulan);
     const tNum = Number(selectedTahun);
     return presensiList.filter(r => {
-      const meta = parseDateToMetaFast(r.tanggal);
+      const meta = parseDateToMetaFast(r.tanggalIso || r.tanggal);
       return meta && meta.month === bNum && meta.year === tNum;
     });
   }, [presensiList, selectedBulan, selectedTahun]);
@@ -116,6 +117,7 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
       const res = await gasClient.getPresensi(b, t, '', currentScope);
       if (res.status === 'success' && Array.isArray(res.data)) {
         setSummaryPresensi(res.data as PresensiIjinRecord[]);
+        lastFetchedPeriodRef.current = `${b}-${t}`;
         setLastLoadedAt(formatWibTime());
       }
     } catch (err) {
@@ -128,10 +130,14 @@ export const TabDashboard: React.FC<TabDashboardProps> = ({
     }
   }, [selectedBulan, selectedTahun, currentScope]);
 
-  // Sinkronkan dari prop presensiList jika sudah tersedia untuk periode aktif; hanya fetch otomatis jika belum ada data lokal
+  // Sinkronkan dari prop presensiList jika sudah tersedia untuk periode aktif; jangan timpa kosong periode historis yang sudah dimuat live
   useEffect(() => {
     if (localMatchingPresensi.length > 0) {
       setSummaryPresensi(localMatchingPresensi);
+      return;
+    }
+    const activePeriodKey = `${selectedBulan}-${selectedTahun}`;
+    if (lastFetchedPeriodRef.current === activePeriodKey) {
       return;
     }
     if (presensiList.length === 0) {
